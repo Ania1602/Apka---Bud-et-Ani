@@ -11,6 +11,7 @@ export default function RootLayout() {
         <Stack.Screen name="add-credit" options={{ presentation: 'modal' }} />
         <Stack.Screen name="add-budget" options={{ presentation: 'modal' }} />
         <Stack.Screen name="add-recurring" options={{ presentation: 'modal' }} />
+        <Stack.Screen name="add-category" options={{ presentation: 'modal' }} />
         <Stack.Screen name="accounts" />
         <Stack.Screen name="credits" />
         <Stack.Screen name="categories" />
