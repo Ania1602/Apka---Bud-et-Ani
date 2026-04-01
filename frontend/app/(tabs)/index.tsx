@@ -10,7 +10,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { BarChart, PieChart } from 'react-native-gifted-charts';
+import { PieChart } from 'react-native-gifted-charts';
 import { format } from 'date-fns';
 import { pl } from 'date-fns/locale';
 
@@ -24,7 +24,6 @@ export default function Dashboard() {
 
   const fetchData = async () => {
     try {
-      // Initialize categories first time
       await fetch(`${API_URL}/api/initialize`, { method: 'POST' });
       
       const [statsRes, transactionsRes] = await Promise.all([
@@ -57,53 +56,65 @@ export default function Dashboard() {
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#4CAF50" />
+        <ActivityIndicator size="large" color="#D4AF37" />
       </View>
     );
   }
 
   const pieData = [
-    { value: stats?.total_income || 0, color: '#4CAF50', text: 'Przychody' },
-    { value: stats?.total_expenses || 0, color: '#F44336', text: 'Wydatki' },
+    { value: stats?.total_income || 0, color: '#2C5F2D', text: 'Przychody' },
+    { value: stats?.total_expenses || 0, color: '#800020', text: 'Wydatki' },
   ];
 
   return (
     <ScrollView
       style={styles.container}
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#4CAF50" />}
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#D4AF37" />}
     >
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Twój Budżet</Text>
+        <Text style={styles.headerTitle}>Portfolio Finansowe</Text>
         <Text style={styles.headerSubtitle}>{format(new Date(), 'MMMM yyyy', { locale: pl })}</Text>
       </View>
 
       <View style={styles.balanceCard}>
-        <Text style={styles.balanceLabel}>Całkowity Bilans</Text>
+        <View style={styles.balanceHeader}>
+          <Ionicons name="shield-checkmark" size={24} color="#D4AF37" />
+          <Text style={styles.balanceLabel}>Całkowity Bilans</Text>
+        </View>
         <Text style={styles.balanceAmount}>{stats?.total_balance?.toFixed(2) || '0.00'} PLN</Text>
+        
+        <View style={styles.divider} />
+        
         <View style={styles.balanceRow}>
           <View style={styles.balanceItem}>
-            <Ionicons name="arrow-down-circle" size={24} color="#4CAF50" />
+            <View style={styles.iconCircle}>
+              <Ionicons name="trending-up" size={20} color="#2C5F2D" />
+            </View>
             <Text style={styles.balanceItemLabel}>Przychody</Text>
-            <Text style={styles.balanceItemAmount}>+{stats?.total_income?.toFixed(2) || '0.00'}</Text>
+            <Text style={[styles.balanceItemAmount, { color: '#2C5F2D' }]}>
+              +{stats?.total_income?.toFixed(2) || '0.00'}
+            </Text>
           </View>
           <View style={styles.balanceItem}>
-            <Ionicons name="arrow-up-circle" size={24} color="#F44336" />
+            <View style={styles.iconCircle}>
+              <Ionicons name="trending-down" size={20} color="#800020" />
+            </View>
             <Text style={styles.balanceItemLabel}>Wydatki</Text>
-            <Text style={styles.balanceItemAmount}>-{stats?.total_expenses?.toFixed(2) || '0.00'}</Text>
+            <Text style={[styles.balanceItemAmount, { color: '#800020' }]}>
+              -{stats?.total_expenses?.toFixed(2) || '0.00'}
+            </Text>
           </View>
         </View>
       </View>
 
-      <View style={styles.quickActions}>
-        <TouchableOpacity style={styles.actionButton} onPress={() => router.push('/add-transaction')}>
-          <Ionicons name="add-circle" size={24} color="#fff" />
-          <Text style={styles.actionButtonText}>Dodaj Transakcję</Text>
-        </TouchableOpacity>
-      </View>
+      <TouchableOpacity style={styles.actionButton} onPress={() => router.push('/add-transaction')}>
+        <Ionicons name="add-circle" size={22} color="#FFFFFF" />
+        <Text style={styles.actionButtonText}>Nowa Transakcja</Text>
+      </TouchableOpacity>
 
       {pieData[0].value > 0 || pieData[1].value > 0 ? (
         <View style={styles.chartCard}>
-          <Text style={styles.chartTitle}>Przychody vs Wydatki</Text>
+          <Text style={styles.chartTitle}>Struktura Przepływów</Text>
           <View style={styles.chartContainer}>
             <PieChart
               data={pieData}
@@ -122,7 +133,10 @@ export default function Dashboard() {
               {pieData.map((item, index) => (
                 <View key={index} style={styles.legendItem}>
                   <View style={[styles.legendColor, { backgroundColor: item.color }]} />
-                  <Text style={styles.legendText}>{item.text}: {item.value.toFixed(2)} PLN</Text>
+                  <View>
+                    <Text style={styles.legendLabel}>{item.text}</Text>
+                    <Text style={styles.legendValue}>{item.value.toFixed(2)} PLN</Text>
+                  </View>
                 </View>
               ))}
             </View>
@@ -132,25 +146,30 @@ export default function Dashboard() {
 
       <View style={styles.section}>
         <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Ostatnie Transakcje</Text>
+          <Text style={styles.sectionTitle}>Ostatnie Operacje</Text>
           <TouchableOpacity onPress={() => router.push('/transactions')}>
-            <Text style={styles.seeAllText}>Zobacz wszystkie</Text>
+            <Text style={styles.seeAllText}>Zobacz wszystkie →</Text>
           </TouchableOpacity>
         </View>
         {transactions.length === 0 ? (
           <View style={styles.emptyState}>
-            <Ionicons name="document-text-outline" size={48} color="#666" />
+            <View style={styles.emptyIcon}>
+              <Ionicons name="document-text-outline" size={48} color="#9B8B7E" />
+            </View>
             <Text style={styles.emptyStateText}>Brak transakcji</Text>
-            <Text style={styles.emptyStateSubtext}>Dodaj swoją pierwszą transakcję</Text>
+            <Text style={styles.emptyStateSubtext}>Dodaj swoją pierwszą operację</Text>
           </View>
         ) : (
           transactions.map((transaction) => (
             <View key={transaction.id} style={styles.transactionItem}>
-              <View style={styles.transactionIcon}>
+              <View style={[
+                styles.transactionIcon,
+                { backgroundColor: transaction.type === 'income' ? '#2C5F2D15' : '#80002015' }
+              ]}>
                 <Ionicons
                   name={transaction.type === 'income' ? 'arrow-down' : 'arrow-up'}
                   size={20}
-                  color={transaction.type === 'income' ? '#4CAF50' : '#F44336'}
+                  color={transaction.type === 'income' ? '#2C5F2D' : '#800020'}
                 />
               </View>
               <View style={styles.transactionDetails}>
@@ -162,10 +181,10 @@ export default function Dashboard() {
               <Text
                 style={[
                   styles.transactionAmount,
-                  { color: transaction.type === 'income' ? '#4CAF50' : '#F44336' },
+                  { color: transaction.type === 'income' ? '#2C5F2D' : '#800020' },
                 ]}
               >
-                {transaction.type === 'income' ? '+' : '-'}{transaction.amount.toFixed(2)} PLN
+                {transaction.type === 'income' ? '+' : '-'}{transaction.amount.toFixed(2)}
               </Text>
             </View>
           ))
@@ -173,16 +192,20 @@ export default function Dashboard() {
       </View>
 
       <View style={styles.statsRow}>
-        <View style={styles.statCard}>
-          <Ionicons name="wallet" size={32} color="#4CAF50" />
+        <TouchableOpacity style={styles.statCard} onPress={() => router.push('/accounts')}>
+          <View style={styles.statIcon}>
+            <Ionicons name="wallet" size={28} color="#D4AF37" />
+          </View>
           <Text style={styles.statNumber}>{stats?.accounts_count || 0}</Text>
           <Text style={styles.statLabel}>Konta</Text>
-        </View>
-        <View style={styles.statCard}>
-          <Ionicons name="card" size={32} color="#2196F3" />
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.statCard} onPress={() => router.push('/credits')}>
+          <View style={styles.statIcon}>
+            <Ionicons name="card" size={28} color="#1B2845" />
+          </View>
           <Text style={styles.statNumber}>{stats?.credits_count || 0}</Text>
           <Text style={styles.statLabel}>Kredyty</Text>
-        </View>
+        </TouchableOpacity>
       </View>
     </ScrollView>
   );
@@ -197,89 +220,134 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#0c0c0c',
+    backgroundColor: '#FAF8F3',
   },
   header: {
-    padding: 20,
+    padding: 24,
     paddingTop: 60,
+    backgroundColor: '#FAF8F3',
   },
   headerTitle: {
     fontSize: 32,
-    fontWeight: 'bold',
-    color: '#fff',
+    fontWeight: '600',
+    color: '#2A2520',
+    letterSpacing: -0.5,
   },
   headerSubtitle: {
-    fontSize: 16,
-    color: '#999',
-    marginTop: 4,
+    fontSize: 15,
+    color: '#6B5D52',
+    marginTop: 6,
     textTransform: 'capitalize',
+    letterSpacing: 0.3,
   },
   balanceCard: {
-    backgroundColor: '#1a1a1a',
-    margin: 20,
-    marginTop: 10,
+    backgroundColor: '#FFFFFF',
+    marginHorizontal: 20,
+    marginBottom: 16,
     padding: 24,
     borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#E0D5C7',
+    shadowColor: '#2A2520',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  balanceHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 12,
   },
   balanceLabel: {
-    fontSize: 14,
-    color: '#999',
-    marginBottom: 8,
+    fontSize: 13,
+    color: '#6B5D52',
+    letterSpacing: 0.5,
+    textTransform: 'uppercase',
   },
   balanceAmount: {
-    fontSize: 36,
-    fontWeight: 'bold',
-    color: '#fff',
-    marginBottom: 24,
+    fontSize: 40,
+    fontWeight: '600',
+    color: '#2A2520',
+    marginBottom: 20,
+    letterSpacing: -1,
+  },
+  divider: {
+    height: 1,
+    backgroundColor: '#E0D5C7',
+    marginBottom: 20,
   },
   balanceRow: {
     flexDirection: 'row',
-    justifyContent: 'space-around',
+    justifyContent: 'space-between',
   },
   balanceItem: {
+    flex: 1,
     alignItems: 'center',
+  },
+  iconCircle: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#F5F1E8',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 8,
   },
   balanceItemLabel: {
     fontSize: 12,
-    color: '#999',
-    marginTop: 8,
+    color: '#6B5D52',
+    marginBottom: 6,
+    letterSpacing: 0.3,
   },
   balanceItemAmount: {
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: '600',
-    color: '#fff',
-    marginTop: 4,
-  },
-  quickActions: {
-    paddingHorizontal: 20,
-    marginBottom: 20,
+    letterSpacing: -0.5,
   },
   actionButton: {
-    backgroundColor: '#4CAF50',
+    backgroundColor: '#D4AF37',
+    marginHorizontal: 20,
+    marginBottom: 16,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    padding: 16,
+    padding: 18,
     borderRadius: 12,
-    gap: 8,
+    gap: 10,
+    shadowColor: '#D4AF37',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 4,
   },
   actionButtonText: {
-    color: '#fff',
+    color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '600',
+    letterSpacing: 0.3,
   },
   chartCard: {
-    backgroundColor: '#1a1a1a',
-    margin: 20,
-    marginTop: 0,
-    padding: 20,
+    backgroundColor: '#FFFFFF',
+    marginHorizontal: 20,
+    marginBottom: 16,
+    padding: 24,
     borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#E0D5C7',
+    shadowColor: '#2A2520',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 4,
   },
   chartTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#fff',
-    marginBottom: 16,
+    color: '#2A2520',
+    marginBottom: 20,
+    letterSpacing: -0.3,
   },
   chartContainer: {
     flexDirection: 'row',
@@ -287,30 +355,35 @@ const styles = StyleSheet.create({
     justifyContent: 'space-around',
   },
   centerLabel: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#fff',
+    fontSize: 24,
+    fontWeight: '600',
+    color: '#2A2520',
   },
   legend: {
-    gap: 12,
+    gap: 16,
   },
   legendItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 12,
   },
   legendColor: {
-    width: 16,
-    height: 16,
-    borderRadius: 4,
+    width: 20,
+    height: 20,
+    borderRadius: 6,
   },
-  legendText: {
-    fontSize: 14,
-    color: '#fff',
+  legendLabel: {
+    fontSize: 13,
+    color: '#6B5D52',
+    marginBottom: 2,
+  },
+  legendValue: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#2A2520',
   },
   section: {
     padding: 20,
-    paddingTop: 0,
   },
   sectionHeader: {
     flexDirection: 'row',
@@ -321,25 +394,28 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 20,
     fontWeight: '600',
-    color: '#fff',
+    color: '#2A2520',
+    letterSpacing: -0.3,
   },
   seeAllText: {
     fontSize: 14,
-    color: '#4CAF50',
+    color: '#D4AF37',
+    fontWeight: '500',
   },
   transactionItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#1a1a1a',
+    backgroundColor: '#FFFFFF',
     padding: 16,
     borderRadius: 12,
-    marginBottom: 12,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: '#E0D5C7',
   },
   transactionIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#2a2a2a',
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 12,
@@ -350,55 +426,75 @@ const styles = StyleSheet.create({
   transactionCategory: {
     fontSize: 16,
     fontWeight: '500',
-    color: '#fff',
+    color: '#2A2520',
     marginBottom: 4,
   },
   transactionDate: {
-    fontSize: 12,
-    color: '#999',
+    fontSize: 13,
+    color: '#6B5D52',
     textTransform: 'capitalize',
   },
   transactionAmount: {
-    fontSize: 16,
+    fontSize: 17,
     fontWeight: '600',
+    letterSpacing: -0.3,
   },
   emptyState: {
     alignItems: 'center',
     padding: 40,
   },
+  emptyIcon: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: '#F5F1E8',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 16,
+  },
   emptyStateText: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#fff',
-    marginTop: 16,
+    color: '#2A2520',
+    marginBottom: 8,
   },
   emptyStateSubtext: {
     fontSize: 14,
-    color: '#999',
-    marginTop: 8,
+    color: '#6B5D52',
   },
   statsRow: {
     flexDirection: 'row',
     paddingHorizontal: 20,
-    paddingBottom: 20,
+    paddingBottom: 30,
     gap: 12,
   },
   statCard: {
     flex: 1,
-    backgroundColor: '#1a1a1a',
+    backgroundColor: '#FFFFFF',
     padding: 20,
     borderRadius: 12,
     alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#E0D5C7',
+  },
+  statIcon: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: '#F5F1E8',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 12,
   },
   statNumber: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#fff',
-    marginTop: 8,
+    fontSize: 28,
+    fontWeight: '600',
+    color: '#2A2520',
+    marginBottom: 4,
   },
   statLabel: {
-    fontSize: 12,
-    color: '#999',
-    marginTop: 4,
+    fontSize: 13,
+    color: '#6B5D52',
+    letterSpacing: 0.3,
   },
 });

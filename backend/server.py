@@ -246,6 +246,29 @@ async def create_category(category: Category):
     return category_dict
 
 
+@api_router.put("/categories/{category_id}")
+async def update_category(category_id: str, category: Category):
+    result = await db.categories.update_one(
+        {"_id": ObjectId(category_id)},
+        {"$set": category.dict()}
+    )
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Category not found")
+    return {"message": "Category updated"}
+
+@api_router.delete("/categories/{category_id}")
+async def delete_category(category_id: str):
+    # Don't allow deleting default categories
+    category = await db.categories.find_one({"_id": ObjectId(category_id)})
+    if category and category.get("is_default"):
+        raise HTTPException(status_code=400, detail="Cannot delete default category")
+    
+    result = await db.categories.delete_one({"_id": ObjectId(category_id)})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Category not found")
+    return {"message": "Category deleted"}
+
+
 # Credit endpoints
 @api_router.post("/credits", response_model=CreditResponse)
 async def create_credit(credit: Credit):
