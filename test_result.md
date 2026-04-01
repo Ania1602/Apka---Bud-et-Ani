@@ -177,6 +177,42 @@ backend:
         agent: "testing"
         comment: "✅ Dashboard stats endpoint working: GET /api/dashboard/stats returns all required fields: total_balance=7500.0, total_income=3000.0, total_expenses=500.0, accounts_count=1, credits_count=1. All calculations are accurate."
 
+  - task: "Budget management endpoints"
+    implemented: true
+    working: true
+    file: "backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "✅ Budget endpoints working perfectly: POST /api/budgets creates budget for 'Jedzenie' category (month=4, year=2026, limit=1500.0 PLN), GET /api/budgets returns budgets with calculated spent_amount, GET /api/budgets/current returns current month budgets, DELETE /api/budgets/{id} successfully deletes budgets. Budget tracking integration working - spent_amount automatically calculated from transactions."
+
+  - task: "Recurring transaction management"
+    implemented: true
+    working: true
+    file: "backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "✅ Recurring transaction endpoints working correctly: POST /api/recurring-transactions creates recurring expense 'Czynsz' (1200.0 PLN, monthly, category='Rachunki'), GET /api/recurring-transactions returns transactions with calculated next_due_date, POST /api/recurring-transactions/{id}/execute successfully creates actual transaction and updates account balance, DELETE /api/recurring-transactions/{id} removes recurring transactions. Account balance integration working properly."
+
+  - task: "Budget-Transaction integration"
+    implemented: true
+    working: true
+    file: "backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "✅ Budget tracking integration test passed: Created budget for 'TestCategory' with 1000 PLN limit, created 300 PLN expense transaction in same category, verified budget spent_amount automatically updated to 300 PLN. Budget calculations working correctly across all endpoints."
+
 metadata:
   created_by: "testing_agent"
   version: "1.0"
@@ -185,7 +221,7 @@ metadata:
 
 test_plan:
   current_focus:
-    - "All backend API testing completed"
+    - "All backend API testing completed including new budget and recurring transaction features"
   stuck_tasks: []
   test_all: true
   test_priority: "high_first"
@@ -193,3 +229,5 @@ test_plan:
 agent_communication:
   - agent: "testing"
     message: "Comprehensive backend API testing completed successfully. All 13 test cases passed including: initialize categories, account CRUD, category filtering, transaction management with balance updates, credit management, and dashboard statistics. Backend is fully functional and ready for production use."
+  - agent: "testing"
+    message: "New budget and recurring transaction features tested successfully. All 16 test cases now passing: Budget endpoints (POST/GET/DELETE) with automatic spent_amount calculation, Recurring transaction endpoints (POST/GET/EXECUTE/DELETE) with next_due_date calculation and account balance integration, Budget-transaction integration test confirming automatic budget tracking. Fixed minor issues with datetime serialization and null date handling during testing. All new features working correctly."

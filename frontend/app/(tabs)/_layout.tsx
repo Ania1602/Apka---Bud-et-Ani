@@ -38,20 +38,29 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="accounts"
+        name="budgets"
         options={{
-          title: 'Konta',
+          title: 'Budżety',
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="wallet" size={size} color={color} />
+            <Ionicons name="pie-chart" size={size} color={color} />
           ),
         }}
       />
       <Tabs.Screen
-        name="credits"
+        name="recurring"
         options={{
-          title: 'Kredyty',
+          title: 'Stałe',
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="card" size={size} color={color} />
+            <Ionicons name="repeat" size={size} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="more"
+        options={{
+          title: 'Więcej',
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="ellipsis-horizontal" size={size} color={color} />
           ),
         }}
       />

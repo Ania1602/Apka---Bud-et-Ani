@@ -9,6 +9,7 @@ from pydantic import BaseModel, Field
 from typing import List, Optional
 from datetime import datetime
 from bson import ObjectId
+from dateutil.relativedelta import relativedelta
 
 
 ROOT_DIR = Path(__file__).parent
@@ -88,6 +89,35 @@ class DashboardStats(BaseModel):
     total_expenses: float
     accounts_count: int
     credits_count: int
+
+class Budget(BaseModel):
+    category: str
+    month: int  # 1-12
+    year: int
+    limit_amount: float
+    spent_amount: float = 0.0
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+class BudgetResponse(Budget):
+    id: str
+
+class RecurringTransaction(BaseModel):
+    name: str
+    type: str  # income, expense
+    amount: float
+    category: str
+    account_id: str
+    frequency: str  # monthly, quarterly, yearly
+    day_of_month: int  # 1-31
+    start_date: datetime
+    end_date: Optional[datetime] = None
+    is_active: bool = True
+    last_executed: Optional[datetime] = None
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+class RecurringTransactionResponse(RecurringTransaction):
+    id: str
+    next_due_date: Optional[str] = None
 
 
 # Initialize default categories
@@ -281,6 +311,193 @@ async def get_dashboard_stats():
         "accounts_count": len(accounts),
         "credits_count": credits_count
     }
+
+
+# Budget endpoints
+@api_router.post("/budgets", response_model=BudgetResponse)
+async def create_budget(budget: Budget):
+    budget_dict = budget.dict()
+    result = await db.budgets.insert_one(budget_dict)
+    budget_dict["id"] = str(result.inserted_id)
+    return budget_dict
+
+@api_router.get("/budgets", response_model=List[BudgetResponse])
+async def get_budgets(month: Optional[int] = None, year: Optional[int] = None):
+    query = {}
+    if month:
+        query["month"] = month
+    if year:
+        query["year"] = year
+    budgets = await db.budgets.find(query).to_list(1000)
+    
+    # Calculate spent amount for each budget
+    for budget in budgets:
+        start_date = datetime(budget["year"], budget["month"], 1)
+        if budget["month"] == 12:
+            end_date = datetime(budget["year"] + 1, 1, 1)
+        else:
+            end_date = datetime(budget["year"], budget["month"] + 1, 1)
+        
+        # Get transactions for this category and month
+        transactions = await db.transactions.find({
+            "type": "expense",
+            "category": budget["category"],
+            "date": {"$gte": start_date, "$lt": end_date}
+        }).to_list(1000)
+        
+        spent = sum(t["amount"] for t in transactions)
+        budget["spent_amount"] = spent
+        
+        # Update spent_amount in database
+        await db.budgets.update_one(
+            {"_id": budget["_id"]},
+            {"$set": {"spent_amount": spent}}
+        )
+    
+    return [{"id": str(b["_id"]), **{k: v for k, v in b.items() if k != "_id"}} for b in budgets]
+
+@api_router.get("/budgets/current")
+async def get_current_month_budgets():
+    now = datetime.utcnow()
+    return await get_budgets(month=now.month, year=now.year)
+
+@api_router.put("/budgets/{budget_id}")
+async def update_budget(budget_id: str, budget: Budget):
+    result = await db.budgets.update_one(
+        {"_id": ObjectId(budget_id)},
+        {"$set": budget.dict()}
+    )
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Budget not found")
+    return {"message": "Budget updated"}
+
+@api_router.delete("/budgets/{budget_id}")
+async def delete_budget(budget_id: str):
+    result = await db.budgets.delete_one({"_id": ObjectId(budget_id)})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Budget not found")
+    return {"message": "Budget deleted"}
+
+
+# Recurring Transaction endpoints
+@api_router.post("/recurring-transactions", response_model=RecurringTransactionResponse)
+async def create_recurring_transaction(recurring: RecurringTransaction):
+    recurring_dict = recurring.dict()
+    result = await db.recurring_transactions.insert_one(recurring_dict)
+    recurring_dict["id"] = str(result.inserted_id)
+    
+    # Calculate next due date
+    from dateutil.relativedelta import relativedelta
+    next_date = recurring.start_date
+    if recurring.frequency == "monthly":
+        next_date = next_date + relativedelta(months=1)
+    elif recurring.frequency == "quarterly":
+        next_date = next_date + relativedelta(months=3)
+    elif recurring.frequency == "yearly":
+        next_date = next_date + relativedelta(years=1)
+    
+    recurring_dict["next_due_date"] = next_date.isoformat()
+    return recurring_dict
+
+@api_router.get("/recurring-transactions", response_model=List[RecurringTransactionResponse])
+async def get_recurring_transactions():
+    recurrings = await db.recurring_transactions.find().to_list(1000)
+    
+    # Calculate next due date for each
+    from dateutil.relativedelta import relativedelta
+    result = []
+    for rec in recurrings:
+        rec_dict = {"id": str(rec["_id"]), **{k: v for k, v in rec.items() if k != "_id"}}
+        
+        # Calculate next due date
+        last_exec = rec.get("last_executed", rec.get("start_date"))
+        if last_exec is None:
+            # If no last_executed and no start_date, use current time
+            last_exec = datetime.utcnow()
+        elif isinstance(last_exec, str):
+            last_exec = datetime.fromisoformat(last_exec.replace('Z', '+00:00'))
+        
+        next_date = last_exec
+        if rec["frequency"] == "monthly":
+            next_date = next_date + relativedelta(months=1)
+        elif rec["frequency"] == "quarterly":
+            next_date = next_date + relativedelta(months=3)
+        elif rec["frequency"] == "yearly":
+            next_date = next_date + relativedelta(years=1)
+        
+        rec_dict["next_due_date"] = next_date.isoformat()
+        result.append(rec_dict)
+    
+    return result
+
+@api_router.post("/recurring-transactions/{recurring_id}/execute")
+async def execute_recurring_transaction(recurring_id: str):
+    """Execute a recurring transaction (create actual transaction)"""
+    recurring = await db.recurring_transactions.find_one({"_id": ObjectId(recurring_id)})
+    if not recurring:
+        raise HTTPException(status_code=404, detail="Recurring transaction not found")
+    
+    # Create actual transaction
+    transaction_dict = {
+        "type": recurring["type"],
+        "amount": recurring["amount"],
+        "category": recurring["category"],
+        "account_id": recurring["account_id"],
+        "date": datetime.utcnow(),
+        "description": f"Płatność cykliczna: {recurring['name']}",
+        "created_at": datetime.utcnow()
+    }
+    
+    result = await db.transactions.insert_one(transaction_dict)
+    
+    # Update account balance
+    account = await db.accounts.find_one({"_id": ObjectId(recurring["account_id"])})
+    if account:
+        new_balance = account["balance"]
+        if recurring["type"] == "income":
+            new_balance += recurring["amount"]
+        else:
+            new_balance -= recurring["amount"]
+        await db.accounts.update_one(
+            {"_id": ObjectId(recurring["account_id"])},
+            {"$set": {"balance": new_balance}}
+        )
+    
+    # Update last_executed
+    await db.recurring_transactions.update_one(
+        {"_id": ObjectId(recurring_id)},
+        {"$set": {"last_executed": datetime.utcnow()}}
+    )
+    
+    # Prepare response with proper serialization
+    response_dict = {
+        "id": str(result.inserted_id),
+        "type": transaction_dict["type"],
+        "amount": transaction_dict["amount"],
+        "category": transaction_dict["category"],
+        "account_id": transaction_dict["account_id"],
+        "date": transaction_dict["date"].isoformat(),
+        "description": transaction_dict["description"],
+        "created_at": transaction_dict["created_at"].isoformat()
+    }
+    return response_dict
+
+@api_router.put("/recurring-transactions/{recurring_id}")
+async def update_recurring_transaction(recurring_id: str, recurring: RecurringTransaction):
+    result = await db.recurring_transactions.update_one(
+        {"_id": ObjectId(recurring_id)},
+        {"$set": recurring.dict()}
+    )
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Recurring transaction not found")
+    return {"message": "Recurring transaction updated"}
+
+@api_router.delete("/recurring-transactions/{recurring_id}")
+async def delete_recurring_transaction(recurring_id: str):
+    result = await db.recurring_transactions.delete_one({"_id": ObjectId(recurring_id)})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Recurring transaction not found")
+    return {"message": "Recurring transaction deleted"}
 
 
 # Add your routes to the router instead of directly to app

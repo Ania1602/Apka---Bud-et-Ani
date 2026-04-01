@@ -1,480 +1,370 @@
 #!/usr/bin/env python3
 """
-Budget Manager Backend API Testing
-Tests all backend endpoints as specified in the review request
+Budget Manager Backend API Testing - Budget and Recurring Transactions
+Testing new budget and recurring transaction endpoints
 """
 
 import requests
 import json
 from datetime import datetime, timedelta
-import sys
+from dateutil.relativedelta import relativedelta
 
-# Backend URL from frontend .env
-BACKEND_URL = "https://money-manager-all.preview.emergentagent.com/api"
+# Backend URL
+BASE_URL = "https://money-manager-all.preview.emergentagent.com/api"
 
-class BudgetManagerTester:
-    def __init__(self):
-        self.base_url = BACKEND_URL
-        self.session = requests.Session()
-        self.test_account_id = None
-        self.test_results = []
-        
-    def log_test(self, test_name, success, message, response_data=None):
-        """Log test results"""
-        status = "✅ PASS" if success else "❌ FAIL"
-        print(f"{status} {test_name}: {message}")
-        
-        self.test_results.append({
-            "test": test_name,
-            "success": success,
-            "message": message,
-            "response_data": response_data
-        })
-        
-        if not success:
-            print(f"   Details: {response_data}")
+def test_budgets_and_recurring():
+    """Test budget and recurring transaction endpoints"""
+    print("🧪 Testing Budget Manager - Budgets and Recurring Transactions")
+    print("=" * 70)
     
-    def test_initialize_categories(self):
-        """Test POST /api/initialize - Initialize default categories"""
-        try:
-            response = self.session.post(f"{self.base_url}/initialize")
-            
-            if response.status_code == 200:
-                data = response.json()
-                self.log_test("Initialize Categories", True, 
-                            f"Categories initialized: {data.get('message', 'Success')}")
-                return True
-            else:
-                self.log_test("Initialize Categories", False, 
-                            f"HTTP {response.status_code}", response.text)
-                return False
-                
-        except Exception as e:
-            self.log_test("Initialize Categories", False, f"Exception: {str(e)}")
-            return False
-    
-    def test_create_account(self):
-        """Test POST /api/accounts - Create test bank account"""
-        try:
+    # First, get existing account for testing
+    print("\n1. Getting existing account for testing...")
+    try:
+        response = requests.get(f"{BASE_URL}/accounts")
+        response.raise_for_status()
+        accounts = response.json()
+        
+        if not accounts:
+            print("❌ No accounts found. Creating test account...")
             account_data = {
-                "name": "Konto główne",
-                "type": "bank", 
+                "name": "Test Account",
+                "type": "bank",
                 "balance": 5000.0,
                 "currency": "PLN",
                 "icon": "wallet",
                 "color": "#4CAF50"
             }
-            
-            response = self.session.post(f"{self.base_url}/accounts", 
-                                       json=account_data)
-            
-            if response.status_code == 200:
-                data = response.json()
-                self.test_account_id = data.get("id")
-                self.log_test("Create Account", True, 
-                            f"Account created with ID: {self.test_account_id}")
-                return True
-            else:
-                self.log_test("Create Account", False, 
-                            f"HTTP {response.status_code}", response.text)
-                return False
-                
-        except Exception as e:
-            self.log_test("Create Account", False, f"Exception: {str(e)}")
-            return False
+            response = requests.post(f"{BASE_URL}/accounts", json=account_data)
+            response.raise_for_status()
+            account = response.json()
+            account_id = account["id"]
+            print(f"✅ Created test account: {account['name']} (ID: {account_id})")
+        else:
+            account_id = accounts[0]["id"]
+            print(f"✅ Using existing account: {accounts[0]['name']} (ID: {account_id})")
+            print(f"   Current balance: {accounts[0]['balance']} PLN")
+    except Exception as e:
+        print(f"❌ Failed to get/create account: {e}")
+        return False
     
-    def test_get_accounts(self):
-        """Test GET /api/accounts - Verify account was created"""
-        try:
-            response = self.session.get(f"{self.base_url}/accounts")
-            
-            if response.status_code == 200:
-                accounts = response.json()
-                if isinstance(accounts, list) and len(accounts) > 0:
-                    # Check if our test account exists
-                    test_account = next((acc for acc in accounts 
-                                       if acc.get("name") == "Konto główne"), None)
-                    if test_account:
-                        self.log_test("Get Accounts", True, 
-                                    f"Found {len(accounts)} accounts including test account")
-                        return True
-                    else:
-                        self.log_test("Get Accounts", False, 
-                                    "Test account 'Konto główne' not found in response")
-                        return False
-                else:
-                    self.log_test("Get Accounts", False, 
-                                "No accounts returned or invalid response format")
-                    return False
-            else:
-                self.log_test("Get Accounts", False, 
-                            f"HTTP {response.status_code}", response.text)
-                return False
-                
-        except Exception as e:
-            self.log_test("Get Accounts", False, f"Exception: {str(e)}")
-            return False
+    # Test Budget Endpoints
+    print("\n" + "="*50)
+    print("TESTING BUDGET ENDPOINTS")
+    print("="*50)
     
-    def test_get_categories(self):
-        """Test GET /api/categories - Get all categories"""
-        try:
-            response = self.session.get(f"{self.base_url}/categories")
-            
-            if response.status_code == 200:
-                categories = response.json()
-                if isinstance(categories, list) and len(categories) > 0:
-                    self.log_test("Get All Categories", True, 
-                                f"Retrieved {len(categories)} categories")
-                    return True
-                else:
-                    self.log_test("Get All Categories", False, 
-                                "No categories returned")
-                    return False
-            else:
-                self.log_test("Get All Categories", False, 
-                            f"HTTP {response.status_code}", response.text)
-                return False
-                
-        except Exception as e:
-            self.log_test("Get All Categories", False, f"Exception: {str(e)}")
-            return False
+    budget_id = None
     
-    def test_get_income_categories(self):
-        """Test GET /api/categories?type=income - Get income categories"""
-        try:
-            response = self.session.get(f"{self.base_url}/categories?type=income")
-            
-            if response.status_code == 200:
-                categories = response.json()
-                if isinstance(categories, list):
-                    # Verify all returned categories are income type
-                    income_only = all(cat.get("type") == "income" for cat in categories)
-                    if income_only:
-                        self.log_test("Get Income Categories", True, 
-                                    f"Retrieved {len(categories)} income categories")
-                        return True
-                    else:
-                        self.log_test("Get Income Categories", False, 
-                                    "Response contains non-income categories")
-                        return False
-                else:
-                    self.log_test("Get Income Categories", False, 
-                                "Invalid response format")
-                    return False
-            else:
-                self.log_test("Get Income Categories", False, 
-                            f"HTTP {response.status_code}", response.text)
-                return False
-                
-        except Exception as e:
-            self.log_test("Get Income Categories", False, f"Exception: {str(e)}")
-            return False
-    
-    def test_get_expense_categories(self):
-        """Test GET /api/categories?type=expense - Get expense categories"""
-        try:
-            response = self.session.get(f"{self.base_url}/categories?type=expense")
-            
-            if response.status_code == 200:
-                categories = response.json()
-                if isinstance(categories, list):
-                    # Verify all returned categories are expense type
-                    expense_only = all(cat.get("type") == "expense" for cat in categories)
-                    if expense_only:
-                        self.log_test("Get Expense Categories", True, 
-                                    f"Retrieved {len(categories)} expense categories")
-                        return True
-                    else:
-                        self.log_test("Get Expense Categories", False, 
-                                    "Response contains non-expense categories")
-                        return False
-                else:
-                    self.log_test("Get Expense Categories", False, 
-                                "Invalid response format")
-                    return False
-            else:
-                self.log_test("Get Expense Categories", False, 
-                            f"HTTP {response.status_code}", response.text)
-                return False
-                
-        except Exception as e:
-            self.log_test("Get Expense Categories", False, f"Exception: {str(e)}")
-            return False
-    
-    def test_create_income_transaction(self):
-        """Test POST /api/transactions - Create income transaction"""
-        if not self.test_account_id:
-            self.log_test("Create Income Transaction", False, 
-                        "No test account ID available")
-            return False
-            
-        try:
-            transaction_data = {
-                "type": "income",
-                "amount": 3000.0,
-                "category": "Wypłata",
-                "account_id": self.test_account_id,
-                "date": datetime.utcnow().isoformat(),
-                "description": "Test salary payment"
-            }
-            
-            response = self.session.post(f"{self.base_url}/transactions", 
-                                       json=transaction_data)
-            
-            if response.status_code == 200:
-                data = response.json()
-                self.log_test("Create Income Transaction", True, 
-                            f"Income transaction created with ID: {data.get('id')}")
-                return True
-            else:
-                self.log_test("Create Income Transaction", False, 
-                            f"HTTP {response.status_code}", response.text)
-                return False
-                
-        except Exception as e:
-            self.log_test("Create Income Transaction", False, f"Exception: {str(e)}")
-            return False
-    
-    def test_create_expense_transaction(self):
-        """Test POST /api/transactions - Create expense transaction"""
-        if not self.test_account_id:
-            self.log_test("Create Expense Transaction", False, 
-                        "No test account ID available")
-            return False
-            
-        try:
-            transaction_data = {
-                "type": "expense",
-                "amount": 500.0,
-                "category": "Jedzenie",
-                "account_id": self.test_account_id,
-                "date": datetime.utcnow().isoformat(),
-                "description": "Test food expense"
-            }
-            
-            response = self.session.post(f"{self.base_url}/transactions", 
-                                       json=transaction_data)
-            
-            if response.status_code == 200:
-                data = response.json()
-                self.log_test("Create Expense Transaction", True, 
-                            f"Expense transaction created with ID: {data.get('id')}")
-                return True
-            else:
-                self.log_test("Create Expense Transaction", False, 
-                            f"HTTP {response.status_code}", response.text)
-                return False
-                
-        except Exception as e:
-            self.log_test("Create Expense Transaction", False, f"Exception: {str(e)}")
-            return False
-    
-    def test_get_transactions(self):
-        """Test GET /api/transactions - Get all transactions"""
-        try:
-            response = self.session.get(f"{self.base_url}/transactions")
-            
-            if response.status_code == 200:
-                transactions = response.json()
-                if isinstance(transactions, list):
-                    self.log_test("Get Transactions", True, 
-                                f"Retrieved {len(transactions)} transactions")
-                    return True
-                else:
-                    self.log_test("Get Transactions", False, 
-                                "Invalid response format")
-                    return False
-            else:
-                self.log_test("Get Transactions", False, 
-                            f"HTTP {response.status_code}", response.text)
-                return False
-                
-        except Exception as e:
-            self.log_test("Get Transactions", False, f"Exception: {str(e)}")
-            return False
-    
-    def test_account_balance_update(self):
-        """Verify account balance was updated correctly after transactions"""
-        if not self.test_account_id:
-            self.log_test("Account Balance Update", False, 
-                        "No test account ID available")
-            return False
-            
-        try:
-            response = self.session.get(f"{self.base_url}/accounts")
-            
-            if response.status_code == 200:
-                accounts = response.json()
-                test_account = next((acc for acc in accounts 
-                                   if acc.get("id") == self.test_account_id), None)
-                
-                if test_account:
-                    # Expected balance: 5000 (initial) + 3000 (income) - 500 (expense) = 7500
-                    expected_balance = 7500.0
-                    actual_balance = test_account.get("balance", 0)
-                    
-                    if abs(actual_balance - expected_balance) < 0.01:  # Allow for floating point precision
-                        self.log_test("Account Balance Update", True, 
-                                    f"Balance correctly updated to {actual_balance}")
-                        return True
-                    else:
-                        self.log_test("Account Balance Update", False, 
-                                    f"Balance mismatch. Expected: {expected_balance}, Got: {actual_balance}")
-                        return False
-                else:
-                    self.log_test("Account Balance Update", False, 
-                                "Test account not found")
-                    return False
-            else:
-                self.log_test("Account Balance Update", False, 
-                            f"HTTP {response.status_code}", response.text)
-                return False
-                
-        except Exception as e:
-            self.log_test("Account Balance Update", False, f"Exception: {str(e)}")
-            return False
-    
-    def test_create_credit(self):
-        """Test POST /api/credits - Create a credit"""
-        try:
-            credit_data = {
-                "name": "Kredyt hipoteczny",
-                "total_amount": 200000.0,
-                "remaining_amount": 150000.0,
-                "interest_rate": 3.5,
-                "monthly_payment": 2000.0,
-                "start_date": datetime.utcnow().isoformat(),
-                "end_date": (datetime.utcnow() + timedelta(days=365*10)).isoformat()  # 10 years
-            }
-            
-            response = self.session.post(f"{self.base_url}/credits", 
-                                       json=credit_data)
-            
-            if response.status_code == 200:
-                data = response.json()
-                self.log_test("Create Credit", True, 
-                            f"Credit created with ID: {data.get('id')}")
-                return True
-            else:
-                self.log_test("Create Credit", False, 
-                            f"HTTP {response.status_code}", response.text)
-                return False
-                
-        except Exception as e:
-            self.log_test("Create Credit", False, f"Exception: {str(e)}")
-            return False
-    
-    def test_get_credits(self):
-        """Test GET /api/credits - Get all credits"""
-        try:
-            response = self.session.get(f"{self.base_url}/credits")
-            
-            if response.status_code == 200:
-                credits = response.json()
-                if isinstance(credits, list):
-                    # Check if our test credit exists
-                    test_credit = next((credit for credit in credits 
-                                      if credit.get("name") == "Kredyt hipoteczny"), None)
-                    if test_credit:
-                        self.log_test("Get Credits", True, 
-                                    f"Retrieved {len(credits)} credits including test credit")
-                        return True
-                    else:
-                        self.log_test("Get Credits", False, 
-                                    "Test credit 'Kredyt hipoteczny' not found")
-                        return False
-                else:
-                    self.log_test("Get Credits", False, 
-                                "Invalid response format")
-                    return False
-            else:
-                self.log_test("Get Credits", False, 
-                            f"HTTP {response.status_code}", response.text)
-                return False
-                
-        except Exception as e:
-            self.log_test("Get Credits", False, f"Exception: {str(e)}")
-            return False
-    
-    def test_dashboard_stats(self):
-        """Test GET /api/dashboard/stats - Get dashboard statistics"""
-        try:
-            response = self.session.get(f"{self.base_url}/dashboard/stats")
-            
-            if response.status_code == 200:
-                stats = response.json()
-                required_fields = ["total_balance", "total_income", "total_expenses", 
-                                 "accounts_count", "credits_count"]
-                
-                missing_fields = [field for field in required_fields 
-                                if field not in stats]
-                
-                if not missing_fields:
-                    self.log_test("Dashboard Stats", True, 
-                                f"All required fields present: {stats}")
-                    return True
-                else:
-                    self.log_test("Dashboard Stats", False, 
-                                f"Missing fields: {missing_fields}")
-                    return False
-            else:
-                self.log_test("Dashboard Stats", False, 
-                            f"HTTP {response.status_code}", response.text)
-                return False
-                
-        except Exception as e:
-            self.log_test("Dashboard Stats", False, f"Exception: {str(e)}")
-            return False
-    
-    def run_all_tests(self):
-        """Run all backend tests in sequence"""
-        print(f"🚀 Starting Budget Manager Backend API Tests")
-        print(f"Backend URL: {self.base_url}")
-        print("=" * 60)
+    # Test 1: Create budget for "Jedzenie" category
+    print("\n2. Testing POST /api/budgets - Create budget for 'Jedzenie'...")
+    try:
+        budget_data = {
+            "category": "Jedzenie",
+            "month": 4,
+            "year": 2026,
+            "limit_amount": 1500.0,
+            "spent_amount": 0.0
+        }
+        response = requests.post(f"{BASE_URL}/budgets", json=budget_data)
+        response.raise_for_status()
+        budget = response.json()
+        budget_id = budget["id"]
         
-        # Test sequence as specified in review request
-        tests = [
-            self.test_initialize_categories,
-            self.test_create_account,
-            self.test_get_accounts,
-            self.test_get_categories,
-            self.test_get_income_categories,
-            self.test_get_expense_categories,
-            self.test_create_income_transaction,
-            self.test_create_expense_transaction,
-            self.test_get_transactions,
-            self.test_account_balance_update,
-            self.test_create_credit,
-            self.test_get_credits,
-            self.test_dashboard_stats
-        ]
+        print(f"✅ Budget created successfully:")
+        print(f"   ID: {budget['id']}")
+        print(f"   Category: {budget['category']}")
+        print(f"   Month/Year: {budget['month']}/{budget['year']}")
+        print(f"   Limit: {budget['limit_amount']} PLN")
+        print(f"   Spent: {budget['spent_amount']} PLN")
+    except Exception as e:
+        print(f"❌ Failed to create budget: {e}")
+        return False
+    
+    # Test 2: Get all budgets
+    print("\n3. Testing GET /api/budgets - Get all budgets...")
+    try:
+        response = requests.get(f"{BASE_URL}/budgets")
+        response.raise_for_status()
+        budgets = response.json()
         
-        passed = 0
-        failed = 0
+        print(f"✅ Retrieved {len(budgets)} budget(s):")
+        for budget in budgets:
+            print(f"   - {budget['category']}: {budget['spent_amount']}/{budget['limit_amount']} PLN ({budget['month']}/{budget['year']})")
+    except Exception as e:
+        print(f"❌ Failed to get budgets: {e}")
+        return False
+    
+    # Test 3: Get current month budgets
+    print("\n4. Testing GET /api/budgets/current - Get current month budgets...")
+    try:
+        response = requests.get(f"{BASE_URL}/budgets/current")
+        response.raise_for_status()
+        current_budgets = response.json()
         
-        for test in tests:
-            try:
-                if test():
-                    passed += 1
-                else:
-                    failed += 1
-            except Exception as e:
-                print(f"❌ FAIL {test.__name__}: Unexpected error: {str(e)}")
-                failed += 1
-            print()  # Add spacing between tests
+        print(f"✅ Retrieved {len(current_budgets)} current month budget(s):")
+        for budget in current_budgets:
+            print(f"   - {budget['category']}: {budget['spent_amount']}/{budget['limit_amount']} PLN")
+    except Exception as e:
+        print(f"❌ Failed to get current budgets: {e}")
+        return False
+    
+    # Test Recurring Transaction Endpoints
+    print("\n" + "="*60)
+    print("TESTING RECURRING TRANSACTION ENDPOINTS")
+    print("="*60)
+    
+    recurring_id = None
+    
+    # Test 4: Create recurring transaction for "Czynsz"
+    print("\n5. Testing POST /api/recurring-transactions - Create recurring expense...")
+    try:
+        recurring_data = {
+            "name": "Czynsz",
+            "type": "expense",
+            "amount": 1200.0,
+            "category": "Rachunki",
+            "account_id": account_id,
+            "frequency": "monthly",
+            "day_of_month": 1,
+            "start_date": datetime.now().isoformat(),
+            "is_active": True
+        }
+        response = requests.post(f"{BASE_URL}/recurring-transactions", json=recurring_data)
+        response.raise_for_status()
+        recurring = response.json()
+        recurring_id = recurring["id"]
         
-        print("=" * 60)
-        print(f"📊 Test Summary: {passed} passed, {failed} failed")
+        print(f"✅ Recurring transaction created successfully:")
+        print(f"   ID: {recurring['id']}")
+        print(f"   Name: {recurring['name']}")
+        print(f"   Type: {recurring['type']}")
+        print(f"   Amount: {recurring['amount']} PLN")
+        print(f"   Category: {recurring['category']}")
+        print(f"   Frequency: {recurring['frequency']}")
+        print(f"   Next due date: {recurring.get('next_due_date', 'Not calculated')}")
+    except Exception as e:
+        print(f"❌ Failed to create recurring transaction: {e}")
+        return False
+    
+    # Test 5: Get all recurring transactions
+    print("\n6. Testing GET /api/recurring-transactions - Get all recurring transactions...")
+    try:
+        response = requests.get(f"{BASE_URL}/recurring-transactions")
+        response.raise_for_status()
+        recurrings = response.json()
         
-        if failed > 0:
-            print("\n❌ FAILED TESTS:")
-            for result in self.test_results:
-                if not result["success"]:
-                    print(f"  - {result['test']}: {result['message']}")
+        print(f"✅ Retrieved {len(recurrings)} recurring transaction(s):")
+        for rec in recurrings:
+            print(f"   - {rec['name']}: {rec['amount']} PLN ({rec['frequency']}) - Next: {rec.get('next_due_date', 'N/A')}")
+    except Exception as e:
+        print(f"❌ Failed to get recurring transactions: {e}")
+        return False
+    
+    # Test 6: Execute recurring transaction
+    print(f"\n7. Testing POST /api/recurring-transactions/{recurring_id}/execute - Execute recurring transaction...")
+    try:
+        # Get account balance before execution
+        response = requests.get(f"{BASE_URL}/accounts")
+        response.raise_for_status()
+        accounts_before = response.json()
+        balance_before = next(acc["balance"] for acc in accounts_before if acc["id"] == account_id)
+        print(f"   Account balance before execution: {balance_before} PLN")
         
-        return failed == 0
+        # Execute recurring transaction
+        response = requests.post(f"{BASE_URL}/recurring-transactions/{recurring_id}/execute")
+        response.raise_for_status()
+        executed_transaction = response.json()
+        
+        print(f"✅ Recurring transaction executed successfully:")
+        print(f"   Transaction ID: {executed_transaction['id']}")
+        print(f"   Amount: {executed_transaction['amount']} PLN")
+        print(f"   Description: {executed_transaction['description']}")
+        
+        # Verify account balance was updated
+        response = requests.get(f"{BASE_URL}/accounts")
+        response.raise_for_status()
+        accounts_after = response.json()
+        balance_after = next(acc["balance"] for acc in accounts_after if acc["id"] == account_id)
+        print(f"   Account balance after execution: {balance_after} PLN")
+        
+        expected_balance = balance_before - 1200.0  # expense transaction
+        if abs(balance_after - expected_balance) < 0.01:
+            print(f"✅ Account balance updated correctly (decreased by 1200.0 PLN)")
+        else:
+            print(f"❌ Account balance not updated correctly. Expected: {expected_balance}, Got: {balance_after}")
+            return False
+            
+    except Exception as e:
+        print(f"❌ Failed to execute recurring transaction: {e}")
+        return False
+    
+    # Test 7: Verify transaction was created
+    print("\n8. Verifying transaction was created...")
+    try:
+        response = requests.get(f"{BASE_URL}/transactions?account_id={account_id}")
+        response.raise_for_status()
+        transactions = response.json()
+        
+        # Find the recurring transaction we just created
+        recurring_transaction = None
+        for trans in transactions:
+            if "Płatność cykliczna: Czynsz" in trans.get("description", ""):
+                recurring_transaction = trans
+                break
+        
+        if recurring_transaction:
+            print(f"✅ Transaction created from recurring transaction:")
+            print(f"   ID: {recurring_transaction['id']}")
+            print(f"   Amount: {recurring_transaction['amount']} PLN")
+            print(f"   Category: {recurring_transaction['category']}")
+            print(f"   Description: {recurring_transaction['description']}")
+        else:
+            print(f"❌ Transaction from recurring transaction not found")
+            return False
+            
+    except Exception as e:
+        print(f"❌ Failed to verify transaction creation: {e}")
+        return False
+    
+    # Integration Test
+    print("\n" + "="*50)
+    print("INTEGRATION TEST - Budget Tracking")
+    print("="*50)
+    
+    # Test 8: Create budget for "Jedzenie" with limit 1000
+    print("\n9. Creating budget for 'TestCategory' with limit 1000 PLN...")
+    try:
+        integration_budget_data = {
+            "category": "TestCategory",
+            "month": datetime.now().month,
+            "year": datetime.now().year,
+            "limit_amount": 1000.0,
+            "spent_amount": 0.0
+        }
+        response = requests.post(f"{BASE_URL}/budgets", json=integration_budget_data)
+        response.raise_for_status()
+        integration_budget = response.json()
+        integration_budget_id = integration_budget["id"]
+        
+        print(f"✅ Integration budget created: {integration_budget['category']} - {integration_budget['limit_amount']} PLN")
+    except Exception as e:
+        print(f"❌ Failed to create integration budget: {e}")
+        return False
+    
+    # Test 9: Create transaction in "TestCategory" category for 300 PLN
+    print("\n10. Creating transaction in 'TestCategory' category for 300 PLN...")
+    try:
+        transaction_data = {
+            "type": "expense",
+            "amount": 300.0,
+            "category": "TestCategory",
+            "account_id": account_id,
+            "date": datetime.now().isoformat(),
+            "description": "Test integration transaction"
+        }
+        response = requests.post(f"{BASE_URL}/transactions", json=transaction_data)
+        response.raise_for_status()
+        transaction = response.json()
+        
+        print(f"✅ Transaction created: {transaction['amount']} PLN in {transaction['category']}")
+    except Exception as e:
+        print(f"❌ Failed to create integration transaction: {e}")
+        return False
+    
+    # Test 10: Verify budget spent_amount is updated
+    print("\n11. Verifying budget spent_amount is updated...")
+    try:
+        response = requests.get(f"{BASE_URL}/budgets")
+        response.raise_for_status()
+        budgets = response.json()
+        
+        # Find our integration budget
+        integration_budget_updated = None
+        for budget in budgets:
+            if budget["id"] == integration_budget_id:
+                integration_budget_updated = budget
+                break
+        
+        if integration_budget_updated:
+            spent_amount = integration_budget_updated["spent_amount"]
+            print(f"✅ Budget spent_amount updated: {spent_amount} PLN")
+            
+            if abs(spent_amount - 300.0) < 0.01:
+                print(f"✅ Budget tracking working correctly (spent: {spent_amount} PLN)")
+            else:
+                print(f"❌ Budget tracking not working correctly. Expected: 300.0, Got: {spent_amount}")
+                return False
+        else:
+            print(f"❌ Integration budget not found")
+            return False
+            
+    except Exception as e:
+        print(f"❌ Failed to verify budget update: {e}")
+        return False
+    
+    # Cleanup Tests
+    print("\n" + "="*40)
+    print("CLEANUP TESTS")
+    print("="*40)
+    
+    # Test 11: Delete budget
+    print(f"\n12. Testing DELETE /api/budgets/{budget_id} - Delete budget...")
+    try:
+        response = requests.delete(f"{BASE_URL}/budgets/{budget_id}")
+        response.raise_for_status()
+        result = response.json()
+        
+        print(f"✅ Budget deleted successfully: {result['message']}")
+        
+        # Verify deletion
+        response = requests.get(f"{BASE_URL}/budgets")
+        response.raise_for_status()
+        remaining_budgets = response.json()
+        
+        deleted_budget_found = any(b["id"] == budget_id for b in remaining_budgets)
+        if not deleted_budget_found:
+            print(f"✅ Budget deletion verified - budget no longer exists")
+        else:
+            print(f"❌ Budget deletion failed - budget still exists")
+            return False
+            
+    except Exception as e:
+        print(f"❌ Failed to delete budget: {e}")
+        return False
+    
+    # Test 12: Delete recurring transaction
+    print(f"\n13. Testing DELETE /api/recurring-transactions/{recurring_id} - Delete recurring transaction...")
+    try:
+        response = requests.delete(f"{BASE_URL}/recurring-transactions/{recurring_id}")
+        response.raise_for_status()
+        result = response.json()
+        
+        print(f"✅ Recurring transaction deleted successfully: {result['message']}")
+        
+        # Verify deletion
+        response = requests.get(f"{BASE_URL}/recurring-transactions")
+        response.raise_for_status()
+        remaining_recurrings = response.json()
+        
+        deleted_recurring_found = any(r["id"] == recurring_id for r in remaining_recurrings)
+        if not deleted_recurring_found:
+            print(f"✅ Recurring transaction deletion verified - transaction no longer exists")
+        else:
+            print(f"❌ Recurring transaction deletion failed - transaction still exists")
+            return False
+            
+    except Exception as e:
+        print(f"❌ Failed to delete recurring transaction: {e}")
+        return False
+    
+    print("\n" + "="*70)
+    print("🎉 ALL BUDGET AND RECURRING TRANSACTION TESTS PASSED!")
+    print("="*70)
+    return True
 
 if __name__ == "__main__":
-    tester = BudgetManagerTester()
-    success = tester.run_all_tests()
-    sys.exit(0 if success else 1)
+    success = test_budgets_and_recurring()
+    if success:
+        print("\n✅ Budget and Recurring Transaction API testing completed successfully!")
+    else:
+        print("\n❌ Budget and Recurring Transaction API testing failed!")
+        exit(1)
