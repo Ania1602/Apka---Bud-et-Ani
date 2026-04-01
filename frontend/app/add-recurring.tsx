@@ -1,0 +1,154 @@
+import React, { useState, useEffect } from 'react';
+import {
+  View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView,
+  KeyboardAvoidingView, Platform, ActivityIndicator,
+} from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { router } from 'expo-router';
+
+const API_URL = process.env.EXPO_PUBLIC_BACKEND_URL;
+
+export default function AddRecurring() {
+  const [name, setName] = useState('');
+  const [type, setType] = useState<'income' | 'expense'>('expense');
+  const [amount, setAmount] = useState('');
+  const [category, setCategory] = useState('');
+  const [accountId, setAccountId] = useState('');
+  const [frequency, setFrequency] = useState('monthly');
+  const [dayOfMonth, setDayOfMonth] = useState('1');
+  const [accounts, setAccounts] = useState<any[]>([]);
+  const [categories, setCategories] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    fetchData();
+  }, [type]);
+
+  const fetchData = async () => {
+    try {
+      const [accountsRes, categoriesRes] = await Promise.all([
+        fetch(`${API_URL}/api/accounts`),
+        fetch(`${API_URL}/api/categories?type=${type}`),
+      ]);
+      const accountsData = await accountsRes.json();
+      const categoriesData = await categoriesRes.json();
+      setAccounts(accountsData);
+      setCategories(categoriesData);
+      if (accountsData.length > 0 && !accountId) setAccountId(accountsData[0].id);
+      if (categoriesData.length > 0 && !category) setCategory(categoriesData[0].name);
+    } catch (error) {
+      console.error('Error fetching data:', error);
+    }
+  };
+
+  const handleSubmit = async () => {
+    if (!name || !amount || !category || !accountId) {
+      alert('Proszę wypełnić wszystkie pola');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const response = await fetch(`${API_URL}/api/recurring-transactions`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name, type, amount: parseFloat(amount), category, account_id: accountId,
+          frequency, day_of_month: parseInt(dayOfMonth), start_date: new Date().toISOString(),
+          is_active: true,
+        }),
+      });
+
+      if (response.ok) {
+        router.back();
+      } else {
+        alert('Błąd podczas dodawania płatności');
+      }
+    } catch (error) {
+      console.error('Error creating recurring:', error);
+      alert('Błąd podczas dodawania płatności');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+      <View style={styles.header}>
+        <TouchableOpacity onPress={() => router.back()}><Ionicons name="close" size={28} color="#fff" /></TouchableOpacity>
+        <Text style={styles.headerTitle}>Dodaj Płatność Cykliczną</Text>
+        <View style={{ width: 28 }} />
+      </View>
+
+      <ScrollView style={styles.content}>
+        <View style={styles.form}>
+          <View style={styles.field}>
+            <Text style={styles.label}>Nazwa</Text>
+            <TextInput style={styles.input} value={name} onChangeText={setName} placeholder="np. Czynsz, Bilet miesięczny..." placeholderTextColor="#666" />
+          </View>
+
+          <View style={styles.typeSelector}>
+            <TouchableOpacity style={[styles.typeButton, type === 'expense' && styles.typeButtonActive]} onPress={() => setType('expense')}>
+              <Text style={[styles.typeButtonText, type === 'expense' && styles.typeButtonTextActive]}>Wydatek</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={[styles.typeButton, type === 'income' && styles.typeButtonActive]} onPress={() => setType('income')}>
+              <Text style={[styles.typeButtonText, type === 'income' && styles.typeButtonTextActive]}>Przychód</Text>
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.field}>
+            <Text style={styles.label}>Kwota (PLN)</Text>
+            <TextInput style={styles.input} value={amount} onChangeText={setAmount} placeholder="0.00" placeholderTextColor="#666" keyboardType="decimal-pad" />
+          </View>
+
+          <View style={styles.field}>
+            <Text style={styles.label}>Częstotliwość</Text>
+            <View style={styles.frequencyButtons}>
+              {[['monthly', 'Co miesiąc'], ['quarterly', 'Co kwartał'], ['yearly', 'Co rok']].map(([value, label]) => (
+                <TouchableOpacity key={value} style={[styles.freqButton, frequency === value && styles.freqButtonActive]} onPress={() => setFrequency(value)}>
+                  <Text style={[styles.freqButtonText, frequency === value && styles.freqButtonTextActive]}>{label}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+
+          <View style={styles.field}>
+            <Text style={styles.label}>Dzień miesiąca (1-31)</Text>
+            <TextInput style={styles.input} value={dayOfMonth} onChangeText={setDayOfMonth} placeholder="1" placeholderTextColor="#666" keyboardType="number-pad" />
+          </View>
+        </View>
+      </ScrollView>
+
+      <View style={styles.footer}>
+        <TouchableOpacity style={[styles.submitButton, loading && styles.submitButtonDisabled]} onPress={handleSubmit} disabled={loading}>
+          {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.submitButtonText}>Dodaj Płatność Cykliczną</Text>}
+        </TouchableOpacity>
+      </View>
+    </KeyboardAvoidingView>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: '#0c0c0c' },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 20, paddingTop: 60, borderBottomWidth: 1, borderBottomColor: '#333' },
+  headerTitle: { fontSize: 18, fontWeight: '600', color: '#fff' },
+  content: { flex: 1 },
+  form: { padding: 20 },
+  field: { marginBottom: 24 },
+  label: { fontSize: 14, fontWeight: '500', color: '#999', marginBottom: 12 },
+  input: { backgroundColor: '#1a1a1a', borderRadius: 12, padding: 16, fontSize: 16, color: '#fff' },
+  typeSelector: { flexDirection: 'row', gap: 12, marginBottom: 24 },
+  typeButton: { flex: 1, padding: 16, borderRadius: 12, backgroundColor: '#1a1a1a', alignItems: 'center' },
+  typeButtonActive: { backgroundColor: '#F44336' },
+  typeButtonText: { fontSize: 16, fontWeight: '500', color: '#999' },
+  typeButtonTextActive: { color: '#fff' },
+  frequencyButtons: { flexDirection: 'row', gap: 8 },
+  freqButton: { flex: 1, padding: 12, borderRadius: 8, backgroundColor: '#1a1a1a', alignItems: 'center' },
+  freqButtonActive: { backgroundColor: '#4CAF50' },
+  freqButtonText: { fontSize: 13, color: '#999' },
+  freqButtonTextActive: { color: '#fff' },
+  footer: { padding: 20, borderTopWidth: 1, borderTopColor: '#333' },
+  submitButton: { backgroundColor: '#4CAF50', padding: 18, borderRadius: 12, alignItems: 'center' },
+  submitButtonDisabled: { opacity: 0.5 },
+  submitButtonText: { fontSize: 16, fontWeight: '600', color: '#fff' },
+});
