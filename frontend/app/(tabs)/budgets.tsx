@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -9,9 +9,8 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { router } from 'expo-router';
-
-const API_URL = process.env.EXPO_PUBLIC_BACKEND_URL;
+import { router, useFocusEffect } from 'expo-router';
+import { budgetsDB } from '../../lib/database';
 
 export default function Budgets() {
   const [budgets, setBudgets] = useState<any[]>([]);
@@ -21,10 +20,7 @@ export default function Budgets() {
   const fetchBudgets = async () => {
     try {
       const now = new Date();
-      const response = await fetch(
-        `${API_URL}/api/budgets?month=${now.getMonth() + 1}&year=${now.getFullYear()}`
-      );
-      const data = await response.json();
+      const data = await budgetsDB.getAll(now.getMonth() + 1, now.getFullYear());
       setBudgets(data);
     } catch (error) {
       console.error('Error fetching budgets:', error);
@@ -34,9 +30,11 @@ export default function Budgets() {
     }
   };
 
-  useEffect(() => {
-    fetchBudgets();
-  }, []);
+  useFocusEffect(
+    useCallback(() => {
+      fetchBudgets();
+    }, [])
+  );
 
   const onRefresh = () => {
     setRefreshing(true);
@@ -45,7 +43,7 @@ export default function Budgets() {
 
   const deleteBudget = async (id: string) => {
     try {
-      await fetch(`${API_URL}/api/budgets/${id}`, { method: 'DELETE' });
+      await budgetsDB.delete(id);
       fetchBudgets();
     } catch (error) {
       console.error('Error deleting budget:', error);
@@ -70,8 +68,8 @@ export default function Budgets() {
     );
   }
 
-  const totalLimit = budgets.reduce((sum, b) => sum + b.limit_amount, 0);
-  const totalSpent = budgets.reduce((sum, b) => sum + b.spent_amount, 0);
+  const totalLimit = budgets.reduce((sum, b) => sum + (b.limit_amount || 0), 0);
+  const totalSpent = budgets.reduce((sum, b) => sum + (b.spent_amount || 0), 0);
   const overallPercentage = getPercentage(totalSpent, totalLimit);
 
   return (
@@ -125,7 +123,7 @@ export default function Budgets() {
         ) : (
           <View style={styles.budgetsList}>
             {budgets.map((budget) => {
-              const percentage = getPercentage(budget.spent_amount, budget.limit_amount);
+              const percentage = getPercentage(budget.spent_amount || 0, budget.limit_amount || 0);
               const statusColor = getStatusColor(percentage);
               
               return (
@@ -137,7 +135,7 @@ export default function Budgets() {
                     <View style={styles.budgetDetails}>
                       <Text style={styles.budgetCategory}>{budget.category}</Text>
                       <Text style={styles.budgetAmount}>
-                        {budget.spent_amount.toFixed(2)} / {budget.limit_amount.toFixed(2)} PLN
+                        {(budget.spent_amount || 0).toFixed(2)} / {(budget.limit_amount || 0).toFixed(2)} PLN
                       </Text>
                     </View>
                     <TouchableOpacity onPress={() => deleteBudget(budget.id)} style={styles.deleteButton}>
@@ -159,7 +157,7 @@ export default function Budgets() {
                       {percentage.toFixed(0)}% wykorzystane
                     </Text>
                     <Text style={styles.remainingText}>
-                      Pozostało: {(budget.limit_amount - budget.spent_amount).toFixed(2)} PLN
+                      Pozostało: {((budget.limit_amount || 0) - (budget.spent_amount || 0)).toFixed(2)} PLN
                     </Text>
                   </View>
                 </View>

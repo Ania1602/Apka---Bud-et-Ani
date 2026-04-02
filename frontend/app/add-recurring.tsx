@@ -5,8 +5,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-
-const API_URL = process.env.EXPO_PUBLIC_BACKEND_URL;
+import { recurringDB, accountsDB, categoriesDB } from '../lib/database';
 
 export default function AddRecurring() {
   const [name, setName] = useState('');
@@ -26,12 +25,10 @@ export default function AddRecurring() {
 
   const fetchData = async () => {
     try {
-      const [accountsRes, categoriesRes] = await Promise.all([
-        fetch(`${API_URL}/api/accounts`),
-        fetch(`${API_URL}/api/categories?type=${type}`),
+      const [accountsData, categoriesData] = await Promise.all([
+        accountsDB.getAll(),
+        categoriesDB.getAll(type),
       ]);
-      const accountsData = await accountsRes.json();
-      const categoriesData = await categoriesRes.json();
       setAccounts(accountsData);
       setCategories(categoriesData);
       if (accountsData.length > 0 && !accountId) setAccountId(accountsData[0].id);
@@ -49,21 +46,12 @@ export default function AddRecurring() {
 
     setLoading(true);
     try {
-      const response = await fetch(`${API_URL}/api/recurring-transactions`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name, type, amount: parseFloat(amount), category, account_id: accountId,
-          frequency, day_of_month: parseInt(dayOfMonth), start_date: new Date().toISOString(),
-          is_active: true,
-        }),
+      await recurringDB.create({
+        name, type, amount: parseFloat(amount), category, account_id: accountId,
+        frequency, day_of_month: parseInt(dayOfMonth), start_date: new Date().toISOString(),
+        is_active: true,
       });
-
-      if (response.ok) {
-        router.back();
-      } else {
-        alert('Błąd podczas dodawania płatności');
-      }
+      router.back();
     } catch (error) {
       console.error('Error creating recurring:', error);
       alert('Błąd podczas dodawania płatności');
@@ -75,7 +63,7 @@ export default function AddRecurring() {
   return (
     <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()}><Ionicons name="close" size={28} color="#FFFFFF" /></TouchableOpacity>
+        <TouchableOpacity onPress={() => router.back()}><Ionicons name="close" size={28} color="#2A2520" /></TouchableOpacity>
         <Text style={styles.headerTitle}>Dodaj Płatność Cykliczną</Text>
         <View style={{ width: 28 }} />
       </View>
@@ -131,7 +119,7 @@ export default function AddRecurring() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#FAF8F3' },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 20, paddingTop: 60, borderBottomWidth: 1, borderBottomColor: '#E0D5C7' },
-  headerTitle: { fontSize: 18, fontWeight: '600', color: "#2A2520" },
+  headerTitle: { fontSize: 18, fontWeight: '600', color: '#2A2520' },
   content: { flex: 1 },
   form: { padding: 20 },
   field: { marginBottom: 24 },
@@ -141,14 +129,14 @@ const styles = StyleSheet.create({
   typeButton: { flex: 1, padding: 16, borderRadius: 12, backgroundColor: '#FFFFFF', alignItems: 'center' },
   typeButtonActive: { backgroundColor: '#800020' },
   typeButtonText: { fontSize: 16, fontWeight: '500', color: '#6B5D52' },
-  typeButtonTextActive: { color: '#2A2520' },
+  typeButtonTextActive: { color: '#FFFFFF' },
   frequencyButtons: { flexDirection: 'row', gap: 8 },
   freqButton: { flex: 1, padding: 12, borderRadius: 8, backgroundColor: '#FFFFFF', alignItems: 'center' },
   freqButtonActive: { backgroundColor: '#D4AF37' },
   freqButtonText: { fontSize: 13, color: '#6B5D52' },
-  freqButtonTextActive: { color: '#2A2520' },
+  freqButtonTextActive: { color: '#FFFFFF' },
   footer: { padding: 20, borderTopWidth: 1, borderTopColor: '#E0D5C7' },
   submitButton: { backgroundColor: '#D4AF37', padding: 18, borderRadius: 12, alignItems: 'center' },
   submitButtonDisabled: { opacity: 0.5 },
-  submitButtonText: { fontSize: 16, fontWeight: '600', color: '#2A2520' },
+  submitButtonText: { fontSize: 16, fontWeight: '600', color: '#FFFFFF' },
 });

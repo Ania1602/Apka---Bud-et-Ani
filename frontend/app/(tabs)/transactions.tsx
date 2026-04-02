@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -11,9 +11,8 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { format } from 'date-fns';
 import { pl } from 'date-fns/locale';
-import { router } from 'expo-router';
-
-const API_URL = process.env.EXPO_PUBLIC_BACKEND_URL;
+import { router, useFocusEffect } from 'expo-router';
+import { transactionsDB } from '../../lib/database';
 
 export default function Transactions() {
   const [transactions, setTransactions] = useState<any[]>([]);
@@ -23,8 +22,7 @@ export default function Transactions() {
 
   const fetchTransactions = async () => {
     try {
-      const response = await fetch(`${API_URL}/api/transactions?limit=100`);
-      const data = await response.json();
+      const data = await transactionsDB.getAll(100);
       setTransactions(data);
     } catch (error) {
       console.error('Error fetching transactions:', error);
@@ -34,9 +32,11 @@ export default function Transactions() {
     }
   };
 
-  useEffect(() => {
-    fetchTransactions();
-  }, []);
+  useFocusEffect(
+    useCallback(() => {
+      fetchTransactions();
+    }, [])
+  );
 
   const onRefresh = () => {
     setRefreshing(true);
@@ -45,7 +45,7 @@ export default function Transactions() {
 
   const deleteTransaction = async (id: string) => {
     try {
-      await fetch(`${API_URL}/api/transactions/${id}`, { method: 'DELETE' });
+      await transactionsDB.delete(id);
       fetchTransactions();
     } catch (error) {
       console.error('Error deleting transaction:', error);

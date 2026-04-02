@@ -12,8 +12,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-
-const API_URL = process.env.EXPO_PUBLIC_BACKEND_URL;
+import { accountsDB } from '../lib/database';
 
 const ACCOUNT_TYPES = [
   { value: 'bank', label: 'Konto Bankowe', icon: 'business', color: '#D4AF37' },
@@ -38,24 +37,15 @@ export default function AddAccount() {
 
     setLoading(true);
     try {
-      const response = await fetch(`${API_URL}/api/accounts`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name,
-          type,
-          balance: parseFloat(balance),
-          currency: 'PLN',
-          icon: 'wallet',
-          color,
-        }),
+      await accountsDB.create({
+        name,
+        type,
+        balance: parseFloat(balance),
+        currency: 'PLN',
+        icon: 'wallet',
+        color,
       });
-
-      if (response.ok) {
-        router.back();
-      } else {
-        alert('Błąd podczas dodawania konta');
-      }
+      router.back();
     } catch (error) {
       console.error('Error creating account:', error);
       alert('Błąd podczas dodawania konta');
@@ -71,7 +61,7 @@ export default function AddAccount() {
     >
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.closeButton}>
-          <Ionicons name="close" size={28} color="#FFFFFF" />
+          <Ionicons name="close" size={28} color="#2A2520" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Dodaj Konto</Text>
         <View style={{ width: 28 }} />
@@ -189,7 +179,7 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: "#2A2520",
+    color: '#2A2520',
   },
   content: {
     flex: 1,
@@ -286,6 +276,6 @@ const styles = StyleSheet.create({
   submitButtonText: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#2A2520',
+    color: '#FFFFFF',
   },
 });

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -9,9 +9,8 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { router } from 'expo-router';
-
-const API_URL = process.env.EXPO_PUBLIC_BACKEND_URL;
+import { router, useFocusEffect } from 'expo-router';
+import { accountsDB } from '../lib/database';
 
 const ACCOUNT_ICONS: Record<string, string> = {
   bank: 'business',
@@ -26,8 +25,7 @@ export default function Accounts() {
 
   const fetchAccounts = async () => {
     try {
-      const response = await fetch(`${API_URL}/api/accounts`);
-      const data = await response.json();
+      const data = await accountsDB.getAll();
       setAccounts(data);
     } catch (error) {
       console.error('Error fetching accounts:', error);
@@ -37,9 +35,11 @@ export default function Accounts() {
     }
   };
 
-  useEffect(() => {
-    fetchAccounts();
-  }, []);
+  useFocusEffect(
+    useCallback(() => {
+      fetchAccounts();
+    }, [])
+  );
 
   const onRefresh = () => {
     setRefreshing(true);
@@ -48,7 +48,7 @@ export default function Accounts() {
 
   const deleteAccount = async (id: string) => {
     try {
-      await fetch(`${API_URL}/api/accounts/${id}`, { method: 'DELETE' });
+      await accountsDB.delete(id);
       fetchAccounts();
     } catch (error) {
       console.error('Error deleting account:', error);
@@ -59,7 +59,7 @@ export default function Accounts() {
     const labels: Record<string, string> = {
       bank: 'Konto Bankowe',
       credit_card: 'Karta Kredytowa',
-      cash: 'Gotówka',
+      cash: 'Got\u00f3wka',
     };
     return labels[type] || type;
   };
@@ -76,8 +76,16 @@ export default function Accounts() {
 
   return (
     <View style={styles.container}>
+      <View style={styles.headerBar}>
+        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+          <Ionicons name="arrow-back" size={24} color="#2A2520" />
+        </TouchableOpacity>
+        <Text style={styles.headerBarTitle}>Konta</Text>
+        <View style={{ width: 32 }} />
+      </View>
+
       <View style={styles.totalCard}>
-        <Text style={styles.totalLabel}>Całkowite Saldo</Text>
+        <Text style={styles.totalLabel}>Ca\u0142kowite Saldo</Text>
         <Text style={styles.totalAmount}>{totalBalance.toFixed(2)} PLN</Text>
         <Text style={styles.totalSubtext}>{accounts.length} kont</Text>
       </View>
@@ -97,15 +105,15 @@ export default function Accounts() {
         }
         renderItem={({ item }) => (
           <View style={styles.accountItem}>
-            <View style={[styles.accountIcon, { backgroundColor: item.color + '20' }]}>
-              <Ionicons name={ACCOUNT_ICONS[item.type] as any} size={28} color={item.color} />
+            <View style={[styles.accountIcon, { backgroundColor: (item.color || '#D4AF37') + '20' }]}>
+              <Ionicons name={(ACCOUNT_ICONS[item.type] || 'wallet') as any} size={28} color={item.color || '#D4AF37'} />
             </View>
             <View style={styles.accountDetails}>
               <Text style={styles.accountName}>{item.name}</Text>
               <Text style={styles.accountType}>{getAccountTypeLabel(item.type)}</Text>
             </View>
             <View style={styles.accountRight}>
-              <Text style={styles.accountBalance}>{item.balance.toFixed(2)} {item.currency}</Text>
+              <Text style={styles.accountBalance}>{item.balance.toFixed(2)} {item.currency || 'PLN'}</Text>
               <TouchableOpacity onPress={() => deleteAccount(item.id)} style={styles.deleteButton}>
                 <Ionicons name="trash-outline" size={18} color="#800020" />
               </TouchableOpacity>
@@ -133,9 +141,26 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: '#FAF8F3',
   },
+  headerBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 20,
+    paddingTop: 60,
+    backgroundColor: '#FAF8F3',
+  },
+  backButton: {
+    padding: 4,
+  },
+  headerBarTitle: {
+    fontSize: 20,
+    fontWeight: '600',
+    color: '#2A2520',
+  },
   totalCard: {
     backgroundColor: '#FFFFFF',
     margin: 16,
+    marginTop: 0,
     padding: 24,
     borderRadius: 16,
     alignItems: 'center',

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -10,11 +10,10 @@ import {
   Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { format } from 'date-fns';
 import { pl } from 'date-fns/locale';
-
-const API_URL = process.env.EXPO_PUBLIC_BACKEND_URL;
+import { recurringDB } from '../../lib/database';
 
 const FREQUENCY_LABELS: Record<string, string> = {
   monthly: 'Co miesiąc',
@@ -29,8 +28,7 @@ export default function RecurringTransactions() {
 
   const fetchRecurring = async () => {
     try {
-      const response = await fetch(`${API_URL}/api/recurring-transactions`);
-      const data = await response.json();
+      const data = await recurringDB.getAll();
       setRecurring(data);
     } catch (error) {
       console.error('Error fetching recurring transactions:', error);
@@ -40,9 +38,11 @@ export default function RecurringTransactions() {
     }
   };
 
-  useEffect(() => {
-    fetchRecurring();
-  }, []);
+  useFocusEffect(
+    useCallback(() => {
+      fetchRecurring();
+    }, [])
+  );
 
   const onRefresh = () => {
     setRefreshing(true);
@@ -51,7 +51,7 @@ export default function RecurringTransactions() {
 
   const deleteRecurring = async (id: string) => {
     try {
-      await fetch(`${API_URL}/api/recurring-transactions/${id}`, { method: 'DELETE' });
+      await recurringDB.delete(id);
       fetchRecurring();
     } catch (error) {
       console.error('Error deleting recurring transaction:', error);
@@ -68,7 +68,7 @@ export default function RecurringTransactions() {
           text: 'Wykonaj',
           onPress: async () => {
             try {
-              await fetch(`${API_URL}/api/recurring-transactions/${id}/execute`, { method: 'POST' });
+              await recurringDB.execute(id);
               Alert.alert('Sukces', 'Transakcja została utworzona');
               fetchRecurring();
             } catch (error) {

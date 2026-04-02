@@ -12,8 +12,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-
-const API_URL = process.env.EXPO_PUBLIC_BACKEND_URL;
+import { transactionsDB, accountsDB, categoriesDB, creditsDB } from '../lib/database';
 
 export default function AddTransaction() {
   const [type, setType] = useState<'income' | 'expense'>('expense');
@@ -33,14 +32,11 @@ export default function AddTransaction() {
 
   const fetchData = async () => {
     try {
-      const [accountsRes, categoriesRes, creditsRes] = await Promise.all([
-        fetch(`${API_URL}/api/accounts`),
-        fetch(`${API_URL}/api/categories?type=${type}`),
-        fetch(`${API_URL}/api/credits`),
+      const [accountsData, categoriesData, creditsData] = await Promise.all([
+        accountsDB.getAll(),
+        categoriesDB.getAll(type),
+        creditsDB.getAll(),
       ]);
-      const accountsData = await accountsRes.json();
-      const categoriesData = await categoriesRes.json();
-      const creditsData = await creditsRes.json();
       setAccounts(accountsData);
       setCategories(categoriesData);
       setCredits(creditsData);
@@ -63,25 +59,16 @@ export default function AddTransaction() {
 
     setLoading(true);
     try {
-      const response = await fetch(`${API_URL}/api/transactions`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          type,
-          amount: parseFloat(amount),
-          category,
-          account_id: accountId,
-          date: new Date().toISOString(),
-          description,
-          credit_id: creditId || null,
-        }),
+      await transactionsDB.create({
+        type,
+        amount: parseFloat(amount),
+        category,
+        account_id: accountId,
+        date: new Date().toISOString(),
+        description,
+        credit_id: creditId || null,
       });
-
-      if (response.ok) {
-        router.back();
-      } else {
-        alert('Błąd podczas dodawania transakcji');
-      }
+      router.back();
     } catch (error) {
       console.error('Error creating transaction:', error);
       alert('Błąd podczas dodawania transakcji');
@@ -97,7 +84,7 @@ export default function AddTransaction() {
     >
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.closeButton}>
-          <Ionicons name="close" size={28} color="#FFFFFF" />
+          <Ionicons name="close" size={28} color="#2A2520" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Dodaj Transakcję</Text>
         <View style={{ width: 28 }} />
@@ -109,7 +96,7 @@ export default function AddTransaction() {
             style={[styles.typeButton, type === 'expense' && styles.typeButtonActive]}
             onPress={() => setType('expense')}
           >
-            <Ionicons name="arrow-up" size={20} color={type === 'expense' ? '#2A2520' : '#6B5D52'} />
+            <Ionicons name="arrow-up" size={20} color={type === 'expense' ? '#FFFFFF' : '#6B5D52'} />
             <Text style={[styles.typeButtonText, type === 'expense' && styles.typeButtonTextActive]}>
               Wydatek
             </Text>
@@ -118,7 +105,7 @@ export default function AddTransaction() {
             style={[styles.typeButton, type === 'income' && styles.typeButtonActive]}
             onPress={() => setType('income')}
           >
-            <Ionicons name="arrow-down" size={20} color={type === 'income' ? '#2A2520' : '#6B5D52'} />
+            <Ionicons name="arrow-down" size={20} color={type === 'income' ? '#FFFFFF' : '#6B5D52'} />
             <Text style={[styles.typeButtonText, type === 'income' && styles.typeButtonTextActive]}>
               Przychód
             </Text>
@@ -282,7 +269,7 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: "#FFFFFF",
+    color: '#2A2520',
   },
   content: {
     flex: 1,
@@ -303,7 +290,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   typeButtonActive: {
-    backgroundColor: "#800020",
+    backgroundColor: '#800020',
   },
   typeButtonText: {
     fontSize: 16,
@@ -311,7 +298,7 @@ const styles = StyleSheet.create({
     color: '#6B5D52',
   },
   typeButtonTextActive: {
-    color: "#FFFFFF",
+    color: '#FFFFFF',
   },
   amountContainer: {
     flexDirection: 'row',
@@ -328,7 +315,7 @@ const styles = StyleSheet.create({
   amountInput: {
     fontSize: 48,
     fontWeight: 'bold',
-    color: "#2A2520",
+    color: '#2A2520',
     minWidth: 150,
     textAlign: 'center',
   },
@@ -349,7 +336,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 16,
     fontSize: 16,
-    color: "#2A2520",
+    color: '#2A2520',
     minHeight: 80,
   },
   categoryScroll: {
@@ -368,7 +355,7 @@ const styles = StyleSheet.create({
     color: '#6B5D52',
   },
   categoryChipTextActive: {
-    color: "#FFFFFF",
+    color: '#FFFFFF',
   },
   accountChip: {
     paddingHorizontal: 20,
@@ -386,7 +373,7 @@ const styles = StyleSheet.create({
     color: '#6B5D52',
   },
   accountChipTextActive: {
-    color: "#FFFFFF",
+    color: '#FFFFFF',
   },
   footer: {
     padding: 20,
@@ -405,6 +392,6 @@ const styles = StyleSheet.create({
   submitButtonText: {
     fontSize: 16,
     fontWeight: '600',
-    color: "#FFFFFF",
+    color: '#FFFFFF',
   },
 });

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -10,9 +10,8 @@ import {
   Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { router } from 'expo-router';
-
-const API_URL = process.env.EXPO_PUBLIC_BACKEND_URL;
+import { router, useFocusEffect } from 'expo-router';
+import { categoriesDB } from '../lib/database';
 
 export default function Categories() {
   const [categories, setCategories] = useState<any[]>([]);
@@ -21,8 +20,7 @@ export default function Categories() {
 
   const fetchCategories = async () => {
     try {
-      const response = await fetch(`${API_URL}/api/categories`);
-      const data = await response.json();
+      const data = await categoriesDB.getAll();
       setCategories(data);
     } catch (error) {
       console.error('Error fetching categories:', error);
@@ -32,9 +30,11 @@ export default function Categories() {
     }
   };
 
-  useEffect(() => {
-    fetchCategories();
-  }, []);
+  useFocusEffect(
+    useCallback(() => {
+      fetchCategories();
+    }, [])
+  );
 
   const onRefresh = () => {
     setRefreshing(true);
@@ -43,24 +43,24 @@ export default function Categories() {
 
   const deleteCategory = async (id: string, name: string, isDefault: boolean) => {
     if (isDefault) {
-      Alert.alert('Błąd', 'Nie można usunąć domyślnej kategorii');
+      Alert.alert('B\u0142\u0105d', 'Nie mo\u017cna usun\u0105\u0107 domy\u015blnej kategorii');
       return;
     }
 
     Alert.alert(
-      'Usuń Kategorię',
-      `Czy na pewno chcesz usunąć kategorię "${name}"?`,
+      'Usu\u0144 Kategori\u0119',
+      `Czy na pewno chcesz usun\u0105\u0107 kategori\u0119 "${name}"?`,
       [
         { text: 'Anuluj', style: 'cancel' },
         {
-          text: 'Usuń',
+          text: 'Usu\u0144',
           style: 'destructive',
           onPress: async () => {
             try {
-              await fetch(`${API_URL}/api/categories/${id}`, { method: 'DELETE' });
+              await categoriesDB.delete(id);
               fetchCategories();
             } catch (error) {
-              Alert.alert('Błąd', 'Nie udało się usunąć kategorii');
+              Alert.alert('B\u0142\u0105d', 'Nie uda\u0142o si\u0119 usun\u0105\u0107 kategorii');
             }
           },
         },
@@ -83,10 +83,10 @@ export default function Categories() {
     <View style={styles.container}>
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-          <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
+          <Ionicons name="arrow-back" size={24} color="#2A2520" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Kategorie</Text>
-        <TouchableOpacity onPress={() => router.push('/add-category')} style={styles.addButton}>
+        <TouchableOpacity onPress={() => router.push('/add-category')} style={styles.addHeaderButton}>
           <Ionicons name="add" size={24} color="#D4AF37" />
         </TouchableOpacity>
       </View>
@@ -115,13 +115,12 @@ export default function Categories() {
                 </View>
                 <View style={styles.categoryInfo}>
                   <Text style={styles.categoryName}>{cat.name}</Text>
-                  {cat.is_default && <Text style={styles.defaultBadge}>Domyślna</Text>}
+                  {cat.is_default && <Text style={styles.defaultBadge}>Domy\u015blna</Text>}
                 </View>
                 {!cat.is_default && (
                   <View style={styles.actionButtons}>
                     <TouchableOpacity
-                      onPress={(e) => {
-                        e.stopPropagation();
+                      onPress={() => {
                         router.push(`/add-category?edit=${cat.id}&name=${encodeURIComponent(cat.name)}&type=${cat.type}&color=${encodeURIComponent(cat.color)}`);
                       }}
                       style={styles.editButton}
@@ -129,8 +128,7 @@ export default function Categories() {
                       <Ionicons name="pencil" size={18} color="#D4AF37" />
                     </TouchableOpacity>
                     <TouchableOpacity
-                      onPress={(e) => {
-                        e.stopPropagation();
+                      onPress={() => {
                         deleteCategory(cat.id, cat.name, cat.is_default);
                       }}
                       style={styles.deleteButton}
@@ -180,9 +178,9 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 20,
     fontWeight: '600',
-    color: "#2A2520",
+    color: '#2A2520',
   },
-  addButton: {
+  addHeaderButton: {
     padding: 4,
   },
   listContent: {

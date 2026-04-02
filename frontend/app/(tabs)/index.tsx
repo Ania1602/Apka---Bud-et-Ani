@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -7,14 +7,14 @@ import {
   TouchableOpacity,
   RefreshControl,
   ActivityIndicator,
+  Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { PieChart } from 'react-native-gifted-charts';
 import { format } from 'date-fns';
 import { pl } from 'date-fns/locale';
-
-const API_URL = process.env.EXPO_PUBLIC_BACKEND_URL;
+import { initDatabase, getDashboardStats, transactionsDB } from '../../lib/database';
 
 export default function Dashboard() {
   const [stats, setStats] = useState<any>(null);
@@ -27,16 +27,11 @@ export default function Dashboard() {
 
   const fetchData = async () => {
     try {
-      await fetch(`${API_URL}/api/initialize`, { method: 'POST' });
-      
-      const [statsRes, transactionsRes] = await Promise.all([
-        fetch(`${API_URL}/api/dashboard/stats?month=${selectedMonth}&year=${selectedYear}`),
-        fetch(`${API_URL}/api/transactions?limit=5`),
+      await initDatabase();
+      const [statsData, transactionsData] = await Promise.all([
+        getDashboardStats(selectedMonth, selectedYear),
+        transactionsDB.getAll(5),
       ]);
-      
-      const statsData = await statsRes.json();
-      const transactionsData = await transactionsRes.json();
-      
       setStats(statsData);
       setTransactions(transactionsData);
     } catch (error) {
@@ -47,9 +42,11 @@ export default function Dashboard() {
     }
   };
 
-  useEffect(() => {
-    fetchData();
-  }, [selectedMonth, selectedYear]);
+  useFocusEffect(
+    useCallback(() => {
+      fetchData();
+    }, [selectedMonth, selectedYear])
+  );
 
   const onRefresh = () => {
     setRefreshing(true);
@@ -86,14 +83,8 @@ export default function Dashboard() {
         </View>
         <TouchableOpacity
           style={styles.exportButton}
-          onPress={async () => {
-            const startDate = new Date(selectedYear, selectedMonth - 1, 1).toISOString();
-            const endDate = new Date(selectedYear, selectedMonth, 0, 23, 59, 59).toISOString();
-            const url = `${API_URL}/api/reports/export?start_date=${startDate}&end_date=${endDate}`;
-            // On web, just open in new tab
-            if (typeof window !== 'undefined') {
-              window.open(url, '_blank');
-            }
+          onPress={() => {
+            Alert.alert('Eksport', 'Funkcja eksportu danych będzie dostępna wkrótce.');
           }}
         >
           <Ionicons name="download" size={24} color="#D4AF37" />

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -12,8 +12,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
-
-const API_URL = process.env.EXPO_PUBLIC_BACKEND_URL;
+import { categoriesDB } from '../lib/database';
 
 const COLORS = ['#D4AF37', '#800020', '#2C5F2D', '#1B2845', '#B8941F', '#2A2520', '#9C27B0', '#E91E63'];
 
@@ -35,26 +34,22 @@ export default function AddCategory() {
 
     setLoading(true);
     try {
-      const url = isEdit ? `${API_URL}/api/categories/${editId}` : `${API_URL}/api/categories`;
-      const method = isEdit ? 'PUT' : 'POST';
-      
-      const response = await fetch(url, {
-        method,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+      if (isEdit) {
+        await categoriesDB.update(editId, {
           name,
           type,
           icon: 'pricetag',
           color,
-          is_default: false,
-        }),
-      });
-
-      if (response.ok) {
-        router.back();
+        });
       } else {
-        alert(isEdit ? 'Błąd podczas edycji kategorii' : 'Błąd podczas dodawania kategorii');
+        await categoriesDB.create({
+          name,
+          type,
+          icon: 'pricetag',
+          color,
+        });
       }
+      router.back();
     } catch (error) {
       console.error('Error saving category:', error);
       alert(isEdit ? 'Błąd podczas edycji kategorii' : 'Błąd podczas dodawania kategorii');
@@ -70,7 +65,7 @@ export default function AddCategory() {
     >
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.closeButton}>
-          <Ionicons name="close" size={28} color="#FFFFFF" />
+          <Ionicons name="close" size={28} color="#2A2520" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>{isEdit ? 'Edytuj Kategorię' : 'Nowa Kategoria'}</Text>
         <View style={{ width: 28 }} />
@@ -172,7 +167,7 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: "#2A2520",
+    color: '#2A2520',
   },
   content: {
     flex: 1,

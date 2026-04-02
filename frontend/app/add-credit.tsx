@@ -12,8 +12,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-
-const API_URL = process.env.EXPO_PUBLIC_BACKEND_URL;
+import { creditsDB } from '../lib/database';
 
 export default function AddCredit() {
   const [name, setName] = useState('');
@@ -33,25 +32,16 @@ export default function AddCredit() {
 
     setLoading(true);
     try {
-      const response = await fetch(`${API_URL}/api/credits`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name,
-          total_amount: parseFloat(totalAmount),
-          remaining_amount: parseFloat(remainingAmount),
-          interest_rate: parseFloat(interestRate) || 0,
-          monthly_payment: parseFloat(monthlyPayment),
-          start_date: new Date(startDate).toISOString(),
-          end_date: new Date(endDate).toISOString(),
-        }),
+      await creditsDB.create({
+        name,
+        total_amount: parseFloat(totalAmount),
+        remaining_amount: parseFloat(remainingAmount),
+        interest_rate: parseFloat(interestRate) || 0,
+        monthly_payment: parseFloat(monthlyPayment),
+        start_date: new Date(startDate).toISOString(),
+        end_date: new Date(endDate).toISOString(),
       });
-
-      if (response.ok) {
-        router.back();
-      } else {
-        alert('Błąd podczas dodawania kredytu');
-      }
+      router.back();
     } catch (error) {
       console.error('Error creating credit:', error);
       alert('Błąd podczas dodawania kredytu');
@@ -67,7 +57,7 @@ export default function AddCredit() {
     >
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.closeButton}>
-          <Ionicons name="close" size={28} color="#FFFFFF" />
+          <Ionicons name="close" size={28} color="#2A2520" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Dodaj Kredyt</Text>
         <View style={{ width: 28 }} />
@@ -217,7 +207,7 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: "#2A2520",
+    color: '#2A2520',
   },
   content: {
     flex: 1,
@@ -288,6 +278,6 @@ const styles = StyleSheet.create({
   submitButtonText: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#2A2520',
+    color: '#FFFFFF',
   },
 });

@@ -1,145 +1,34 @@
-import * as SQLite from 'expo-sqlite';
-import * as Crypto from 'expo-crypto';
-import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as Crypto from 'expo-crypto';
 
-let db: SQLite.SQLiteDatabase | null = null;
-let isWeb = Platform.OS === 'web';
-
-// Web storage fallback using AsyncStorage
-const webStorage = {
-  accounts: [] as any[],
-  categories: [] as any[],
-  transactions: [] as any[],
-  credits: [] as any[],
-  budgets: [] as any[],
-  recurring: [] as any[],
+// Storage keys
+const STORAGE_KEYS = {
+  ACCOUNTS: '@budget_ani_accounts',
+  CATEGORIES: '@budget_ani_categories',
+  TRANSACTIONS: '@budget_ani_transactions',
+  CREDITS: '@budget_ani_credits',
+  BUDGETS: '@budget_ani_budgets',
+  RECURRING: '@budget_ani_recurring',
+  INITIALIZED: '@budget_ani_initialized',
 };
 
-const loadWebData = async () => {
-  if (!isWeb) return;
-  
-  try {
-    const data = await AsyncStorage.getItem('budget_ani_data');
-    if (data) {
-      const parsed = JSON.parse(data);
-      webStorage.accounts = parsed.accounts || [];
-      webStorage.categories = parsed.categories || [];
-      webStorage.transactions = parsed.transactions || [];
-      webStorage.credits = parsed.credits || [];
-      webStorage.budgets = parsed.budgets || [];
-      webStorage.recurring = parsed.recurring || [];
-    }
-  } catch (error) {
-    console.error('Error loading web data:', error);
-  }
+// Helper function to generate UUID
+export const generateId = async () => {
+  return await Crypto.randomUUID();
 };
 
-const saveWebData = async () => {
-  if (!isWeb) return;
-  
-  try {
-    await AsyncStorage.setItem('budget_ani_data', JSON.stringify(webStorage));
-  } catch (error) {
-    console.error('Error saving web data:', error);
-  }
-};
-
-// Initialize database with encryption
+// Initialize database
 export const initDatabase = async () => {
   try {
-    db = await SQLite.openDatabaseAsync('budget_ani.db');
+    const initialized = await AsyncStorage.getItem(STORAGE_KEYS.INITIALIZED);
     
-    // Create tables
-    await db.execAsync(`
-      PRAGMA journal_mode = WAL;
-      
-      CREATE TABLE IF NOT EXISTS accounts (
-        id TEXT PRIMARY KEY,
-        name TEXT NOT NULL,
-        type TEXT NOT NULL,
-        balance REAL NOT NULL,
-        currency TEXT DEFAULT 'PLN',
-        icon TEXT DEFAULT 'wallet',
-        color TEXT DEFAULT '#D4AF37',
-        created_at TEXT NOT NULL
-      );
-      
-      CREATE TABLE IF NOT EXISTS categories (
-        id TEXT PRIMARY KEY,
-        name TEXT NOT NULL,
-        type TEXT NOT NULL,
-        icon TEXT DEFAULT 'pricetag',
-        color TEXT NOT NULL,
-        is_default INTEGER DEFAULT 0,
-        created_at TEXT NOT NULL
-      );
-      
-      CREATE TABLE IF NOT EXISTS transactions (
-        id TEXT PRIMARY KEY,
-        type TEXT NOT NULL,
-        amount REAL NOT NULL,
-        category TEXT NOT NULL,
-        account_id TEXT NOT NULL,
-        date TEXT NOT NULL,
-        description TEXT,
-        credit_id TEXT,
-        created_at TEXT NOT NULL,
-        FOREIGN KEY (account_id) REFERENCES accounts(id)
-      );
-      
-      CREATE TABLE IF NOT EXISTS credits (
-        id TEXT PRIMARY KEY,
-        name TEXT NOT NULL,
-        total_amount REAL NOT NULL,
-        remaining_amount REAL NOT NULL,
-        interest_rate REAL NOT NULL,
-        monthly_payment REAL NOT NULL,
-        start_date TEXT NOT NULL,
-        end_date TEXT NOT NULL,
-        account_id TEXT,
-        created_at TEXT NOT NULL
-      );
-      
-      CREATE TABLE IF NOT EXISTS budgets (
-        id TEXT PRIMARY KEY,
-        category TEXT NOT NULL,
-        month INTEGER NOT NULL,
-        year INTEGER NOT NULL,
-        limit_amount REAL NOT NULL,
-        spent_amount REAL DEFAULT 0,
-        created_at TEXT NOT NULL
-      );
-      
-      CREATE TABLE IF NOT EXISTS recurring_transactions (
-        id TEXT PRIMARY KEY,
-        name TEXT NOT NULL,
-        type TEXT NOT NULL,
-        amount REAL NOT NULL,
-        category TEXT NOT NULL,
-        account_id TEXT NOT NULL,
-        frequency TEXT NOT NULL,
-        day_of_month INTEGER NOT NULL,
-        start_date TEXT NOT NULL,
-        end_date TEXT,
-        is_active INTEGER DEFAULT 1,
-        last_executed TEXT,
-        credit_id TEXT,
-        created_at TEXT NOT NULL
-      );
-      
-      CREATE INDEX IF NOT EXISTS idx_transactions_date ON transactions(date);
-      CREATE INDEX IF NOT EXISTS idx_transactions_account ON transactions(account_id);
-      CREATE INDEX IF NOT EXISTS idx_transactions_credit ON transactions(credit_id);
-    `);
-    
-    // Initialize default categories if none exist
-    const result = await db.getFirstAsync('SELECT COUNT(*) as count FROM categories');
-    if (result && (result as any).count === 0) {
+    if (!initialized) {
+      // Initialize default categories
       await initDefaultCategories();
+      await AsyncStorage.setItem(STORAGE_KEYS.INITIALIZED, 'true');
+      console.log('Database initialized with default categories');
     }
     
-    console.log('Database initialized successfully');
     return true;
   } catch (error) {
     console.error('Error initializing database:', error);
@@ -148,167 +37,194 @@ export const initDatabase = async () => {
 };
 
 const initDefaultCategories = async () => {
-  if (!db) return;
-  
   const defaultCategories = [
-    { name: 'Wypłata', type: 'income', color: '#2C5F2D' },
-    { name: 'Premia', type: 'income', color: '#4CAF50' },
-    { name: 'Inwestycje', type: 'income', color: '#8BC34A' },
-    { name: 'Jedzenie', type: 'expense', color: '#800020' },
-    { name: 'Transport', type: 'expense', color: '#E91E63' },
-    { name: 'Rachunki', type: 'expense', color: '#9C27B0' },
-    { name: 'Rozrywka', type: 'expense', color: '#673AB7' },
-    { name: 'Zakupy', type: 'expense', color: '#3F51B5' },
-    { name: 'Zdrowie', type: 'expense', color: '#2196F3' },
-    { name: 'Inne', type: 'expense', color: '#607D8B' },
+    { name: 'Wypłata', type: 'income', color: '#2C5F2D', icon: 'cash', is_default: true },
+    { name: 'Premia', type: 'income', color: '#4CAF50', icon: 'gift', is_default: true },
+    { name: 'Inwestycje', type: 'income', color: '#8BC34A', icon: 'trending-up', is_default: true },
+    { name: 'Jedzenie', type: 'expense', color: '#800020', icon: 'restaurant', is_default: true },
+    { name: 'Transport', type: 'expense', color: '#E91E63', icon: 'car', is_default: true },
+    { name: 'Rachunki', type: 'expense', color: '#9C27B0', icon: 'receipt', is_default: true },
+    { name: 'Rozrywka', type: 'expense', color: '#673AB7', icon: 'game-controller', is_default: true },
+    { name: 'Zakupy', type: 'expense', color: '#3F51B5', icon: 'cart', is_default: true },
+    { name: 'Zdrowie', type: 'expense', color: '#2196F3', icon: 'medkit', is_default: true },
+    { name: 'Inne', type: 'expense', color: '#607D8B', icon: 'ellipsis-horizontal', is_default: true },
   ];
   
-  for (const cat of defaultCategories) {
-    const id = await Crypto.randomUUID();
-    await db.runAsync(
-      'INSERT INTO categories (id, name, type, icon, color, is_default, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
-      [id, cat.name, cat.type, 'pricetag', cat.color, 1, new Date().toISOString()]
-    );
+  const categoriesWithIds = await Promise.all(
+    defaultCategories.map(async (cat) => ({
+      ...cat,
+      id: await generateId(),
+      created_at: new Date().toISOString(),
+    }))
+  );
+  
+  await AsyncStorage.setItem(STORAGE_KEYS.CATEGORIES, JSON.stringify(categoriesWithIds));
+};
+
+// Generic storage helpers
+const getItems = async (key: string) => {
+  try {
+    const data = await AsyncStorage.getItem(key);
+    return data ? JSON.parse(data) : [];
+  } catch (error) {
+    console.error(`Error getting items from ${key}:`, error);
+    return [];
   }
 };
 
-// Helper function to generate UUID
-export const generateId = async () => {
-  return await Crypto.randomUUID();
-};
-
-export const getDatabase = () => {
-  if (!db) {
-    throw new Error('Database not initialized');
+const setItems = async (key: string, items: any[]) => {
+  try {
+    await AsyncStorage.setItem(key, JSON.stringify(items));
+  } catch (error) {
+    console.error(`Error setting items to ${key}:`, error);
   }
-  return db;
 };
 
 // Accounts operations
 export const accountsDB = {
   getAll: async () => {
-    const db = getDatabase();
-    return await db.getAllAsync('SELECT * FROM accounts ORDER BY created_at DESC');
+    return await getItems(STORAGE_KEYS.ACCOUNTS);
   },
   
   getById: async (id: string) => {
-    const db = getDatabase();
-    return await db.getFirstAsync('SELECT * FROM accounts WHERE id = ?', [id]);
+    const accounts = await getItems(STORAGE_KEYS.ACCOUNTS);
+    return accounts.find((acc: any) => acc.id === id);
   },
   
   create: async (account: any) => {
-    const db = getDatabase();
+    const accounts = await getItems(STORAGE_KEYS.ACCOUNTS);
     const id = await generateId();
-    await db.runAsync(
-      'INSERT INTO accounts (id, name, type, balance, currency, icon, color, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-      [id, account.name, account.type, account.balance, account.currency, account.icon, account.color, new Date().toISOString()]
-    );
+    const newAccount = {
+      ...account,
+      id,
+      created_at: new Date().toISOString(),
+    };
+    accounts.push(newAccount);
+    await setItems(STORAGE_KEYS.ACCOUNTS, accounts);
     return id;
   },
   
   update: async (id: string, account: any) => {
-    const db = getDatabase();
-    await db.runAsync(
-      'UPDATE accounts SET name = ?, type = ?, balance = ?, currency = ?, icon = ?, color = ? WHERE id = ?',
-      [account.name, account.type, account.balance, account.currency, account.icon, account.color, id]
-    );
+    const accounts = await getItems(STORAGE_KEYS.ACCOUNTS);
+    const index = accounts.findIndex((acc: any) => acc.id === id);
+    if (index !== -1) {
+      accounts[index] = { ...accounts[index], ...account };
+      await setItems(STORAGE_KEYS.ACCOUNTS, accounts);
+    }
   },
   
   delete: async (id: string) => {
-    const db = getDatabase();
-    await db.runAsync('DELETE FROM accounts WHERE id = ?', [id]);
+    const accounts = await getItems(STORAGE_KEYS.ACCOUNTS);
+    const filtered = accounts.filter((acc: any) => acc.id !== id);
+    await setItems(STORAGE_KEYS.ACCOUNTS, filtered);
   },
   
   updateBalance: async (id: string, newBalance: number) => {
-    const db = getDatabase();
-    await db.runAsync('UPDATE accounts SET balance = ? WHERE id = ?', [newBalance, id]);
+    const accounts = await getItems(STORAGE_KEYS.ACCOUNTS);
+    const index = accounts.findIndex((acc: any) => acc.id === id);
+    if (index !== -1) {
+      accounts[index].balance = newBalance;
+      await setItems(STORAGE_KEYS.ACCOUNTS, accounts);
+    }
   }
 };
 
 // Categories operations
 export const categoriesDB = {
   getAll: async (type?: string) => {
-    const db = getDatabase();
+    const categories = await getItems(STORAGE_KEYS.CATEGORIES);
     if (type) {
-      return await db.getAllAsync('SELECT * FROM categories WHERE type = ? ORDER BY is_default DESC, name ASC', [type]);
+      return categories.filter((cat: any) => cat.type === type);
     }
-    return await db.getAllAsync('SELECT * FROM categories ORDER BY type, is_default DESC, name ASC');
+    return categories;
   },
   
   create: async (category: any) => {
-    const db = getDatabase();
+    const categories = await getItems(STORAGE_KEYS.CATEGORIES);
     const id = await generateId();
-    await db.runAsync(
-      'INSERT INTO categories (id, name, type, icon, color, is_default, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
-      [id, category.name, category.type, category.icon, category.color, 0, new Date().toISOString()]
-    );
+    const newCategory = {
+      ...category,
+      id,
+      is_default: false,
+      created_at: new Date().toISOString(),
+    };
+    categories.push(newCategory);
+    await setItems(STORAGE_KEYS.CATEGORIES, categories);
     return id;
   },
   
   update: async (id: string, category: any) => {
-    const db = getDatabase();
-    await db.runAsync(
-      'UPDATE categories SET name = ?, type = ?, icon = ?, color = ? WHERE id = ?',
-      [category.name, category.type, category.icon, category.color, id]
-    );
+    const categories = await getItems(STORAGE_KEYS.CATEGORIES);
+    const index = categories.findIndex((cat: any) => cat.id === id);
+    if (index !== -1) {
+      categories[index] = { ...categories[index], ...category };
+      await setItems(STORAGE_KEYS.CATEGORIES, categories);
+    }
   },
   
   delete: async (id: string) => {
-    const db = getDatabase();
-    await db.runAsync('DELETE FROM categories WHERE id = ? AND is_default = 0', [id]);
+    const categories = await getItems(STORAGE_KEYS.CATEGORIES);
+    const filtered = categories.filter((cat: any) => cat.id !== id && !cat.is_default);
+    await setItems(STORAGE_KEYS.CATEGORIES, filtered);
   }
 };
 
 // Transactions operations
 export const transactionsDB = {
   getAll: async (limit?: number, accountId?: string) => {
-    const db = getDatabase();
-    let query = 'SELECT * FROM transactions';
-    const params: any[] = [];
+    let transactions = await getItems(STORAGE_KEYS.TRANSACTIONS);
     
     if (accountId) {
-      query += ' WHERE account_id = ?';
-      params.push(accountId);
+      transactions = transactions.filter((t: any) => t.account_id === accountId);
     }
     
-    query += ' ORDER BY date DESC';
+    // Sort by date descending
+    transactions.sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime());
     
     if (limit) {
-      query += ' LIMIT ?';
-      params.push(limit);
+      transactions = transactions.slice(0, limit);
     }
     
-    return await db.getAllAsync(query, params);
+    return transactions;
   },
   
   getByDateRange: async (startDate: string, endDate: string, type?: string) => {
-    const db = getDatabase();
-    let query = 'SELECT * FROM transactions WHERE date >= ? AND date <= ?';
-    const params: any[] = [startDate, endDate];
+    let transactions = await getItems(STORAGE_KEYS.TRANSACTIONS);
+    
+    transactions = transactions.filter((t: any) => {
+      const tDate = new Date(t.date);
+      const start = new Date(startDate);
+      const end = new Date(endDate);
+      return tDate >= start && tDate <= end;
+    });
     
     if (type) {
-      query += ' AND type = ?';
-      params.push(type);
+      transactions = transactions.filter((t: any) => t.type === type);
     }
     
-    query += ' ORDER BY date DESC';
-    return await db.getAllAsync(query, params);
+    transactions.sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    
+    return transactions;
   },
   
   create: async (transaction: any) => {
-    const db = getDatabase();
+    const transactions = await getItems(STORAGE_KEYS.TRANSACTIONS);
     const id = await generateId();
     
-    await db.runAsync(
-      'INSERT INTO transactions (id, type, amount, category, account_id, date, description, credit_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
-      [id, transaction.type, transaction.amount, transaction.category, transaction.account_id, transaction.date, transaction.description || '', transaction.credit_id || null, new Date().toISOString()]
-    );
+    const newTransaction = {
+      ...transaction,
+      id,
+      created_at: new Date().toISOString(),
+    };
+    
+    transactions.push(newTransaction);
+    await setItems(STORAGE_KEYS.TRANSACTIONS, transactions);
     
     // Update account balance
-    const account: any = await accountsDB.getById(transaction.account_id);
+    const account = await accountsDB.getById(transaction.account_id);
     if (account) {
-      const newBalance = transaction.type === 'income' 
-        ? account.balance + transaction.amount 
+      const newBalance = transaction.type === 'income'
+        ? account.balance + transaction.amount
         : account.balance - transaction.amount;
       await accountsDB.updateBalance(transaction.account_id, newBalance);
     }
@@ -317,12 +233,12 @@ export const transactionsDB = {
   },
   
   delete: async (id: string) => {
-    const db = getDatabase();
-    const transaction: any = await db.getFirstAsync('SELECT * FROM transactions WHERE id = ?', [id]);
+    const transactions = await getItems(STORAGE_KEYS.TRANSACTIONS);
+    const transaction = transactions.find((t: any) => t.id === id);
     
     if (transaction) {
       // Reverse balance change
-      const account: any = await accountsDB.getById(transaction.account_id);
+      const account = await accountsDB.getById(transaction.account_id);
       if (account) {
         const newBalance = transaction.type === 'income'
           ? account.balance - transaction.amount
@@ -330,7 +246,8 @@ export const transactionsDB = {
         await accountsDB.updateBalance(transaction.account_id, newBalance);
       }
       
-      await db.runAsync('DELETE FROM transactions WHERE id = ?', [id]);
+      const filtered = transactions.filter((t: any) => t.id !== id);
+      await setItems(STORAGE_KEYS.TRANSACTIONS, filtered);
     }
   }
 };
@@ -338,25 +255,24 @@ export const transactionsDB = {
 // Credits operations
 export const creditsDB = {
   getAll: async (month?: number, year?: number) => {
-    const db = getDatabase();
-    const credits = await db.getAllAsync('SELECT * FROM credits ORDER BY created_at DESC');
+    const credits = await getItems(STORAGE_KEYS.CREDITS);
     
     if (month && year) {
-      // Calculate monthly payments for each credit
       const startDate = new Date(year, month - 1, 1).toISOString();
       const endDate = new Date(year, month, 0, 23, 59, 59).toISOString();
       
-      const creditsWithPayments = await Promise.all(credits.map(async (credit: any) => {
-        const payments = await db.getAllAsync(
-          'SELECT SUM(amount) as total FROM transactions WHERE credit_id = ? AND type = ? AND date >= ? AND date <= ?',
-          [credit.id, 'expense', startDate, endDate]
-        );
-        
-        return {
-          ...credit,
-          monthly_paid: (payments[0] as any)?.total || 0
-        };
-      }));
+      const creditsWithPayments = await Promise.all(
+        credits.map(async (credit: any) => {
+          const transactions = await transactionsDB.getByDateRange(startDate, endDate, 'expense');
+          const payments = transactions.filter((t: any) => t.credit_id === credit.id);
+          const monthlyPaid = payments.reduce((sum: number, t: any) => sum + t.amount, 0);
+          
+          return {
+            ...credit,
+            monthly_paid: monthlyPaid,
+          };
+        })
+      );
       
       return creditsWithPayments;
     }
@@ -365,105 +281,137 @@ export const creditsDB = {
   },
   
   create: async (credit: any) => {
-    const db = getDatabase();
+    const credits = await getItems(STORAGE_KEYS.CREDITS);
     const id = await generateId();
-    await db.runAsync(
-      'INSERT INTO credits (id, name, total_amount, remaining_amount, interest_rate, monthly_payment, start_date, end_date, account_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-      [id, credit.name, credit.total_amount, credit.remaining_amount, credit.interest_rate, credit.monthly_payment, credit.start_date, credit.end_date, credit.account_id || null, new Date().toISOString()]
-    );
+    const newCredit = {
+      ...credit,
+      id,
+      created_at: new Date().toISOString(),
+    };
+    credits.push(newCredit);
+    await setItems(STORAGE_KEYS.CREDITS, credits);
     return id;
   },
   
   update: async (id: string, credit: any) => {
-    const db = getDatabase();
-    await db.runAsync(
-      'UPDATE credits SET name = ?, total_amount = ?, remaining_amount = ?, interest_rate = ?, monthly_payment = ?, start_date = ?, end_date = ?, account_id = ? WHERE id = ?',
-      [credit.name, credit.total_amount, credit.remaining_amount, credit.interest_rate, credit.monthly_payment, credit.start_date, credit.end_date, credit.account_id || null, id]
-    );
+    const credits = await getItems(STORAGE_KEYS.CREDITS);
+    const index = credits.findIndex((c: any) => c.id === id);
+    if (index !== -1) {
+      credits[index] = { ...credits[index], ...credit };
+      await setItems(STORAGE_KEYS.CREDITS, credits);
+    }
   },
   
   delete: async (id: string) => {
-    const db = getDatabase();
-    await db.runAsync('DELETE FROM credits WHERE id = ?', [id]);
+    const credits = await getItems(STORAGE_KEYS.CREDITS);
+    const filtered = credits.filter((c: any) => c.id !== id);
+    await setItems(STORAGE_KEYS.CREDITS, filtered);
   }
 };
 
 // Budgets operations
 export const budgetsDB = {
   getAll: async (month?: number, year?: number) => {
-    const db = getDatabase();
-    let query = 'SELECT * FROM budgets';
-    const params: any[] = [];
+    let budgets = await getItems(STORAGE_KEYS.BUDGETS);
     
     if (month && year) {
-      query += ' WHERE month = ? AND year = ?';
-      params.push(month, year);
+      budgets = budgets.filter((b: any) => b.month === month && b.year === year);
     }
     
-    query += ' ORDER BY created_at DESC';
-    const budgets = await db.getAllAsync(query, params);
-    
     // Calculate spent amount for each budget
-    return await Promise.all(budgets.map(async (budget: any) => {
-      const startDate = new Date(budget.year, budget.month - 1, 1).toISOString();
-      const endDate = new Date(budget.year, budget.month, 0, 23, 59, 59).toISOString();
-      
-      const spent = await db.getAllAsync(
-        'SELECT SUM(amount) as total FROM transactions WHERE type = ? AND category = ? AND date >= ? AND date <= ?',
-        ['expense', budget.category, startDate, endDate]
-      );
-      
-      return {
-        ...budget,
-        spent_amount: (spent[0] as any)?.total || 0
-      };
-    }));
+    const budgetsWithSpent = await Promise.all(
+      budgets.map(async (budget: any) => {
+        const startDate = new Date(budget.year, budget.month - 1, 1).toISOString();
+        const endDate = new Date(budget.year, budget.month, 0, 23, 59, 59).toISOString();
+        
+        const transactions = await transactionsDB.getByDateRange(startDate, endDate, 'expense');
+        const categoryTransactions = transactions.filter((t: any) => t.category === budget.category);
+        const spentAmount = categoryTransactions.reduce((sum: number, t: any) => sum + t.amount, 0);
+        
+        return {
+          ...budget,
+          spent_amount: spentAmount,
+        };
+      })
+    );
+    
+    return budgetsWithSpent;
   },
   
   create: async (budget: any) => {
-    const db = getDatabase();
+    const budgets = await getItems(STORAGE_KEYS.BUDGETS);
     const id = await generateId();
-    await db.runAsync(
-      'INSERT INTO budgets (id, category, month, year, limit_amount, spent_amount, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
-      [id, budget.category, budget.month, budget.year, budget.limit_amount, 0, new Date().toISOString()]
-    );
+    const newBudget = {
+      ...budget,
+      id,
+      spent_amount: 0,
+      created_at: new Date().toISOString(),
+    };
+    budgets.push(newBudget);
+    await setItems(STORAGE_KEYS.BUDGETS, budgets);
     return id;
   },
   
   update: async (id: string, budget: any) => {
-    const db = getDatabase();
-    await db.runAsync(
-      'UPDATE budgets SET category = ?, month = ?, year = ?, limit_amount = ? WHERE id = ?',
-      [budget.category, budget.month, budget.year, budget.limit_amount, id]
-    );
+    const budgets = await getItems(STORAGE_KEYS.BUDGETS);
+    const index = budgets.findIndex((b: any) => b.id === id);
+    if (index !== -1) {
+      budgets[index] = { ...budgets[index], ...budget };
+      await setItems(STORAGE_KEYS.BUDGETS, budgets);
+    }
   },
   
   delete: async (id: string) => {
-    const db = getDatabase();
-    await db.runAsync('DELETE FROM budgets WHERE id = ?', [id]);
+    const budgets = await getItems(STORAGE_KEYS.BUDGETS);
+    const filtered = budgets.filter((b: any) => b.id !== id);
+    await setItems(STORAGE_KEYS.BUDGETS, filtered);
   }
 };
 
 // Recurring transactions operations
 export const recurringDB = {
   getAll: async () => {
-    const db = getDatabase();
-    return await db.getAllAsync('SELECT * FROM recurring_transactions ORDER BY created_at DESC');
+    const items = await getItems(STORAGE_KEYS.RECURRING);
+    // Calculate next_due_date for each item
+    return items.map((item: any) => {
+      const now = new Date();
+      let nextDate = new Date(now.getFullYear(), now.getMonth(), item.day_of_month || 1);
+      
+      if (nextDate <= now) {
+        if (item.frequency === 'monthly') {
+          nextDate.setMonth(nextDate.getMonth() + 1);
+        } else if (item.frequency === 'quarterly') {
+          nextDate.setMonth(nextDate.getMonth() + 3);
+        } else if (item.frequency === 'yearly') {
+          nextDate.setFullYear(nextDate.getFullYear() + 1);
+        }
+      }
+      
+      return {
+        ...item,
+        next_due_date: nextDate.toISOString(),
+      };
+    });
   },
   
   create: async (recurring: any) => {
-    const db = getDatabase();
+    const recurrings = await getItems(STORAGE_KEYS.RECURRING);
     const id = await generateId();
-    await db.runAsync(
-      'INSERT INTO recurring_transactions (id, name, type, amount, category, account_id, frequency, day_of_month, start_date, end_date, is_active, last_executed, credit_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-      [id, recurring.name, recurring.type, recurring.amount, recurring.category, recurring.account_id, recurring.frequency, recurring.day_of_month, recurring.start_date, recurring.end_date || null, 1, null, recurring.credit_id || null, new Date().toISOString()]
-    );
+    const newRecurring = {
+      ...recurring,
+      id,
+      is_active: true,
+      last_executed: null,
+      created_at: new Date().toISOString(),
+    };
+    recurrings.push(newRecurring);
+    await setItems(STORAGE_KEYS.RECURRING, recurrings);
     return id;
   },
   
   execute: async (id: string) => {
-    const db = getDatabase();
-    const recurring: any = await db.getFirstAsync('SELECT * FROM recurring_transactions WHERE id = ?', [id]);
+    const recurrings = await getItems(STORAGE_KEYS.RECURRING);
+    const recurring = recurrings.find((r: any) => r.id === id);
     
     if (recurring) {
       const transactionId = await transactionsDB.create({
@@ -473,41 +421,41 @@ export const recurringDB = {
         account_id: recurring.account_id,
         date: new Date().toISOString(),
         description: `Płatność cykliczna: ${recurring.name}`,
-        credit_id: recurring.credit_id
+        credit_id: recurring.credit_id || null,
       });
       
-      await db.runAsync(
-        'UPDATE recurring_transactions SET last_executed = ? WHERE id = ?',
-        [new Date().toISOString(), id]
-      );
+      // Update last_executed
+      const index = recurrings.findIndex((r: any) => r.id === id);
+      if (index !== -1) {
+        recurrings[index].last_executed = new Date().toISOString();
+        await setItems(STORAGE_KEYS.RECURRING, recurrings);
+      }
       
       return transactionId;
     }
   },
   
   update: async (id: string, recurring: any) => {
-    const db = getDatabase();
-    await db.runAsync(
-      'UPDATE recurring_transactions SET name = ?, type = ?, amount = ?, category = ?, account_id = ?, frequency = ?, day_of_month = ?, start_date = ?, end_date = ?, credit_id = ? WHERE id = ?',
-      [recurring.name, recurring.type, recurring.amount, recurring.category, recurring.account_id, recurring.frequency, recurring.day_of_month, recurring.start_date, recurring.end_date || null, recurring.credit_id || null, id]
-    );
+    const recurrings = await getItems(STORAGE_KEYS.RECURRING);
+    const index = recurrings.findIndex((r: any) => r.id === id);
+    if (index !== -1) {
+      recurrings[index] = { ...recurrings[index], ...recurring };
+      await setItems(STORAGE_KEYS.RECURRING, recurrings);
+    }
   },
   
   delete: async (id: string) => {
-    const db = getDatabase();
-    await db.runAsync('DELETE FROM recurring_transactions WHERE id = ?', [id]);
+    const recurrings = await getItems(STORAGE_KEYS.RECURRING);
+    const filtered = recurrings.filter((r: any) => r.id !== id);
+    await setItems(STORAGE_KEYS.RECURRING, filtered);
   }
 };
 
 // Dashboard stats
 export const getDashboardStats = async (month?: number, year?: number) => {
-  const db = getDatabase();
-  
-  // Get all accounts
   const accounts = await accountsDB.getAll();
   const totalBalance = accounts.reduce((sum: number, acc: any) => sum + acc.balance, 0);
   
-  // Get transactions for period
   const now = new Date();
   const targetMonth = month || now.getMonth() + 1;
   const targetYear = year || now.getFullYear();
@@ -528,6 +476,10 @@ export const getDashboardStats = async (month?: number, year?: number) => {
     total_income: totalIncome,
     total_expenses: totalExpenses,
     accounts_count: accounts.length,
-    credits_count: credits.length
+    credits_count: credits.length,
   };
+};
+
+export const getDatabase = () => {
+  return { initialized: true };
 };

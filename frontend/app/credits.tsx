@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -9,11 +9,10 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { format } from 'date-fns';
 import { pl } from 'date-fns/locale';
-
-const API_URL = process.env.EXPO_PUBLIC_BACKEND_URL;
+import { creditsDB } from '../lib/database';
 
 export default function Credits() {
   const [credits, setCredits] = useState<any[]>([]);
@@ -24,8 +23,7 @@ export default function Credits() {
 
   const fetchCredits = async () => {
     try {
-      const response = await fetch(`${API_URL}/api/credits?month=${selectedMonth}&year=${selectedYear}`);
-      const data = await response.json();
+      const data = await creditsDB.getAll(selectedMonth, selectedYear);
       setCredits(data);
     } catch (error) {
       console.error('Error fetching credits:', error);
@@ -35,9 +33,11 @@ export default function Credits() {
     }
   };
 
-  useEffect(() => {
-    fetchCredits();
-  }, []);
+  useFocusEffect(
+    useCallback(() => {
+      fetchCredits();
+    }, [])
+  );
 
   const onRefresh = () => {
     setRefreshing(true);
@@ -46,7 +46,7 @@ export default function Credits() {
 
   const deleteCredit = async (id: string) => {
     try {
-      await fetch(`${API_URL}/api/credits/${id}`, { method: 'DELETE' });
+      await creditsDB.delete(id);
       fetchCredits();
     } catch (error) {
       console.error('Error deleting credit:', error);
@@ -67,14 +67,22 @@ export default function Credits() {
 
   return (
     <View style={styles.container}>
+      <View style={styles.headerBar}>
+        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+          <Ionicons name="arrow-back" size={24} color="#2A2520" />
+        </TouchableOpacity>
+        <Text style={styles.headerBarTitle}>Kredyty</Text>
+        <View style={{ width: 32 }} />
+      </View>
+
       <View style={styles.summaryCard}>
         <View style={styles.summaryRow}>
           <View style={styles.summaryItem}>
-            <Text style={styles.summaryLabel}>Całkowita Kwota</Text>
+            <Text style={styles.summaryLabel}>Ca\u0142kowita Kwota</Text>
             <Text style={styles.summaryAmount}>{totalBorrowed.toFixed(2)} PLN</Text>
           </View>
           <View style={styles.summaryItem}>
-            <Text style={styles.summaryLabel}>Do Spłaty</Text>
+            <Text style={styles.summaryLabel}>Do Sp\u0142aty</Text>
             <Text style={[styles.summaryAmount, { color: '#800020' }]}>{totalRemaining.toFixed(2)} PLN</Text>
           </View>
         </View>
@@ -83,7 +91,7 @@ export default function Credits() {
           <View style={styles.monthlyTotalCard}>
             <Ionicons name="checkmark-circle" size={24} color="#2C5F2D" />
             <View style={styles.monthlyTotalContent}>
-              <Text style={styles.monthlyTotalLabel}>Spłacono w tym miesiącu</Text>
+              <Text style={styles.monthlyTotalLabel}>Sp\u0142acono w tym miesi\u0105cu</Text>
               <Text style={styles.monthlyTotalAmount}>{totalMonthlyPaid.toFixed(2)} PLN</Text>
             </View>
           </View>
@@ -98,7 +106,7 @@ export default function Credits() {
           />
         </View>
         <Text style={styles.progressText}>
-          Spłacono: {totalBorrowed > 0 ? (((totalBorrowed - totalRemaining) / totalBorrowed) * 100).toFixed(1) : 0}%
+          Sp\u0142acono: {totalBorrowed > 0 ? (((totalBorrowed - totalRemaining) / totalBorrowed) * 100).toFixed(1) : 0}%
         </Text>
       </View>
 
@@ -109,14 +117,14 @@ export default function Credits() {
         ListEmptyComponent={
           <View style={styles.emptyState}>
             <Ionicons name="card-outline" size={64} color="#9B8B7E" />
-            <Text style={styles.emptyStateText}>Brak kredytów</Text>
+            <Text style={styles.emptyStateText}>Brak kredyt\u00f3w</Text>
             <TouchableOpacity style={styles.addButton} onPress={() => router.push('/add-credit')}>
               <Text style={styles.addButtonText}>Dodaj Kredyt</Text>
             </TouchableOpacity>
           </View>
         }
         renderItem={({ item }) => {
-          const progress = (item.total_amount - item.remaining_amount) / item.total_amount;
+          const progress = item.total_amount > 0 ? (item.total_amount - item.remaining_amount) / item.total_amount : 0;
           return (
             <View style={styles.creditItem}>
               <View style={styles.creditHeader}>
@@ -137,11 +145,11 @@ export default function Credits() {
 
               <View style={styles.creditAmounts}>
                 <View style={styles.amountItem}>
-                  <Text style={styles.amountLabel}>Całkowita kwota</Text>
+                  <Text style={styles.amountLabel}>Ca\u0142kowita kwota</Text>
                   <Text style={styles.amountValue}>{item.total_amount.toFixed(2)} PLN</Text>
                 </View>
                 <View style={styles.amountItem}>
-                  <Text style={styles.amountLabel}>Do spłaty</Text>
+                  <Text style={styles.amountLabel}>Do sp\u0142aty</Text>
                   <Text style={[styles.amountValue, { color: '#800020' }]}>
                     {item.remaining_amount.toFixed(2)} PLN
                   </Text>
@@ -152,7 +160,7 @@ export default function Credits() {
                 <View style={styles.monthlyPaymentCard}>
                   <Ionicons name="calendar-outline" size={16} color="#2C5F2D" />
                   <Text style={styles.monthlyPaymentText}>
-                    Spłacono w tym miesiącu: <Text style={styles.monthlyPaymentAmount}>{item.monthly_paid.toFixed(2)} PLN</Text>
+                    Sp\u0142acono w tym miesi\u0105cu: <Text style={styles.monthlyPaymentAmount}>{item.monthly_paid.toFixed(2)} PLN</Text>
                   </Text>
                 </View>
               )}
@@ -195,9 +203,26 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: '#FAF8F3',
   },
+  headerBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 20,
+    paddingTop: 60,
+    backgroundColor: '#FAF8F3',
+  },
+  backButton: {
+    padding: 4,
+  },
+  headerBarTitle: {
+    fontSize: 20,
+    fontWeight: '600',
+    color: '#2A2520',
+  },
   summaryCard: {
     backgroundColor: '#FFFFFF',
     margin: 16,
+    marginTop: 0,
     padding: 20,
     borderRadius: 16,
   },

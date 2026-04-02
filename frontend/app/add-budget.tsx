@@ -12,8 +12,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-
-const API_URL = process.env.EXPO_PUBLIC_BACKEND_URL;
+import { budgetsDB, categoriesDB } from '../lib/database';
 
 export default function AddBudget() {
   const [category, setCategory] = useState('');
@@ -31,8 +30,7 @@ export default function AddBudget() {
 
   const fetchCategories = async () => {
     try {
-      const response = await fetch(`${API_URL}/api/categories?type=expense`);
-      const data = await response.json();
+      const data = await categoriesDB.getAll('expense');
       setCategories(data);
       if (data.length > 0) {
         setCategory(data[0].name);
@@ -50,23 +48,13 @@ export default function AddBudget() {
 
     setLoading(true);
     try {
-      const response = await fetch(`${API_URL}/api/budgets`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          category,
-          month,
-          year,
-          limit_amount: parseFloat(limitAmount),
-          spent_amount: 0,
-        }),
+      await budgetsDB.create({
+        category,
+        month,
+        year,
+        limit_amount: parseFloat(limitAmount),
       });
-
-      if (response.ok) {
-        router.back();
-      } else {
-        alert('Błąd podczas dodawania budżetu');
-      }
+      router.back();
     } catch (error) {
       console.error('Error creating budget:', error);
       alert('Błąd podczas dodawania budżetu');
@@ -82,7 +70,7 @@ export default function AddBudget() {
     >
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.closeButton}>
-          <Ionicons name="close" size={28} color="#FFFFFF" />
+          <Ionicons name="close" size={28} color="#2A2520" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Dodaj Budżet</Text>
         <View style={{ width: 28 }} />
@@ -175,7 +163,7 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: "#2A2520",
+    color: '#2A2520',
   },
   content: {
     flex: 1,
@@ -235,7 +223,7 @@ const styles = StyleSheet.create({
     color: '#6B5D52',
   },
   categoryChipTextActive: {
-    color: '#2A2520',
+    color: '#FFFFFF',
   },
   footer: {
     padding: 20,
@@ -254,6 +242,6 @@ const styles = StyleSheet.create({
   submitButtonText: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#2A2520',
+    color: '#FFFFFF',
   },
 });
