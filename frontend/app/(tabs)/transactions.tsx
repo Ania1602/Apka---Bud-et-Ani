@@ -84,7 +84,7 @@ export default function Transactions() {
             <Text style={s.sectionDate}>{format(new Date(section.date), 'EEEE, dd MMMM', { locale: pl })}</Text>
             {section.items.map(item => (
               <TouchableOpacity key={item.id} style={s.txItem}
-                onPress={() => router.push(`/add-transaction?edit=${item.id}&type=${item.type}&amount=${item.amount}&category=${encodeURIComponent(item.category)}&description=${encodeURIComponent(item.description || '')}&account_id=${item.account_id || ''}&credit_id=${item.credit_id || ''}`)}
+                onPress={() => router.push(`/add-transaction?edit=${item.id}&type=${item.type}&amount=${item.amount}&category=${encodeURIComponent(item.category)}&description=${encodeURIComponent(item.description || '')}&account_id=${item.account_id || ''}&credit_id=${item.credit_id || ''}&date=${item.date}`)}
                 onLongPress={() => deleteTransaction(item.id, item.category)}>
                 <View style={[s.txIcon, { backgroundColor: item.type === 'income' ? '#2C5F2D15' : '#80002015' }]}>
                   <Ionicons name={item.type === 'income' ? 'arrow-down' : 'arrow-up'} size={20} color={item.type === 'income' ? '#2C5F2D' : '#800020'} />
@@ -143,5 +143,5 @@ const s = StyleSheet.create({
   emptyText: { fontSize: 18, fontWeight: '600', color: '#2A2520', marginTop: 16, marginBottom: 24 },
   addBtn: { backgroundColor: '#D4AF37', paddingHorizontal: 24, paddingVertical: 12, borderRadius: 8 },
   addBtnText: { color: '#2A2520', fontSize: 16, fontWeight: '600' },
-  fab: { position: 'absolute', right: 20, bottom: 20, width: 60, height: 60, borderRadius: 30, backgroundColor: '#D4AF37', alignItems: 'center', justifyContent: 'center', elevation: 5 },
+  fab: { position: 'absolute', right: 20, bottom: 100, width: 60, height: 60, borderRadius: 30, backgroundColor: '#D4AF37', alignItems: 'center', justifyContent: 'center', elevation: 5 },
 });

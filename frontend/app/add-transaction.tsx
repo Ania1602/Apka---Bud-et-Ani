@@ -25,6 +25,7 @@ export default function AddTransaction() {
   const [description, setDescription] = useState(params.description ? decodeURIComponent(params.description as string) : '');
   const [accountId, setAccountId] = useState(params.account_id ? String(params.account_id) : '');
   const [creditId, setCreditId] = useState(params.credit_id ? String(params.credit_id) : '');
+  const [selectedDate, setSelectedDate] = useState(params.date ? String(params.date).split('T')[0] : new Date().toISOString().split('T')[0]);
   const [accounts, setAccounts] = useState<any[]>([]);
   const [credits, setCredits] = useState<any[]>([]);
   const [categories, setCategories] = useState<any[]>([]);
@@ -71,6 +72,7 @@ export default function AddTransaction() {
           account_id: accountId,
           description,
           credit_id: creditId || null,
+          date: new Date(selectedDate + 'T12:00:00').toISOString(),
         });
       } else {
         await transactionsDB.create({
@@ -78,7 +80,7 @@ export default function AddTransaction() {
           amount: parseFloat(amount),
           category,
           account_id: accountId,
-          date: new Date().toISOString(),
+          date: new Date(selectedDate + 'T12:00:00').toISOString(),
           description,
           credit_id: creditId || null,
         });
@@ -140,6 +142,39 @@ export default function AddTransaction() {
         </View>
 
         <View style={styles.form}>
+          <View style={styles.field}>
+            <Text style={styles.label}>Data transakcji</Text>
+            <View style={styles.dateRow}>
+              <TouchableOpacity style={styles.dateButton} onPress={() => {
+                const d = new Date(selectedDate);
+                d.setDate(d.getDate() - 1);
+                setSelectedDate(d.toISOString().split('T')[0]);
+              }}>
+                <Ionicons name="chevron-back" size={20} color="#D4AF37" />
+              </TouchableOpacity>
+              <View style={styles.dateDisplay}>
+                <Ionicons name="calendar" size={18} color="#D4AF37" />
+                <TextInput
+                  style={styles.dateInput}
+                  value={selectedDate}
+                  onChangeText={setSelectedDate}
+                  placeholder="RRRR-MM-DD"
+                  placeholderTextColor="#9B8B7E"
+                />
+              </View>
+              <TouchableOpacity style={styles.dateButton} onPress={() => {
+                const d = new Date(selectedDate);
+                d.setDate(d.getDate() + 1);
+                setSelectedDate(d.toISOString().split('T')[0]);
+              }}>
+                <Ionicons name="chevron-forward" size={20} color="#D4AF37" />
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.todayButton} onPress={() => setSelectedDate(new Date().toISOString().split('T')[0])}>
+                <Text style={styles.todayButtonText}>Dziś</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+
           <View style={styles.field}>
             <Text style={styles.label}>Kategoria</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.categoryScroll}>
@@ -356,6 +391,45 @@ const styles = StyleSheet.create({
   },
   categoryScroll: {
     flexDirection: 'row',
+  },
+  dateRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  dateButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  dateDisplay: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    padding: 12,
+    gap: 10,
+  },
+  dateInput: {
+    flex: 1,
+    fontSize: 16,
+    fontWeight: '500',
+    color: '#2A2520',
+  },
+  todayButton: {
+    backgroundColor: '#D4AF37',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 10,
+  },
+  todayButtonText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#FFFFFF',
   },
   categoryChip: {
     paddingHorizontal: 20,

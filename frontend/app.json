@@ -48,7 +48,8 @@
         {
           "faceIDPermission": "Odblokuj aplikację biometrią"
         }
-      ]
+      ],
+      "@react-native-community/datetimepicker"
     ],
     "experiments": {
       "typedRoutes": true
