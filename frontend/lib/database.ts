@@ -1,7 +1,49 @@
 import * as SQLite from 'expo-sqlite';
 import * as Crypto from 'expo-crypto';
+import { Platform } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 let db: SQLite.SQLiteDatabase | null = null;
+let isWeb = Platform.OS === 'web';
+
+// Web storage fallback using AsyncStorage
+const webStorage = {
+  accounts: [] as any[],
+  categories: [] as any[],
+  transactions: [] as any[],
+  credits: [] as any[],
+  budgets: [] as any[],
+  recurring: [] as any[],
+};
+
+const loadWebData = async () => {
+  if (!isWeb) return;
+  
+  try {
+    const data = await AsyncStorage.getItem('budget_ani_data');
+    if (data) {
+      const parsed = JSON.parse(data);
+      webStorage.accounts = parsed.accounts || [];
+      webStorage.categories = parsed.categories || [];
+      webStorage.transactions = parsed.transactions || [];
+      webStorage.credits = parsed.credits || [];
+      webStorage.budgets = parsed.budgets || [];
+      webStorage.recurring = parsed.recurring || [];
+    }
+  } catch (error) {
+    console.error('Error loading web data:', error);
+  }
+};
+
+const saveWebData = async () => {
+  if (!isWeb) return;
+  
+  try {
+    await AsyncStorage.setItem('budget_ani_data', JSON.stringify(webStorage));
+  } catch (error) {
+    console.error('Error saving web data:', error);
+  }
+};
 
 // Initialize database with encryption
 export const initDatabase = async () => {
