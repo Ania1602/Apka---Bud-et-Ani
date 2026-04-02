@@ -136,7 +136,7 @@ export default function Credits() {
                 </View>
               </View>
 
-              {item.monthly_paid !== undefined && (
+              {item.monthly_paid !== undefined && item.monthly_paid !== null && (
                 <View style={styles.monthlyPaymentCard}>
                   <Ionicons name="calendar-outline" size={16} color="#2C5F2D" />
                   <Text style={styles.monthlyPaymentText}>

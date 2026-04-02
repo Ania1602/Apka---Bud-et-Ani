@@ -328,7 +328,7 @@ const styles = StyleSheet.create({
   amountInput: {
     fontSize: 48,
     fontWeight: 'bold',
-    color: "#FFFFFF",
+    color: "#2A2520",
     minWidth: 150,
     textAlign: 'center',
   },
@@ -349,7 +349,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 16,
     fontSize: 16,
-    color: "#FFFFFF",
+    color: "#2A2520",
     minHeight: 80,
   },
   categoryScroll: {

@@ -83,6 +83,7 @@ class Credit(BaseModel):
 
 class CreditResponse(Credit):
     id: str
+    monthly_paid: Optional[float] = 0.0
 
 class DashboardStats(BaseModel):
     total_balance: float
