@@ -21,13 +21,16 @@ export default function Dashboard() {
   const [transactions, setTransactions] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
+  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+  const [showPeriodPicker, setShowPeriodPicker] = useState(false);
 
   const fetchData = async () => {
     try {
       await fetch(`${API_URL}/api/initialize`, { method: 'POST' });
       
       const [statsRes, transactionsRes] = await Promise.all([
-        fetch(`${API_URL}/api/dashboard/stats`),
+        fetch(`${API_URL}/api/dashboard/stats?month=${selectedMonth}&year=${selectedYear}`),
         fetch(`${API_URL}/api/transactions?limit=5`),
       ]);
       
@@ -46,7 +49,7 @@ export default function Dashboard() {
 
   useEffect(() => {
     fetchData();
-  }, []);
+  }, [selectedMonth, selectedYear]);
 
   const onRefresh = () => {
     setRefreshing(true);
@@ -72,9 +75,80 @@ export default function Dashboard() {
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#D4AF37" />}
     >
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Portfolio Finansowe</Text>
-        <Text style={styles.headerSubtitle}>{format(new Date(), 'MMMM yyyy', { locale: pl })}</Text>
+        <View>
+          <Text style={styles.headerTitle}>Portfolio Finansowe</Text>
+          <TouchableOpacity onPress={() => setShowPeriodPicker(!showPeriodPicker)} style={styles.periodSelector}>
+            <Text style={styles.headerSubtitle}>
+              {format(new Date(selectedYear, selectedMonth - 1), 'MMMM yyyy', { locale: pl })}
+            </Text>
+            <Ionicons name="chevron-down" size={16} color="#6B5D52" />
+          </TouchableOpacity>
+        </View>
+        <TouchableOpacity
+          style={styles.exportButton}
+          onPress={async () => {
+            const startDate = new Date(selectedYear, selectedMonth - 1, 1).toISOString();
+            const endDate = new Date(selectedYear, selectedMonth, 0, 23, 59, 59).toISOString();
+            const url = `${API_URL}/api/reports/export?start_date=${startDate}&end_date=${endDate}`;
+            // On web, just open in new tab
+            if (typeof window !== 'undefined') {
+              window.open(url, '_blank');
+            }
+          }}
+        >
+          <Ionicons name="download" size={24} color="#D4AF37" />
+        </TouchableOpacity>
       </View>
+
+      {showPeriodPicker && (
+        <View style={styles.periodPicker}>
+          <View style={styles.periodPickerHeader}>
+            <Text style={styles.periodPickerTitle}>Wybierz Okres</Text>
+            <TouchableOpacity onPress={() => setShowPeriodPicker(false)}>
+              <Ionicons name="close" size={24} color="#2A2520" />
+            </TouchableOpacity>
+          </View>
+          <View style={styles.monthGrid}>
+            {['Sty', 'Lut', 'Mar', 'Kwi', 'Maj', 'Cze', 'Lip', 'Sie', 'Wrz', 'Paź', 'Lis', 'Gru'].map((month, index) => (
+              <TouchableOpacity
+                key={index}
+                style={[
+                  styles.monthButton,
+                  selectedMonth === index + 1 && styles.monthButtonActive,
+                ]}
+                onPress={() => {
+                  setSelectedMonth(index + 1);
+                  setShowPeriodPicker(false);
+                }}
+              >
+                <Text
+                  style={[
+                    styles.monthButtonText,
+                    selectedMonth === index + 1 && styles.monthButtonTextActive,
+                  ]}
+                >
+                  {month}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+          <View style={styles.yearSelector}>
+            <TouchableOpacity
+              style={styles.yearButton}
+              onPress={() => setSelectedYear(selectedYear - 1)}
+            >
+              <Ionicons name="chevron-back" size={24} color="#D4AF37" />
+            </TouchableOpacity>
+            <Text style={styles.yearText}>{selectedYear}</Text>
+            <TouchableOpacity
+              style={styles.yearButton}
+              onPress={() => setSelectedYear(selectedYear + 1)}
+            >
+              <Ionicons name="chevron-forward" size={24} color="#D4AF37" />
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
 
       <View style={styles.balanceCard}>
         <View style={styles.balanceHeader}>
@@ -226,6 +300,83 @@ const styles = StyleSheet.create({
     padding: 24,
     paddingTop: 60,
     backgroundColor: '#FAF8F3',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+  },
+  periodSelector: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 6,
+  },
+  exportButton: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#E0D5C7',
+  },
+  periodPicker: {
+    backgroundColor: '#FFFFFF',
+    marginHorizontal: 20,
+    marginBottom: 16,
+    padding: 20,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#E0D5C7',
+  },
+  periodPickerHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  periodPickerTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#2A2520',
+  },
+  monthGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 20,
+  },
+  monthButton: {
+    width: '22%',
+    padding: 12,
+    borderRadius: 8,
+    backgroundColor: '#F5F1E8',
+    alignItems: 'center',
+  },
+  monthButtonActive: {
+    backgroundColor: '#D4AF37',
+  },
+  monthButtonText: {
+    fontSize: 13,
+    fontWeight: '500',
+    color: '#6B5D52',
+  },
+  monthButtonTextActive: {
+    color: '#FFFFFF',
+  },
+  yearSelector: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 24,
+  },
+  yearButton: {
+    padding: 8,
+  },
+  yearText: {
+    fontSize: 24,
+    fontWeight: '600',
+    color: '#2A2520',
   },
   headerTitle: {
     fontSize: 32,

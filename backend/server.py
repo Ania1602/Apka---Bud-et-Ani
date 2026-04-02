@@ -302,25 +302,37 @@ async def delete_credit(credit_id: str):
 
 # Dashboard stats
 @api_router.get("/dashboard/stats", response_model=DashboardStats)
-async def get_dashboard_stats():
+async def get_dashboard_stats(month: Optional[int] = None, year: Optional[int] = None):
     # Get all accounts
     accounts = await db.accounts.find().to_list(1000)
     total_balance = sum(acc["balance"] for acc in accounts)
     
-    # Get transactions for current month
+    # Get transactions for specified period or current month
     from datetime import datetime, timedelta
     now = datetime.utcnow()
-    start_of_month = datetime(now.year, now.month, 1)
+    
+    if month and year:
+        start_of_period = datetime(year, month, 1)
+        if month == 12:
+            end_of_period = datetime(year + 1, 1, 1)
+        else:
+            end_of_period = datetime(year, month + 1, 1)
+    else:
+        start_of_period = datetime(now.year, now.month, 1)
+        if now.month == 12:
+            end_of_period = datetime(now.year + 1, 1, 1)
+        else:
+            end_of_period = datetime(now.year, now.month + 1, 1)
     
     income_transactions = await db.transactions.find({
         "type": "income",
-        "date": {"$gte": start_of_month}
+        "date": {"$gte": start_of_period, "$lt": end_of_period}
     }).to_list(1000)
     total_income = sum(t["amount"] for t in income_transactions)
     
     expense_transactions = await db.transactions.find({
         "type": "expense",
-        "date": {"$gte": start_of_month}
+        "date": {"$gte": start_of_period, "$lt": end_of_period}
     }).to_list(1000)
     total_expenses = sum(t["amount"] for t in expense_transactions)
     
@@ -334,6 +346,72 @@ async def get_dashboard_stats():
         "accounts_count": len(accounts),
         "credits_count": credits_count
     }
+
+
+@api_router.get("/reports/export")
+async def export_report(
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+    type: Optional[str] = None
+):
+    """Export transactions to CSV for Excel"""
+    from datetime import datetime
+    import csv
+    from io import StringIO
+    from fastapi.responses import StreamingResponse
+    
+    # Parse dates
+    query = {}
+    if start_date:
+        query["date"] = query.get("date", {})
+        query["date"]["$gte"] = datetime.fromisoformat(start_date.replace('Z', '+00:00'))
+    if end_date:
+        query["date"] = query.get("date", {})
+        query["date"]["$lte"] = datetime.fromisoformat(end_date.replace('Z', '+00:00'))
+    if type:
+        query["type"] = type
+    
+    # Get transactions
+    transactions = await db.transactions.find(query).sort("date", -1).to_list(10000)
+    
+    # Get accounts for mapping
+    accounts = await db.accounts.find().to_list(1000)
+    account_map = {str(acc["_id"]): acc["name"] for acc in accounts}
+    
+    # Create CSV
+    output = StringIO()
+    writer = csv.writer(output)
+    
+    # Write header
+    writer.writerow(['Data', 'Typ', 'Kategoria', 'Kwota (PLN)', 'Konto', 'Opis'])
+    
+    # Write data
+    for t in transactions:
+        writer.writerow([
+            t["date"].strftime("%Y-%m-%d %H:%M"),
+            "Przychód" if t["type"] == "income" else "Wydatek",
+            t["category"],
+            f"{t['amount']:.2f}",
+            account_map.get(t["account_id"], "Nieznane"),
+            t.get("description", "")
+        ])
+    
+    # Add summary
+    writer.writerow([])
+    writer.writerow(['PODSUMOWANIE'])
+    total_income = sum(t["amount"] for t in transactions if t["type"] == "income")
+    total_expense = sum(t["amount"] for t in transactions if t["type"] == "expense")
+    writer.writerow(['Przychody', '', '', f"{total_income:.2f}", '', ''])
+    writer.writerow(['Wydatki', '', '', f"{total_expense:.2f}", '', ''])
+    writer.writerow(['Bilans', '', '', f"{total_income - total_expense:.2f}", '', ''])
+    
+    output.seek(0)
+    
+    return StreamingResponse(
+        iter([output.getvalue()]),
+        media_type="text/csv",
+        headers={"Content-Disposition": f"attachment; filename=raport_{datetime.now().strftime('%Y%m%d')}.csv"}
+    )
 
 
 # Budget endpoints
