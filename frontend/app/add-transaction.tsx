@@ -21,7 +21,9 @@ export default function AddTransaction() {
   const [category, setCategory] = useState('');
   const [description, setDescription] = useState('');
   const [accountId, setAccountId] = useState('');
+  const [creditId, setCreditId] = useState('');
   const [accounts, setAccounts] = useState<any[]>([]);
+  const [credits, setCredits] = useState<any[]>([]);
   const [categories, setCategories] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
 

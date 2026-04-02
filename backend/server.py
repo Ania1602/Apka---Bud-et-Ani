@@ -54,6 +54,7 @@ class Transaction(BaseModel):
     account_id: str
     date: datetime
     description: Optional[str] = ""
+    credit_id: Optional[str] = None  # Link to credit if this is a payment
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
 class TransactionResponse(Transaction):
@@ -113,6 +114,7 @@ class RecurringTransaction(BaseModel):
     end_date: Optional[datetime] = None
     is_active: bool = True
     last_executed: Optional[datetime] = None
+    credit_id: Optional[str] = None  # Link to credit if this is a payment
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
 class RecurringTransactionResponse(RecurringTransaction):
@@ -278,9 +280,35 @@ async def create_credit(credit: Credit):
     return credit_dict
 
 @api_router.get("/credits", response_model=List[CreditResponse])
-async def get_credits():
+async def get_credits(month: Optional[int] = None, year: Optional[int] = None):
     credits = await db.credits.find().to_list(1000)
-    return [{"id": str(c["_id"]), **{k: v for k, v in c.items() if k != "_id"}} for c in credits]
+    result = []
+    
+    # Calculate monthly payments if month/year provided
+    if month and year:
+        from datetime import datetime
+        start_of_month = datetime(year, month, 1)
+        if month == 12:
+            end_of_month = datetime(year + 1, 1, 1)
+        else:
+            end_of_month = datetime(year, month + 1, 1)
+        
+        for credit in credits:
+            credit_dict = {"id": str(credit["_id"]), **{k: v for k, v in credit.items() if k != "_id"}}
+            
+            # Get transactions linked to this credit in this month
+            payments = await db.transactions.find({
+                "credit_id": str(credit["_id"]),
+                "type": "expense",
+                "date": {"$gte": start_of_month, "$lt": end_of_month}
+            }).to_list(1000)
+            
+            credit_dict["monthly_paid"] = sum(p["amount"] for p in payments)
+            result.append(credit_dict)
+    else:
+        result = [{"id": str(c["_id"]), **{k: v for k, v in c.items() if k != "_id"}} for c in credits]
+    
+    return result
 
 @api_router.put("/credits/{credit_id}")
 async def update_credit(credit_id: str, credit: Credit):
