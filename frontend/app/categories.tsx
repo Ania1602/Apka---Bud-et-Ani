@@ -43,24 +43,24 @@ export default function Categories() {
 
   const deleteCategory = async (id: string, name: string, isDefault: boolean) => {
     if (isDefault) {
-      Alert.alert('B\u0142\u0105d', 'Nie mo\u017cna usun\u0105\u0107 domy\u015blnej kategorii');
+      Alert.alert('Błąd', 'Nie można usunąć domyślnej kategorii');
       return;
     }
 
     Alert.alert(
-      'Usu\u0144 Kategori\u0119',
-      `Czy na pewno chcesz usun\u0105\u0107 kategori\u0119 "${name}"?`,
+      'Usuń Kategorię',
+      `Czy na pewno chcesz usunąć kategorię "${name}"?`,
       [
         { text: 'Anuluj', style: 'cancel' },
         {
-          text: 'Usu\u0144',
+          text: 'Usuń',
           style: 'destructive',
           onPress: async () => {
             try {
               await categoriesDB.delete(id);
               fetchCategories();
             } catch (error) {
-              Alert.alert('B\u0142\u0105d', 'Nie uda\u0142o si\u0119 usun\u0105\u0107 kategorii');
+              Alert.alert('Błąd', 'Nie udało się usunąć kategorii');
             }
           },
         },
@@ -115,7 +115,7 @@ export default function Categories() {
                 </View>
                 <View style={styles.categoryInfo}>
                   <Text style={styles.categoryName}>{cat.name}</Text>
-                  {cat.is_default && <Text style={styles.defaultBadge}>Domy\u015blna</Text>}
+                  {cat.is_default && <Text style={styles.defaultBadge}>Domyślna</Text>}
                 </View>
                 {!cat.is_default && (
                   <View style={styles.actionButtons}>

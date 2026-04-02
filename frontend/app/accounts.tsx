@@ -59,7 +59,7 @@ export default function Accounts() {
     const labels: Record<string, string> = {
       bank: 'Konto Bankowe',
       credit_card: 'Karta Kredytowa',
-      cash: 'Got\u00f3wka',
+      cash: 'Gotówka',
     };
     return labels[type] || type;
   };
@@ -85,7 +85,7 @@ export default function Accounts() {
       </View>
 
       <View style={styles.totalCard}>
-        <Text style={styles.totalLabel}>Ca\u0142kowite Saldo</Text>
+        <Text style={styles.totalLabel}>Całkowite Saldo</Text>
         <Text style={styles.totalAmount}>{totalBalance.toFixed(2)} PLN</Text>
         <Text style={styles.totalSubtext}>{accounts.length} kont</Text>
       </View>

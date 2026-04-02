@@ -78,11 +78,11 @@ export default function Credits() {
       <View style={styles.summaryCard}>
         <View style={styles.summaryRow}>
           <View style={styles.summaryItem}>
-            <Text style={styles.summaryLabel}>Ca\u0142kowita Kwota</Text>
+            <Text style={styles.summaryLabel}>Całkowita Kwota</Text>
             <Text style={styles.summaryAmount}>{totalBorrowed.toFixed(2)} PLN</Text>
           </View>
           <View style={styles.summaryItem}>
-            <Text style={styles.summaryLabel}>Do Sp\u0142aty</Text>
+            <Text style={styles.summaryLabel}>Do Spłaty</Text>
             <Text style={[styles.summaryAmount, { color: '#800020' }]}>{totalRemaining.toFixed(2)} PLN</Text>
           </View>
         </View>
@@ -91,7 +91,7 @@ export default function Credits() {
           <View style={styles.monthlyTotalCard}>
             <Ionicons name="checkmark-circle" size={24} color="#2C5F2D" />
             <View style={styles.monthlyTotalContent}>
-              <Text style={styles.monthlyTotalLabel}>Sp\u0142acono w tym miesi\u0105cu</Text>
+              <Text style={styles.monthlyTotalLabel}>Spłacono w tym miesiącu</Text>
               <Text style={styles.monthlyTotalAmount}>{totalMonthlyPaid.toFixed(2)} PLN</Text>
             </View>
           </View>
@@ -106,7 +106,7 @@ export default function Credits() {
           />
         </View>
         <Text style={styles.progressText}>
-          Sp\u0142acono: {totalBorrowed > 0 ? (((totalBorrowed - totalRemaining) / totalBorrowed) * 100).toFixed(1) : 0}%
+          Spłacono: {totalBorrowed > 0 ? (((totalBorrowed - totalRemaining) / totalBorrowed) * 100).toFixed(1) : 0}%
         </Text>
       </View>
 
@@ -117,7 +117,7 @@ export default function Credits() {
         ListEmptyComponent={
           <View style={styles.emptyState}>
             <Ionicons name="card-outline" size={64} color="#9B8B7E" />
-            <Text style={styles.emptyStateText}>Brak kredyt\u00f3w</Text>
+            <Text style={styles.emptyStateText}>Brak kredytów</Text>
             <TouchableOpacity style={styles.addButton} onPress={() => router.push('/add-credit')}>
               <Text style={styles.addButtonText}>Dodaj Kredyt</Text>
             </TouchableOpacity>
@@ -145,11 +145,11 @@ export default function Credits() {
 
               <View style={styles.creditAmounts}>
                 <View style={styles.amountItem}>
-                  <Text style={styles.amountLabel}>Ca\u0142kowita kwota</Text>
+                  <Text style={styles.amountLabel}>Całkowita kwota</Text>
                   <Text style={styles.amountValue}>{item.total_amount.toFixed(2)} PLN</Text>
                 </View>
                 <View style={styles.amountItem}>
-                  <Text style={styles.amountLabel}>Do sp\u0142aty</Text>
+                  <Text style={styles.amountLabel}>Do spłaty</Text>
                   <Text style={[styles.amountValue, { color: '#800020' }]}>
                     {item.remaining_amount.toFixed(2)} PLN
                   </Text>
@@ -160,7 +160,7 @@ export default function Credits() {
                 <View style={styles.monthlyPaymentCard}>
                   <Ionicons name="calendar-outline" size={16} color="#2C5F2D" />
                   <Text style={styles.monthlyPaymentText}>
-                    Sp\u0142acono w tym miesi\u0105cu: <Text style={styles.monthlyPaymentAmount}>{item.monthly_paid.toFixed(2)} PLN</Text>
+                    Spłacono w tym miesiącu: <Text style={styles.monthlyPaymentAmount}>{item.monthly_paid.toFixed(2)} PLN</Text>
                   </Text>
                 </View>
               )}
