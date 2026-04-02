@@ -26,6 +26,13 @@ export default function More() {
       color: '#FF9800',
       route: '/categories',
     },
+    {
+      icon: 'flask',
+      title: '🧪 Test Bazy Danych',
+      subtitle: 'Testuj lokalną bazę SQLite',
+      color: '#2C5F2D',
+      route: '/test-database',
+    },
   ];
 
   return (
