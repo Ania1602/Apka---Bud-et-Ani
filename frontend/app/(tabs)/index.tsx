@@ -76,7 +76,7 @@ export default function Dashboard() {
     >
       <View style={styles.header}>
         <View>
-          <Text style={styles.headerTitle}>Portfolio Finansowe</Text>
+          <Text style={styles.headerTitle}>Budżet Ani</Text>
           <TouchableOpacity onPress={() => setShowPeriodPicker(!showPeriodPicker)} style={styles.periodSelector}>
             <Text style={styles.headerSubtitle}>
               {format(new Date(selectedYear, selectedMonth - 1), 'MMMM yyyy', { locale: pl })}

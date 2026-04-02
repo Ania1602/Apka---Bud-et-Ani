@@ -104,7 +104,12 @@ export default function Categories() {
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>{section.title}</Text>
             {section.data.map((cat: any) => (
-              <View key={cat.id} style={styles.categoryItem}>
+              <TouchableOpacity
+                key={cat.id}
+                style={styles.categoryItem}
+                onPress={() => !cat.is_default && router.push(`/add-category?edit=${cat.id}&name=${encodeURIComponent(cat.name)}&type=${cat.type}&color=${encodeURIComponent(cat.color)}`)}
+                disabled={cat.is_default}
+              >
                 <View style={[styles.categoryIcon, { backgroundColor: cat.color + '20' }]}>
                   <View style={[styles.colorDot, { backgroundColor: cat.color }]} />
                 </View>
@@ -113,14 +118,28 @@ export default function Categories() {
                   {cat.is_default && <Text style={styles.defaultBadge}>Domyślna</Text>}
                 </View>
                 {!cat.is_default && (
-                  <TouchableOpacity
-                    onPress={() => deleteCategory(cat.id, cat.name, cat.is_default)}
-                    style={styles.deleteButton}
-                  >
-                    <Ionicons name="trash-outline" size={20} color="#800020" />
-                  </TouchableOpacity>
+                  <View style={styles.actionButtons}>
+                    <TouchableOpacity
+                      onPress={(e) => {
+                        e.stopPropagation();
+                        router.push(`/add-category?edit=${cat.id}&name=${encodeURIComponent(cat.name)}&type=${cat.type}&color=${encodeURIComponent(cat.color)}`);
+                      }}
+                      style={styles.editButton}
+                    >
+                      <Ionicons name="pencil" size={18} color="#D4AF37" />
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      onPress={(e) => {
+                        e.stopPropagation();
+                        deleteCategory(cat.id, cat.name, cat.is_default);
+                      }}
+                      style={styles.deleteButton}
+                    >
+                      <Ionicons name="trash-outline" size={18} color="#800020" />
+                    </TouchableOpacity>
+                  </View>
                 )}
-              </View>
+              </TouchableOpacity>
             ))}
           </View>
         )}
@@ -221,6 +240,13 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     borderRadius: 6,
     fontWeight: '500',
+  },
+  actionButtons: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  editButton: {
+    padding: 8,
   },
   deleteButton: {
     padding: 8,

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -11,16 +11,20 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 
 const API_URL = process.env.EXPO_PUBLIC_BACKEND_URL;
 
 const COLORS = ['#D4AF37', '#800020', '#2C5F2D', '#1B2845', '#B8941F', '#2A2520', '#9C27B0', '#E91E63'];
 
 export default function AddCategory() {
-  const [name, setName] = useState('');
-  const [type, setType] = useState<'income' | 'expense'>('expense');
-  const [color, setColor] = useState('#D4AF37');
+  const params = useLocalSearchParams();
+  const isEdit = !!params.edit;
+  const editId = params.edit as string;
+  
+  const [name, setName] = useState(params.name ? decodeURIComponent(params.name as string) : '');
+  const [type, setType] = useState<'income' | 'expense'>((params.type as any) || 'expense');
+  const [color, setColor] = useState(params.color ? decodeURIComponent(params.color as string) : '#D4AF37');
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async () => {
@@ -31,8 +35,11 @@ export default function AddCategory() {
 
     setLoading(true);
     try {
-      const response = await fetch(`${API_URL}/api/categories`, {
-        method: 'POST',
+      const url = isEdit ? `${API_URL}/api/categories/${editId}` : `${API_URL}/api/categories`;
+      const method = isEdit ? 'PUT' : 'POST';
+      
+      const response = await fetch(url, {
+        method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name,
@@ -46,11 +53,11 @@ export default function AddCategory() {
       if (response.ok) {
         router.back();
       } else {
-        alert('Błąd podczas dodawania kategorii');
+        alert(isEdit ? 'Błąd podczas edycji kategorii' : 'Błąd podczas dodawania kategorii');
       }
     } catch (error) {
-      console.error('Error creating category:', error);
-      alert('Błąd podczas dodawania kategorii');
+      console.error('Error saving category:', error);
+      alert(isEdit ? 'Błąd podczas edycji kategorii' : 'Błąd podczas dodawania kategorii');
     } finally {
       setLoading(false);
     }
@@ -65,7 +72,7 @@ export default function AddCategory() {
         <TouchableOpacity onPress={() => router.back()} style={styles.closeButton}>
           <Ionicons name="close" size={28} color="#FFFFFF" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Nowa Kategoria</Text>
+        <Text style={styles.headerTitle}>{isEdit ? 'Edytuj Kategorię' : 'Nowa Kategoria'}</Text>
         <View style={{ width: 28 }} />
       </View>
 
@@ -136,7 +143,7 @@ export default function AddCategory() {
           {loading ? (
             <ActivityIndicator color="#FFFFFF" />
           ) : (
-            <Text style={styles.submitButtonText}>Dodaj Kategorię</Text>
+            <Text style={styles.submitButtonText}>{isEdit ? 'Zapisz Zmiany' : 'Dodaj Kategorię'}</Text>
           )}
         </TouchableOpacity>
       </View>
