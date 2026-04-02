@@ -82,7 +82,7 @@ export default function AddBudget() {
     >
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.closeButton}>
-          <Ionicons name="close" size={28} color="#fff" />
+          <Ionicons name="close" size={28} color="#FFFFFF" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Dodaj Budżet</Text>
         <View style={{ width: 28 }} />
@@ -131,7 +131,7 @@ export default function AddBudget() {
               value={limitAmount}
               onChangeText={setLimitAmount}
               placeholder="0.00"
-              placeholderTextColor="#666"
+              placeholderTextColor="#9B8B7E"
               keyboardType="decimal-pad"
             />
           </View>
@@ -145,7 +145,7 @@ export default function AddBudget() {
           disabled={loading}
         >
           {loading ? (
-            <ActivityIndicator color="#fff" />
+            <ActivityIndicator color="#FFFFFF" />
           ) : (
             <Text style={styles.submitButtonText}>Dodaj Budżet</Text>
           )}
@@ -158,7 +158,7 @@ export default function AddBudget() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0c0c0c',
+    backgroundColor: '#FAF8F3',
   },
   header: {
     flexDirection: 'row',
@@ -167,7 +167,7 @@ const styles = StyleSheet.create({
     padding: 20,
     paddingTop: 60,
     borderBottomWidth: 1,
-    borderBottomColor: '#333',
+    borderBottomColor: '#E0D5C7',
   },
   closeButton: {
     padding: 4,
@@ -175,29 +175,29 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#fff',
+    color: "#2A2520",
   },
   content: {
     flex: 1,
   },
   infoCard: {
-    backgroundColor: '#4CAF5020',
+    backgroundColor: '#D4AF3720',
     margin: 20,
     padding: 20,
     borderRadius: 12,
     borderLeftWidth: 4,
-    borderLeftColor: '#4CAF50',
+    borderLeftColor: '#D4AF37',
   },
   infoTitle: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#4CAF50',
+    color: '#D4AF37',
     marginBottom: 8,
     textTransform: 'capitalize',
   },
   infoText: {
     fontSize: 14,
-    color: '#999',
+    color: '#6B5D52',
     lineHeight: 20,
   },
   form: {
@@ -209,15 +209,15 @@ const styles = StyleSheet.create({
   label: {
     fontSize: 14,
     fontWeight: '500',
-    color: '#999',
+    color: '#6B5D52',
     marginBottom: 12,
   },
   input: {
-    backgroundColor: '#1a1a1a',
+    backgroundColor: '#FFFFFF',
     borderRadius: 12,
     padding: 16,
     fontSize: 16,
-    color: '#fff',
+    color: '#2A2520',
   },
   categoryScroll: {
     flexDirection: 'row',
@@ -226,24 +226,24 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 12,
     borderRadius: 20,
-    backgroundColor: '#1a1a1a',
+    backgroundColor: '#FFFFFF',
     marginRight: 8,
   },
   categoryChipText: {
     fontSize: 14,
     fontWeight: '500',
-    color: '#999',
+    color: '#6B5D52',
   },
   categoryChipTextActive: {
-    color: '#fff',
+    color: '#2A2520',
   },
   footer: {
     padding: 20,
     borderTopWidth: 1,
-    borderTopColor: '#333',
+    borderTopColor: '#E0D5C7',
   },
   submitButton: {
-    backgroundColor: '#4CAF50',
+    backgroundColor: '#D4AF37',
     padding: 18,
     borderRadius: 12,
     alignItems: 'center',
@@ -254,6 +254,6 @@ const styles = StyleSheet.create({
   submitButtonText: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#fff',
+    color: '#2A2520',
   },
 });

@@ -57,15 +57,15 @@ export default function Budgets() {
   };
 
   const getStatusColor = (percentage: number) => {
-    if (percentage >= 100) return '#F44336';
+    if (percentage >= 100) return '#800020';
     if (percentage >= 80) return '#FF9800';
-    return '#4CAF50';
+    return '#D4AF37';
   };
 
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#4CAF50" />
+        <ActivityIndicator size="large" color="#D4AF37" />
       </View>
     );
   }
@@ -77,7 +77,7 @@ export default function Budgets() {
   return (
     <View style={styles.container}>
       <ScrollView
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#4CAF50" />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#D4AF37" />}
       >
         <View style={styles.header}>
           <Text style={styles.headerTitle}>Budżety Miesięczne</Text>
@@ -115,7 +115,7 @@ export default function Budgets() {
 
         {budgets.length === 0 ? (
           <View style={styles.emptyState}>
-            <Ionicons name="pie-chart-outline" size={64} color="#666" />
+            <Ionicons name="pie-chart-outline" size={64} color="#9B8B7E" />
             <Text style={styles.emptyStateText}>Brak budżetów</Text>
             <Text style={styles.emptyStateSubtext}>Ustaw budżety dla swoich kategorii wydatków</Text>
             <TouchableOpacity style={styles.addButton} onPress={() => router.push('/add-budget')}>
@@ -132,7 +132,7 @@ export default function Budgets() {
                 <View key={budget.id} style={styles.budgetCard}>
                   <View style={styles.budgetHeader}>
                     <View style={styles.budgetIcon}>
-                      <Ionicons name="pricetag" size={24} color="#4CAF50" />
+                      <Ionicons name="pricetag" size={24} color="#D4AF37" />
                     </View>
                     <View style={styles.budgetDetails}>
                       <Text style={styles.budgetCategory}>{budget.category}</Text>
@@ -141,7 +141,7 @@ export default function Budgets() {
                       </Text>
                     </View>
                     <TouchableOpacity onPress={() => deleteBudget(budget.id)} style={styles.deleteButton}>
-                      <Ionicons name="trash-outline" size={18} color="#F44336" />
+                      <Ionicons name="trash-outline" size={18} color="#800020" />
                     </TouchableOpacity>
                   </View>
                   
@@ -170,7 +170,7 @@ export default function Budgets() {
       </ScrollView>
 
       <TouchableOpacity style={styles.fab} onPress={() => router.push('/add-budget')}>
-        <Ionicons name="add" size={32} color="#fff" />
+        <Ionicons name="add" size={32} color="#FFFFFF" />
       </TouchableOpacity>
     </View>
   );
@@ -179,13 +179,13 @@ export default function Budgets() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0c0c0c',
+    backgroundColor: '#FAF8F3',
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#0c0c0c',
+    backgroundColor: '#FAF8F3',
   },
   header: {
     padding: 20,
@@ -194,16 +194,16 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 32,
     fontWeight: 'bold',
-    color: '#fff',
+    color: '#2A2520',
   },
   headerSubtitle: {
     fontSize: 16,
-    color: '#999',
+    color: '#6B5D52',
     marginTop: 4,
     textTransform: 'capitalize',
   },
   summaryCard: {
-    backgroundColor: '#1a1a1a',
+    backgroundColor: '#FFFFFF',
     margin: 20,
     marginTop: 10,
     padding: 24,
@@ -211,18 +211,18 @@ const styles = StyleSheet.create({
   },
   summaryLabel: {
     fontSize: 14,
-    color: '#999',
+    color: '#6B5D52',
     marginBottom: 8,
   },
   summaryAmount: {
     fontSize: 32,
     fontWeight: 'bold',
-    color: '#fff',
+    color: '#2A2520',
     marginBottom: 16,
   },
   progressBarContainer: {
     height: 8,
-    backgroundColor: '#2a2a2a',
+    backgroundColor: '#F5F1E8',
     borderRadius: 4,
     overflow: 'hidden',
     marginBottom: 16,
@@ -236,13 +236,13 @@ const styles = StyleSheet.create({
   },
   summarySmallLabel: {
     fontSize: 12,
-    color: '#999',
+    color: '#6B5D52',
     marginBottom: 4,
   },
   summarySmallValue: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#fff',
+    color: '#2A2520',
   },
   budgetsList: {
     padding: 20,
@@ -250,7 +250,7 @@ const styles = StyleSheet.create({
     paddingBottom: 100,
   },
   budgetCard: {
-    backgroundColor: '#1a1a1a',
+    backgroundColor: '#FFFFFF',
     padding: 20,
     borderRadius: 12,
     marginBottom: 12,
@@ -264,7 +264,7 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 24,
-    backgroundColor: '#4CAF5020',
+    backgroundColor: '#D4AF3720',
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 12,
@@ -275,12 +275,12 @@ const styles = StyleSheet.create({
   budgetCategory: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#fff',
+    color: '#2A2520',
     marginBottom: 4,
   },
   budgetAmount: {
     fontSize: 14,
-    color: '#999',
+    color: '#6B5D52',
   },
   deleteButton: {
     padding: 4,
@@ -296,7 +296,7 @@ const styles = StyleSheet.create({
   },
   remainingText: {
     fontSize: 14,
-    color: '#999',
+    color: '#6B5D52',
   },
   emptyState: {
     alignItems: 'center',
@@ -306,24 +306,24 @@ const styles = StyleSheet.create({
   emptyStateText: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#fff',
+    color: '#2A2520',
     marginTop: 16,
   },
   emptyStateSubtext: {
     fontSize: 14,
-    color: '#999',
+    color: '#6B5D52',
     marginTop: 8,
     textAlign: 'center',
     marginBottom: 24,
   },
   addButton: {
-    backgroundColor: '#4CAF50',
+    backgroundColor: '#D4AF37',
     paddingHorizontal: 24,
     paddingVertical: 12,
     borderRadius: 8,
   },
   addButtonText: {
-    color: '#fff',
+    color: '#2A2520',
     fontSize: 16,
     fontWeight: '600',
   },
@@ -334,7 +334,7 @@ const styles = StyleSheet.create({
     width: 60,
     height: 60,
     borderRadius: 30,
-    backgroundColor: '#4CAF50',
+    backgroundColor: '#D4AF37',
     alignItems: 'center',
     justifyContent: 'center',
     shadowColor: '#000',

@@ -59,7 +59,7 @@ export default function Transactions() {
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#4CAF50" />
+        <ActivityIndicator size="large" color="#D4AF37" />
       </View>
     );
   }
@@ -90,10 +90,10 @@ export default function Transactions() {
       <FlatList
         data={filteredTransactions}
         keyExtractor={(item) => item.id}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#4CAF50" />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#D4AF37" />}
         ListEmptyComponent={
           <View style={styles.emptyState}>
-            <Ionicons name="document-text-outline" size={64} color="#666" />
+            <Ionicons name="document-text-outline" size={64} color="#9B8B7E" />
             <Text style={styles.emptyStateText}>Brak transakcji</Text>
             <TouchableOpacity style={styles.addButton} onPress={() => router.push('/add-transaction')}>
               <Text style={styles.addButtonText}>Dodaj Transakcję</Text>
@@ -106,7 +106,7 @@ export default function Transactions() {
               <Ionicons
                 name={item.type === 'income' ? 'arrow-down' : 'arrow-up'}
                 size={24}
-                color={item.type === 'income' ? '#4CAF50' : '#F44336'}
+                color={item.type === "income" ? "#2C5F2D" : "#800020"}
               />
             </View>
             <View style={styles.transactionDetails}>
@@ -120,7 +120,7 @@ export default function Transactions() {
               <Text
                 style={[
                   styles.transactionAmount,
-                  { color: item.type === 'income' ? '#4CAF50' : '#F44336' },
+                  { color: item.type === "income" ? "#2C5F2D" : "#800020" },
                 ]}
               >
                 {item.type === 'income' ? '+' : '-'}{item.amount.toFixed(2)} PLN
@@ -129,7 +129,7 @@ export default function Transactions() {
                 onPress={() => deleteTransaction(item.id)}
                 style={styles.deleteButton}
               >
-                <Ionicons name="trash-outline" size={18} color="#F44336" />
+                <Ionicons name="trash-outline" size={18} color="#800020" />
               </TouchableOpacity>
             </View>
           </View>
@@ -138,7 +138,7 @@ export default function Transactions() {
       />
 
       <TouchableOpacity style={styles.fab} onPress={() => router.push('/add-transaction')}>
-        <Ionicons name="add" size={32} color="#fff" />
+        <Ionicons name="add" size={32} color="#FFFFFF" />
       </TouchableOpacity>
     </View>
   );
@@ -147,13 +147,13 @@ export default function Transactions() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0c0c0c',
+    backgroundColor: '#FAF8F3',
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#0c0c0c',
+    backgroundColor: '#FAF8F3',
   },
   filterContainer: {
     flexDirection: 'row',
@@ -164,19 +164,19 @@ const styles = StyleSheet.create({
     flex: 1,
     padding: 12,
     borderRadius: 8,
-    backgroundColor: '#1a1a1a',
+    backgroundColor: '#FFFFFF',
     alignItems: 'center',
   },
   filterButtonActive: {
-    backgroundColor: '#4CAF50',
+    backgroundColor: "#D4AF37",
   },
   filterText: {
-    color: '#999',
+    color: '#6B5D52',
     fontSize: 14,
     fontWeight: '500',
   },
   filterTextActive: {
-    color: '#fff',
+    color: '#2A2520',
   },
   listContent: {
     padding: 16,
@@ -185,7 +185,7 @@ const styles = StyleSheet.create({
   transactionItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#1a1a1a',
+    backgroundColor: '#FFFFFF',
     padding: 16,
     borderRadius: 12,
     marginBottom: 12,
@@ -194,7 +194,7 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 24,
-    backgroundColor: '#2a2a2a',
+    backgroundColor: '#F5F1E8',
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 12,
@@ -205,17 +205,17 @@ const styles = StyleSheet.create({
   transactionCategory: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#fff',
+    color: '#2A2520',
     marginBottom: 4,
   },
   transactionDescription: {
     fontSize: 13,
-    color: '#999',
+    color: '#6B5D52',
     marginBottom: 4,
   },
   transactionDate: {
     fontSize: 12,
-    color: '#666',
+    color: '#9B8B7E',
     textTransform: 'capitalize',
   },
   transactionRight: {
@@ -236,18 +236,18 @@ const styles = StyleSheet.create({
   emptyStateText: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#fff',
+    color: '#2A2520',
     marginTop: 16,
     marginBottom: 24,
   },
   addButton: {
-    backgroundColor: '#4CAF50',
+    backgroundColor: "#D4AF37",
     paddingHorizontal: 24,
     paddingVertical: 12,
     borderRadius: 8,
   },
   addButtonText: {
-    color: '#fff',
+    color: '#2A2520',
     fontSize: 16,
     fontWeight: '600',
   },
@@ -258,7 +258,7 @@ const styles = StyleSheet.create({
     width: 60,
     height: 60,
     borderRadius: 30,
-    backgroundColor: '#4CAF50',
+    backgroundColor: "#D4AF37",
     alignItems: 'center',
     justifyContent: 'center',
     shadowColor: '#000',

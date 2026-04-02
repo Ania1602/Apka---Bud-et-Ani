@@ -54,7 +54,7 @@ export default function Credits() {
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#4CAF50" />
+        <ActivityIndicator size="large" color="#D4AF37" />
       </View>
     );
   }
@@ -72,7 +72,7 @@ export default function Credits() {
           </View>
           <View style={styles.summaryItem}>
             <Text style={styles.summaryLabel}>Do Spłaty</Text>
-            <Text style={[styles.summaryAmount, { color: '#F44336' }]}>{totalRemaining.toFixed(2)} PLN</Text>
+            <Text style={[styles.summaryAmount, { color: '#800020' }]}>{totalRemaining.toFixed(2)} PLN</Text>
           </View>
         </View>
         <View style={styles.progressBar}>
@@ -91,10 +91,10 @@ export default function Credits() {
       <FlatList
         data={credits}
         keyExtractor={(item) => item.id}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#4CAF50" />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#D4AF37" />}
         ListEmptyComponent={
           <View style={styles.emptyState}>
-            <Ionicons name="card-outline" size={64} color="#666" />
+            <Ionicons name="card-outline" size={64} color="#9B8B7E" />
             <Text style={styles.emptyStateText}>Brak kredytów</Text>
             <TouchableOpacity style={styles.addButton} onPress={() => router.push('/add-credit')}>
               <Text style={styles.addButtonText}>Dodaj Kredyt</Text>
@@ -117,7 +117,7 @@ export default function Credits() {
                   </Text>
                 </View>
                 <TouchableOpacity onPress={() => deleteCredit(item.id)} style={styles.deleteButton}>
-                  <Ionicons name="trash-outline" size={18} color="#F44336" />
+                  <Ionicons name="trash-outline" size={18} color="#800020" />
                 </TouchableOpacity>
               </View>
 
@@ -128,7 +128,7 @@ export default function Credits() {
                 </View>
                 <View style={styles.amountItem}>
                   <Text style={styles.amountLabel}>Do spłaty</Text>
-                  <Text style={[styles.amountValue, { color: '#F44336' }]}>
+                  <Text style={[styles.amountValue, { color: '#800020' }]}>
                     {item.remaining_amount.toFixed(2)} PLN
                   </Text>
                 </View>
@@ -140,11 +140,11 @@ export default function Credits() {
 
               <View style={styles.creditFooter}>
                 <View style={styles.footerItem}>
-                  <Ionicons name="calendar" size={16} color="#999" />
+                  <Ionicons name="calendar" size={16} color="#6B5D52" />
                   <Text style={styles.footerText}>{item.monthly_payment.toFixed(2)} PLN/mies.</Text>
                 </View>
                 <View style={styles.footerItem}>
-                  <Ionicons name="trending-up" size={16} color="#999" />
+                  <Ionicons name="trending-up" size={16} color="#6B5D52" />
                   <Text style={styles.footerText}>{item.interest_rate}% oprocentowanie</Text>
                 </View>
               </View>
@@ -155,7 +155,7 @@ export default function Credits() {
       />
 
       <TouchableOpacity style={styles.fab} onPress={() => router.push('/add-credit')}>
-        <Ionicons name="add" size={32} color="#fff" />
+        <Ionicons name="add" size={32} color="#FFFFFF" />
       </TouchableOpacity>
     </View>
   );
@@ -164,16 +164,16 @@ export default function Credits() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0c0c0c',
+    backgroundColor: '#FAF8F3',
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#0c0c0c',
+    backgroundColor: '#FAF8F3',
   },
   summaryCard: {
-    backgroundColor: '#1a1a1a',
+    backgroundColor: '#FFFFFF',
     margin: 16,
     padding: 20,
     borderRadius: 16,
@@ -188,28 +188,28 @@ const styles = StyleSheet.create({
   },
   summaryLabel: {
     fontSize: 12,
-    color: '#999',
+    color: '#6B5D52',
     marginBottom: 8,
   },
   summaryAmount: {
     fontSize: 20,
     fontWeight: 'bold',
-    color: '#4CAF50',
+    color: '#D4AF37',
   },
   progressBar: {
     height: 8,
-    backgroundColor: '#2a2a2a',
+    backgroundColor: '#F5F1E8',
     borderRadius: 4,
     overflow: 'hidden',
     marginBottom: 8,
   },
   progressFill: {
     height: '100%',
-    backgroundColor: '#4CAF50',
+    backgroundColor: '#D4AF37',
   },
   progressText: {
     fontSize: 12,
-    color: '#999',
+    color: '#6B5D52',
     textAlign: 'center',
   },
   listContent: {
@@ -218,7 +218,7 @@ const styles = StyleSheet.create({
     paddingBottom: 100,
   },
   creditItem: {
-    backgroundColor: '#1a1a1a',
+    backgroundColor: '#FFFFFF',
     padding: 20,
     borderRadius: 12,
     marginBottom: 12,
@@ -243,12 +243,12 @@ const styles = StyleSheet.create({
   creditName: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#fff',
+    color: '#2A2520',
     marginBottom: 4,
   },
   creditDate: {
     fontSize: 12,
-    color: '#999',
+    color: '#6B5D52',
     textTransform: 'capitalize',
   },
   deleteButton: {
@@ -264,24 +264,24 @@ const styles = StyleSheet.create({
   },
   amountLabel: {
     fontSize: 12,
-    color: '#999',
+    color: '#6B5D52',
     marginBottom: 4,
   },
   amountValue: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#fff',
+    color: '#2A2520',
   },
   creditProgressBar: {
     height: 6,
-    backgroundColor: '#2a2a2a',
+    backgroundColor: '#F5F1E8',
     borderRadius: 3,
     overflow: 'hidden',
     marginBottom: 12,
   },
   creditProgressFill: {
     height: '100%',
-    backgroundColor: '#4CAF50',
+    backgroundColor: '#D4AF37',
   },
   creditFooter: {
     flexDirection: 'row',
@@ -294,7 +294,7 @@ const styles = StyleSheet.create({
   },
   footerText: {
     fontSize: 12,
-    color: '#999',
+    color: '#6B5D52',
   },
   emptyState: {
     alignItems: 'center',
@@ -303,18 +303,18 @@ const styles = StyleSheet.create({
   emptyStateText: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#fff',
+    color: '#2A2520',
     marginTop: 16,
     marginBottom: 24,
   },
   addButton: {
-    backgroundColor: '#4CAF50',
+    backgroundColor: '#D4AF37',
     paddingHorizontal: 24,
     paddingVertical: 12,
     borderRadius: 8,
   },
   addButtonText: {
-    color: '#fff',
+    color: '#2A2520',
     fontSize: 16,
     fontWeight: '600',
   },
@@ -325,7 +325,7 @@ const styles = StyleSheet.create({
     width: 60,
     height: 60,
     borderRadius: 30,
-    backgroundColor: '#4CAF50',
+    backgroundColor: '#D4AF37',
     alignItems: 'center',
     justifyContent: 'center',
     shadowColor: '#000',

@@ -75,7 +75,7 @@ export default function AddRecurring() {
   return (
     <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()}><Ionicons name="close" size={28} color="#fff" /></TouchableOpacity>
+        <TouchableOpacity onPress={() => router.back()}><Ionicons name="close" size={28} color="#FFFFFF" /></TouchableOpacity>
         <Text style={styles.headerTitle}>Dodaj Płatność Cykliczną</Text>
         <View style={{ width: 28 }} />
       </View>
@@ -84,7 +84,7 @@ export default function AddRecurring() {
         <View style={styles.form}>
           <View style={styles.field}>
             <Text style={styles.label}>Nazwa</Text>
-            <TextInput style={styles.input} value={name} onChangeText={setName} placeholder="np. Czynsz, Bilet miesięczny..." placeholderTextColor="#666" />
+            <TextInput style={styles.input} value={name} onChangeText={setName} placeholder="np. Czynsz, Bilet miesięczny..." placeholderTextColor="#9B8B7E" />
           </View>
 
           <View style={styles.typeSelector}>
@@ -98,7 +98,7 @@ export default function AddRecurring() {
 
           <View style={styles.field}>
             <Text style={styles.label}>Kwota (PLN)</Text>
-            <TextInput style={styles.input} value={amount} onChangeText={setAmount} placeholder="0.00" placeholderTextColor="#666" keyboardType="decimal-pad" />
+            <TextInput style={styles.input} value={amount} onChangeText={setAmount} placeholder="0.00" placeholderTextColor="#9B8B7E" keyboardType="decimal-pad" />
           </View>
 
           <View style={styles.field}>
@@ -114,14 +114,14 @@ export default function AddRecurring() {
 
           <View style={styles.field}>
             <Text style={styles.label}>Dzień miesiąca (1-31)</Text>
-            <TextInput style={styles.input} value={dayOfMonth} onChangeText={setDayOfMonth} placeholder="1" placeholderTextColor="#666" keyboardType="number-pad" />
+            <TextInput style={styles.input} value={dayOfMonth} onChangeText={setDayOfMonth} placeholder="1" placeholderTextColor="#9B8B7E" keyboardType="number-pad" />
           </View>
         </View>
       </ScrollView>
 
       <View style={styles.footer}>
         <TouchableOpacity style={[styles.submitButton, loading && styles.submitButtonDisabled]} onPress={handleSubmit} disabled={loading}>
-          {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.submitButtonText}>Dodaj Płatność Cykliczną</Text>}
+          {loading ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.submitButtonText}>Dodaj Płatność Cykliczną</Text>}
         </TouchableOpacity>
       </View>
     </KeyboardAvoidingView>
@@ -129,26 +129,26 @@ export default function AddRecurring() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#0c0c0c' },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 20, paddingTop: 60, borderBottomWidth: 1, borderBottomColor: '#333' },
-  headerTitle: { fontSize: 18, fontWeight: '600', color: '#fff' },
+  container: { flex: 1, backgroundColor: '#FAF8F3' },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 20, paddingTop: 60, borderBottomWidth: 1, borderBottomColor: '#E0D5C7' },
+  headerTitle: { fontSize: 18, fontWeight: '600', color: "#2A2520" },
   content: { flex: 1 },
   form: { padding: 20 },
   field: { marginBottom: 24 },
-  label: { fontSize: 14, fontWeight: '500', color: '#999', marginBottom: 12 },
-  input: { backgroundColor: '#1a1a1a', borderRadius: 12, padding: 16, fontSize: 16, color: '#fff' },
+  label: { fontSize: 14, fontWeight: '500', color: '#6B5D52', marginBottom: 12 },
+  input: { backgroundColor: '#FFFFFF', borderRadius: 12, padding: 16, fontSize: 16, color: '#2A2520' },
   typeSelector: { flexDirection: 'row', gap: 12, marginBottom: 24 },
-  typeButton: { flex: 1, padding: 16, borderRadius: 12, backgroundColor: '#1a1a1a', alignItems: 'center' },
-  typeButtonActive: { backgroundColor: '#F44336' },
-  typeButtonText: { fontSize: 16, fontWeight: '500', color: '#999' },
-  typeButtonTextActive: { color: '#fff' },
+  typeButton: { flex: 1, padding: 16, borderRadius: 12, backgroundColor: '#FFFFFF', alignItems: 'center' },
+  typeButtonActive: { backgroundColor: '#800020' },
+  typeButtonText: { fontSize: 16, fontWeight: '500', color: '#6B5D52' },
+  typeButtonTextActive: { color: '#2A2520' },
   frequencyButtons: { flexDirection: 'row', gap: 8 },
-  freqButton: { flex: 1, padding: 12, borderRadius: 8, backgroundColor: '#1a1a1a', alignItems: 'center' },
-  freqButtonActive: { backgroundColor: '#4CAF50' },
-  freqButtonText: { fontSize: 13, color: '#999' },
-  freqButtonTextActive: { color: '#fff' },
-  footer: { padding: 20, borderTopWidth: 1, borderTopColor: '#333' },
-  submitButton: { backgroundColor: '#4CAF50', padding: 18, borderRadius: 12, alignItems: 'center' },
+  freqButton: { flex: 1, padding: 12, borderRadius: 8, backgroundColor: '#FFFFFF', alignItems: 'center' },
+  freqButtonActive: { backgroundColor: '#D4AF37' },
+  freqButtonText: { fontSize: 13, color: '#6B5D52' },
+  freqButtonTextActive: { color: '#2A2520' },
+  footer: { padding: 20, borderTopWidth: 1, borderTopColor: '#E0D5C7' },
+  submitButton: { backgroundColor: '#D4AF37', padding: 18, borderRadius: 12, alignItems: 'center' },
   submitButtonDisabled: { opacity: 0.5 },
-  submitButtonText: { fontSize: 16, fontWeight: '600', color: '#fff' },
+  submitButtonText: { fontSize: 16, fontWeight: '600', color: '#2A2520' },
 });

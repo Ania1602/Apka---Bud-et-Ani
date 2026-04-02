@@ -63,7 +63,7 @@ export default function AddCategory() {
     >
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.closeButton}>
-          <Ionicons name="close" size={28} color="#2A2520" />
+          <Ionicons name="close" size={28} color="#FFFFFF" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Nowa Kategoria</Text>
         <View style={{ width: 28 }} />
@@ -165,7 +165,7 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#2A2520',
+    color: "#2A2520",
   },
   content: {
     flex: 1,

@@ -91,7 +91,7 @@ export default function AddTransaction() {
     >
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.closeButton}>
-          <Ionicons name="close" size={28} color="#fff" />
+          <Ionicons name="close" size={28} color="#FFFFFF" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Dodaj Transakcję</Text>
         <View style={{ width: 28 }} />
@@ -103,7 +103,7 @@ export default function AddTransaction() {
             style={[styles.typeButton, type === 'expense' && styles.typeButtonActive]}
             onPress={() => setType('expense')}
           >
-            <Ionicons name="arrow-up" size={20} color={type === 'expense' ? '#fff' : '#999'} />
+            <Ionicons name="arrow-up" size={20} color={type === 'expense' ? '#2A2520' : '#6B5D52'} />
             <Text style={[styles.typeButtonText, type === 'expense' && styles.typeButtonTextActive]}>
               Wydatek
             </Text>
@@ -112,7 +112,7 @@ export default function AddTransaction() {
             style={[styles.typeButton, type === 'income' && styles.typeButtonActive]}
             onPress={() => setType('income')}
           >
-            <Ionicons name="arrow-down" size={20} color={type === 'income' ? '#fff' : '#999'} />
+            <Ionicons name="arrow-down" size={20} color={type === 'income' ? '#2A2520' : '#6B5D52'} />
             <Text style={[styles.typeButtonText, type === 'income' && styles.typeButtonTextActive]}>
               Przychód
             </Text>
@@ -126,7 +126,7 @@ export default function AddTransaction() {
             value={amount}
             onChangeText={setAmount}
             placeholder="0.00"
-            placeholderTextColor="#666"
+            placeholderTextColor="#9B8B7E"
             keyboardType="decimal-pad"
           />
         </View>
@@ -189,7 +189,7 @@ export default function AddTransaction() {
               value={description}
               onChangeText={setDescription}
               placeholder="Dodaj opis..."
-              placeholderTextColor="#666"
+              placeholderTextColor="#9B8B7E"
               multiline
             />
           </View>
@@ -203,7 +203,7 @@ export default function AddTransaction() {
           disabled={loading}
         >
           {loading ? (
-            <ActivityIndicator color="#fff" />
+            <ActivityIndicator color="#FFFFFF" />
           ) : (
             <Text style={styles.submitButtonText}>Dodaj Transakcję</Text>
           )}
@@ -216,7 +216,7 @@ export default function AddTransaction() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0c0c0c',
+    backgroundColor: '#FAF8F3',
   },
   header: {
     flexDirection: 'row',
@@ -225,7 +225,7 @@ const styles = StyleSheet.create({
     padding: 20,
     paddingTop: 60,
     borderBottomWidth: 1,
-    borderBottomColor: '#333',
+    borderBottomColor: '#E0D5C7',
   },
   closeButton: {
     padding: 4,
@@ -233,7 +233,7 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#fff',
+    color: "#FFFFFF",
   },
   content: {
     flex: 1,
@@ -250,19 +250,19 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     padding: 16,
     borderRadius: 12,
-    backgroundColor: '#1a1a1a',
+    backgroundColor: '#FFFFFF',
     gap: 8,
   },
   typeButtonActive: {
-    backgroundColor: '#F44336',
+    backgroundColor: "#800020",
   },
   typeButtonText: {
     fontSize: 16,
     fontWeight: '500',
-    color: '#999',
+    color: '#6B5D52',
   },
   typeButtonTextActive: {
-    color: '#fff',
+    color: "#FFFFFF",
   },
   amountContainer: {
     flexDirection: 'row',
@@ -274,12 +274,12 @@ const styles = StyleSheet.create({
   currencySymbol: {
     fontSize: 24,
     fontWeight: '600',
-    color: '#999',
+    color: '#6B5D52',
   },
   amountInput: {
     fontSize: 48,
     fontWeight: 'bold',
-    color: '#fff',
+    color: "#FFFFFF",
     minWidth: 150,
     textAlign: 'center',
   },
@@ -292,15 +292,15 @@ const styles = StyleSheet.create({
   label: {
     fontSize: 14,
     fontWeight: '500',
-    color: '#999',
+    color: '#6B5D52',
     marginBottom: 12,
   },
   input: {
-    backgroundColor: '#1a1a1a',
+    backgroundColor: '#FFFFFF',
     borderRadius: 12,
     padding: 16,
     fontSize: 16,
-    color: '#fff',
+    color: "#FFFFFF",
     minHeight: 80,
   },
   categoryScroll: {
@@ -310,42 +310,42 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 12,
     borderRadius: 20,
-    backgroundColor: '#1a1a1a',
+    backgroundColor: '#FFFFFF',
     marginRight: 8,
   },
   categoryChipText: {
     fontSize: 14,
     fontWeight: '500',
-    color: '#999',
+    color: '#6B5D52',
   },
   categoryChipTextActive: {
-    color: '#fff',
+    color: "#FFFFFF",
   },
   accountChip: {
     paddingHorizontal: 20,
     paddingVertical: 12,
     borderRadius: 20,
-    backgroundColor: '#1a1a1a',
+    backgroundColor: '#FFFFFF',
     marginRight: 8,
   },
   accountChipActive: {
-    backgroundColor: '#4CAF50',
+    backgroundColor: '#D4AF37',
   },
   accountChipText: {
     fontSize: 14,
     fontWeight: '500',
-    color: '#999',
+    color: '#6B5D52',
   },
   accountChipTextActive: {
-    color: '#fff',
+    color: "#FFFFFF",
   },
   footer: {
     padding: 20,
     borderTopWidth: 1,
-    borderTopColor: '#333',
+    borderTopColor: '#E0D5C7',
   },
   submitButton: {
-    backgroundColor: '#4CAF50',
+    backgroundColor: '#D4AF37',
     padding: 18,
     borderRadius: 12,
     alignItems: 'center',
@@ -356,6 +356,6 @@ const styles = StyleSheet.create({
   submitButtonText: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#fff',
+    color: "#FFFFFF",
   },
 });

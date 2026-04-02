@@ -16,18 +16,18 @@ import { router } from 'expo-router';
 const API_URL = process.env.EXPO_PUBLIC_BACKEND_URL;
 
 const ACCOUNT_TYPES = [
-  { value: 'bank', label: 'Konto Bankowe', icon: 'business', color: '#4CAF50' },
+  { value: 'bank', label: 'Konto Bankowe', icon: 'business', color: '#D4AF37' },
   { value: 'credit_card', label: 'Karta Kredytowa', icon: 'card', color: '#2196F3' },
   { value: 'cash', label: 'Gotówka', icon: 'cash', color: '#FF9800' },
 ];
 
-const COLORS = ['#4CAF50', '#2196F3', '#F44336', '#FF9800', '#9C27B0', '#E91E63', '#3F51B5', '#00BCD4'];
+const COLORS = ['#D4AF37', '#2196F3', '#800020', '#FF9800', '#9C27B0', '#E91E63', '#3F51B5', '#00BCD4'];
 
 export default function AddAccount() {
   const [name, setName] = useState('');
   const [type, setType] = useState('bank');
   const [balance, setBalance] = useState('');
-  const [color, setColor] = useState('#4CAF50');
+  const [color, setColor] = useState('#D4AF37');
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async () => {
@@ -71,7 +71,7 @@ export default function AddAccount() {
     >
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.closeButton}>
-          <Ionicons name="close" size={28} color="#fff" />
+          <Ionicons name="close" size={28} color="#FFFFFF" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Dodaj Konto</Text>
         <View style={{ width: 28 }} />
@@ -86,7 +86,7 @@ export default function AddAccount() {
               value={name}
               onChangeText={setName}
               placeholder="np. Konto główne, Oszczędności..."
-              placeholderTextColor="#666"
+              placeholderTextColor="#9B8B7E"
             />
           </View>
 
@@ -124,7 +124,7 @@ export default function AddAccount() {
                 value={balance}
                 onChangeText={setBalance}
                 placeholder="0.00"
-                placeholderTextColor="#666"
+                placeholderTextColor="#9B8B7E"
                 keyboardType="decimal-pad"
               />
               <Text style={styles.currency}>PLN</Text>
@@ -144,7 +144,7 @@ export default function AddAccount() {
                   ]}
                   onPress={() => setColor(c)}
                 >
-                  {color === c && <Ionicons name="checkmark" size={20} color="#fff" />}
+                  {color === c && <Ionicons name="checkmark" size={20} color="#FFFFFF" />}
                 </TouchableOpacity>
               ))}
             </View>
@@ -159,7 +159,7 @@ export default function AddAccount() {
           disabled={loading}
         >
           {loading ? (
-            <ActivityIndicator color="#fff" />
+            <ActivityIndicator color="#FFFFFF" />
           ) : (
             <Text style={styles.submitButtonText}>Dodaj Konto</Text>
           )}
@@ -172,7 +172,7 @@ export default function AddAccount() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0c0c0c',
+    backgroundColor: '#FAF8F3',
   },
   header: {
     flexDirection: 'row',
@@ -181,7 +181,7 @@ const styles = StyleSheet.create({
     padding: 20,
     paddingTop: 60,
     borderBottomWidth: 1,
-    borderBottomColor: '#333',
+    borderBottomColor: '#E0D5C7',
   },
   closeButton: {
     padding: 4,
@@ -189,7 +189,7 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#fff',
+    color: "#2A2520",
   },
   content: {
     flex: 1,
@@ -203,15 +203,15 @@ const styles = StyleSheet.create({
   label: {
     fontSize: 14,
     fontWeight: '500',
-    color: '#999',
+    color: '#6B5D52',
     marginBottom: 12,
   },
   input: {
-    backgroundColor: '#1a1a1a',
+    backgroundColor: '#FFFFFF',
     borderRadius: 12,
     padding: 16,
     fontSize: 16,
-    color: '#fff',
+    color: '#2A2520',
   },
   typeGrid: {
     flexDirection: 'row',
@@ -219,7 +219,7 @@ const styles = StyleSheet.create({
   },
   typeCard: {
     flex: 1,
-    backgroundColor: '#1a1a1a',
+    backgroundColor: '#FFFFFF',
     padding: 16,
     borderRadius: 12,
     alignItems: 'center',
@@ -227,7 +227,7 @@ const styles = StyleSheet.create({
     borderColor: 'transparent',
   },
   typeCardActive: {
-    borderColor: '#4CAF50',
+    borderColor: '#D4AF37',
   },
   typeIcon: {
     width: 56,
@@ -240,7 +240,7 @@ const styles = StyleSheet.create({
   typeLabel: {
     fontSize: 12,
     fontWeight: '500',
-    color: '#fff',
+    color: '#2A2520',
     textAlign: 'center',
   },
   balanceInput: {
@@ -251,7 +251,7 @@ const styles = StyleSheet.create({
   currency: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#999',
+    color: '#6B5D52',
   },
   colorGrid: {
     flexDirection: 'row',
@@ -267,15 +267,15 @@ const styles = StyleSheet.create({
   },
   colorCircleActive: {
     borderWidth: 3,
-    borderColor: '#fff',
+    borderColor: '#2A2520',
   },
   footer: {
     padding: 20,
     borderTopWidth: 1,
-    borderTopColor: '#333',
+    borderTopColor: '#E0D5C7',
   },
   submitButton: {
-    backgroundColor: '#4CAF50',
+    backgroundColor: '#D4AF37',
     padding: 18,
     borderRadius: 12,
     alignItems: 'center',
@@ -286,6 +286,6 @@ const styles = StyleSheet.create({
   submitButtonText: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#fff',
+    color: '#2A2520',
   },
 });

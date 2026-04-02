@@ -67,7 +67,7 @@ export default function AddCredit() {
     >
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.closeButton}>
-          <Ionicons name="close" size={28} color="#fff" />
+          <Ionicons name="close" size={28} color="#FFFFFF" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Dodaj Kredyt</Text>
         <View style={{ width: 28 }} />
@@ -82,7 +82,7 @@ export default function AddCredit() {
               value={name}
               onChangeText={setName}
               placeholder="np. Kredyt hipoteczny, Kredyt samochodowy..."
-              placeholderTextColor="#666"
+              placeholderTextColor="#9B8B7E"
             />
           </View>
 
@@ -95,7 +95,7 @@ export default function AddCredit() {
                   value={totalAmount}
                   onChangeText={setTotalAmount}
                   placeholder="0.00"
-                  placeholderTextColor="#666"
+                  placeholderTextColor="#9B8B7E"
                   keyboardType="decimal-pad"
                 />
                 <Text style={styles.currency}>PLN</Text>
@@ -109,7 +109,7 @@ export default function AddCredit() {
                   value={remainingAmount}
                   onChangeText={setRemainingAmount}
                   placeholder="0.00"
-                  placeholderTextColor="#666"
+                  placeholderTextColor="#9B8B7E"
                   keyboardType="decimal-pad"
                 />
                 <Text style={styles.currency}>PLN</Text>
@@ -126,7 +126,7 @@ export default function AddCredit() {
                   value={interestRate}
                   onChangeText={setInterestRate}
                   placeholder="0.0"
-                  placeholderTextColor="#666"
+                  placeholderTextColor="#9B8B7E"
                   keyboardType="decimal-pad"
                 />
                 <Text style={styles.currency}>%</Text>
@@ -140,7 +140,7 @@ export default function AddCredit() {
                   value={monthlyPayment}
                   onChangeText={setMonthlyPayment}
                   placeholder="0.00"
-                  placeholderTextColor="#666"
+                  placeholderTextColor="#9B8B7E"
                   keyboardType="decimal-pad"
                 />
                 <Text style={styles.currency}>PLN</Text>
@@ -156,7 +156,7 @@ export default function AddCredit() {
                 value={startDate}
                 onChangeText={setStartDate}
                 placeholder="YYYY-MM-DD"
-                placeholderTextColor="#666"
+                placeholderTextColor="#9B8B7E"
               />
             </View>
             <View style={[styles.field, { flex: 1, marginLeft: 12 }]}>
@@ -166,7 +166,7 @@ export default function AddCredit() {
                 value={endDate}
                 onChangeText={setEndDate}
                 placeholder="YYYY-MM-DD"
-                placeholderTextColor="#666"
+                placeholderTextColor="#9B8B7E"
               />
             </View>
           </View>
@@ -187,7 +187,7 @@ export default function AddCredit() {
           disabled={loading}
         >
           {loading ? (
-            <ActivityIndicator color="#fff" />
+            <ActivityIndicator color="#FFFFFF" />
           ) : (
             <Text style={styles.submitButtonText}>Dodaj Kredyt</Text>
           )}
@@ -200,7 +200,7 @@ export default function AddCredit() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0c0c0c',
+    backgroundColor: '#FAF8F3',
   },
   header: {
     flexDirection: 'row',
@@ -209,7 +209,7 @@ const styles = StyleSheet.create({
     padding: 20,
     paddingTop: 60,
     borderBottomWidth: 1,
-    borderBottomColor: '#333',
+    borderBottomColor: '#E0D5C7',
   },
   closeButton: {
     padding: 4,
@@ -217,7 +217,7 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#fff',
+    color: "#2A2520",
   },
   content: {
     flex: 1,
@@ -234,27 +234,27 @@ const styles = StyleSheet.create({
   label: {
     fontSize: 14,
     fontWeight: '500',
-    color: '#999',
+    color: '#6B5D52',
     marginBottom: 12,
   },
   input: {
-    backgroundColor: '#1a1a1a',
+    backgroundColor: '#FFFFFF',
     borderRadius: 12,
     padding: 16,
     fontSize: 16,
-    color: '#fff',
+    color: '#2A2520',
   },
   inputWithIcon: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#1a1a1a',
+    backgroundColor: '#FFFFFF',
     borderRadius: 12,
     paddingRight: 16,
   },
   currency: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#999',
+    color: '#6B5D52',
     marginLeft: 8,
   },
   infoBox: {
@@ -274,10 +274,10 @@ const styles = StyleSheet.create({
   footer: {
     padding: 20,
     borderTopWidth: 1,
-    borderTopColor: '#333',
+    borderTopColor: '#E0D5C7',
   },
   submitButton: {
-    backgroundColor: '#4CAF50',
+    backgroundColor: '#D4AF37',
     padding: 18,
     borderRadius: 12,
     alignItems: 'center',
@@ -288,6 +288,6 @@ const styles = StyleSheet.create({
   submitButtonText: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#fff',
+    color: '#2A2520',
   },
 });

@@ -83,7 +83,7 @@ export default function Categories() {
     <View style={styles.container}>
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-          <Ionicons name="arrow-back" size={24} color="#2A2520" />
+          <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Kategorie</Text>
         <TouchableOpacity onPress={() => router.push('/add-category')} style={styles.addButton}>
@@ -161,7 +161,7 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 20,
     fontWeight: '600',
-    color: '#2A2520',
+    color: "#2A2520",
   },
   addButton: {
     padding: 4,

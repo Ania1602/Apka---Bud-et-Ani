@@ -67,7 +67,7 @@ export default function Accounts() {
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#4CAF50" />
+        <ActivityIndicator size="large" color="#D4AF37" />
       </View>
     );
   }
@@ -85,10 +85,10 @@ export default function Accounts() {
       <FlatList
         data={accounts}
         keyExtractor={(item) => item.id}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#4CAF50" />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#D4AF37" />}
         ListEmptyComponent={
           <View style={styles.emptyState}>
-            <Ionicons name="wallet-outline" size={64} color="#666" />
+            <Ionicons name="wallet-outline" size={64} color="#9B8B7E" />
             <Text style={styles.emptyStateText}>Brak kont</Text>
             <TouchableOpacity style={styles.addButton} onPress={() => router.push('/add-account')}>
               <Text style={styles.addButtonText}>Dodaj Konto</Text>
@@ -107,7 +107,7 @@ export default function Accounts() {
             <View style={styles.accountRight}>
               <Text style={styles.accountBalance}>{item.balance.toFixed(2)} {item.currency}</Text>
               <TouchableOpacity onPress={() => deleteAccount(item.id)} style={styles.deleteButton}>
-                <Ionicons name="trash-outline" size={18} color="#F44336" />
+                <Ionicons name="trash-outline" size={18} color="#800020" />
               </TouchableOpacity>
             </View>
           </View>
@@ -116,7 +116,7 @@ export default function Accounts() {
       />
 
       <TouchableOpacity style={styles.fab} onPress={() => router.push('/add-account')}>
-        <Ionicons name="add" size={32} color="#fff" />
+        <Ionicons name="add" size={32} color="#FFFFFF" />
       </TouchableOpacity>
     </View>
   );
@@ -125,16 +125,16 @@ export default function Accounts() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0c0c0c',
+    backgroundColor: '#FAF8F3',
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#0c0c0c',
+    backgroundColor: '#FAF8F3',
   },
   totalCard: {
-    backgroundColor: '#1a1a1a',
+    backgroundColor: '#FFFFFF',
     margin: 16,
     padding: 24,
     borderRadius: 16,
@@ -142,18 +142,18 @@ const styles = StyleSheet.create({
   },
   totalLabel: {
     fontSize: 14,
-    color: '#999',
+    color: '#6B5D52',
     marginBottom: 8,
   },
   totalAmount: {
     fontSize: 36,
     fontWeight: 'bold',
-    color: '#fff',
+    color: '#2A2520',
     marginBottom: 4,
   },
   totalSubtext: {
     fontSize: 12,
-    color: '#666',
+    color: '#9B8B7E',
   },
   listContent: {
     padding: 16,
@@ -163,7 +163,7 @@ const styles = StyleSheet.create({
   accountItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#1a1a1a',
+    backgroundColor: '#FFFFFF',
     padding: 20,
     borderRadius: 12,
     marginBottom: 12,
@@ -182,12 +182,12 @@ const styles = StyleSheet.create({
   accountName: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#fff',
+    color: '#2A2520',
     marginBottom: 4,
   },
   accountType: {
     fontSize: 14,
-    color: '#999',
+    color: '#6B5D52',
   },
   accountRight: {
     alignItems: 'flex-end',
@@ -195,7 +195,7 @@ const styles = StyleSheet.create({
   accountBalance: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#4CAF50',
+    color: '#D4AF37',
     marginBottom: 8,
   },
   deleteButton: {
@@ -208,18 +208,18 @@ const styles = StyleSheet.create({
   emptyStateText: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#fff',
+    color: '#2A2520',
     marginTop: 16,
     marginBottom: 24,
   },
   addButton: {
-    backgroundColor: '#4CAF50',
+    backgroundColor: '#D4AF37',
     paddingHorizontal: 24,
     paddingVertical: 12,
     borderRadius: 8,
   },
   addButtonText: {
-    color: '#fff',
+    color: '#2A2520',
     fontSize: 16,
     fontWeight: '600',
   },
@@ -230,7 +230,7 @@ const styles = StyleSheet.create({
     width: 60,
     height: 60,
     borderRadius: 30,
-    backgroundColor: '#4CAF50',
+    backgroundColor: '#D4AF37',
     alignItems: 'center',
     justifyContent: 'center',
     shadowColor: '#000',

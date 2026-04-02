@@ -9,7 +9,7 @@ export default function More() {
       icon: 'wallet',
       title: 'Konta',
       subtitle: 'Zarządzaj swoimi kontami',
-      color: '#4CAF50',
+      color: '#D4AF37',
       route: '/accounts',
     },
     {
@@ -50,7 +50,7 @@ export default function More() {
                 <Text style={styles.menuTitle}>{item.title}</Text>
                 <Text style={styles.menuSubtitle}>{item.subtitle}</Text>
               </View>
-              <Ionicons name="chevron-forward" size={24} color="#666" />
+              <Ionicons name="chevron-forward" size={24} color="#9B8B7E" />
             </TouchableOpacity>
           ))}
         </View>
@@ -70,7 +70,7 @@ export default function More() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0c0c0c',
+    backgroundColor: '#FAF8F3',
   },
   header: {
     padding: 20,
@@ -79,11 +79,11 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 32,
     fontWeight: 'bold',
-    color: '#fff',
+    color: '#2A2520',
   },
   headerSubtitle: {
     fontSize: 14,
-    color: '#999',
+    color: '#6B5D52',
     marginTop: 4,
   },
   content: {
@@ -96,7 +96,7 @@ const styles = StyleSheet.create({
   menuItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#1a1a1a',
+    backgroundColor: '#FFFFFF',
     padding: 16,
     borderRadius: 12,
     marginBottom: 12,
@@ -115,35 +115,35 @@ const styles = StyleSheet.create({
   menuTitle: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#fff',
+    color: '#2A2520',
     marginBottom: 4,
   },
   menuSubtitle: {
     fontSize: 13,
-    color: '#999',
+    color: '#6B5D52',
   },
   aboutSection: {
     padding: 20,
     margin: 20,
     marginTop: 40,
-    backgroundColor: '#1a1a1a',
+    backgroundColor: '#FFFFFF',
     borderRadius: 16,
     alignItems: 'center',
   },
   aboutTitle: {
     fontSize: 20,
     fontWeight: 'bold',
-    color: '#fff',
+    color: '#2A2520',
     marginBottom: 8,
   },
   aboutVersion: {
     fontSize: 14,
-    color: '#4CAF50',
+    color: '#D4AF37',
     marginBottom: 16,
   },
   aboutText: {
     fontSize: 13,
-    color: '#999',
+    color: '#6B5D52',
     textAlign: 'center',
     lineHeight: 20,
   },

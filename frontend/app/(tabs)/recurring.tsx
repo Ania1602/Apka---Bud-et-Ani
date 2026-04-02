@@ -84,7 +84,7 @@ export default function RecurringTransactions() {
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#4CAF50" />
+        <ActivityIndicator size="large" color="#D4AF37" />
       </View>
     );
   }
@@ -99,10 +99,10 @@ export default function RecurringTransactions() {
       <FlatList
         data={recurring}
         keyExtractor={(item) => item.id}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#4CAF50" />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#D4AF37" />}
         ListEmptyComponent={
           <View style={styles.emptyState}>
-            <Ionicons name="repeat-outline" size={64} color="#666" />
+            <Ionicons name="repeat-outline" size={64} color="#9B8B7E" />
             <Text style={styles.emptyStateText}>Brak płatności cyklicznych</Text>
             <Text style={styles.emptyStateSubtext}>
               Dodaj stałe opłaty jak czynsz, bilet komunikacyjny, subskrypcje
@@ -118,13 +118,13 @@ export default function RecurringTransactions() {
               <View
                 style={[
                   styles.recurringIcon,
-                  { backgroundColor: item.type === 'income' ? '#4CAF5020' : '#F4433620' },
+                  { backgroundColor: item.type === 'income' ? '#D4AF3720' : '#80002020' },
                 ]}
               >
                 <Ionicons
                   name={item.type === 'income' ? 'arrow-down' : 'arrow-up'}
                   size={24}
-                  color={item.type === 'income' ? '#4CAF50' : '#F44336'}
+                  color={item.type === 'income' ? '#2C5F2D' : '#800020'}
                 />
               </View>
               <View style={styles.recurringDetails}>
@@ -134,7 +134,7 @@ export default function RecurringTransactions() {
               <Text
                 style={[
                   styles.recurringAmount,
-                  { color: item.type === 'income' ? '#4CAF50' : '#F44336' },
+                  { color: item.type === 'income' ? '#2C5F2D' : '#800020' },
                 ]}
               >
                 {item.type === 'income' ? '+' : '-'}{item.amount.toFixed(2)} PLN
@@ -143,16 +143,16 @@ export default function RecurringTransactions() {
 
             <View style={styles.recurringInfo}>
               <View style={styles.infoItem}>
-                <Ionicons name="repeat" size={16} color="#999" />
+                <Ionicons name="repeat" size={16} color="#6B5D52" />
                 <Text style={styles.infoText}>{FREQUENCY_LABELS[item.frequency] || item.frequency}</Text>
               </View>
               <View style={styles.infoItem}>
-                <Ionicons name="calendar" size={16} color="#999" />
+                <Ionicons name="calendar" size={16} color="#6B5D52" />
                 <Text style={styles.infoText}>Dzień: {item.day_of_month}</Text>
               </View>
               {item.next_due_date && (
                 <View style={styles.infoItem}>
-                  <Ionicons name="time" size={16} color="#999" />
+                  <Ionicons name="time" size={16} color="#6B5D52" />
                   <Text style={styles.infoText}>
                     Następna: {format(new Date(item.next_due_date), 'dd MMM', { locale: pl })}
                   </Text>
@@ -165,15 +165,15 @@ export default function RecurringTransactions() {
                 style={styles.actionButton}
                 onPress={() => executeRecurring(item.id, item.name)}
               >
-                <Ionicons name="play" size={18} color="#4CAF50" />
-                <Text style={[styles.actionText, { color: '#4CAF50' }]}>Wykonaj teraz</Text>
+                <Ionicons name="play" size={18} color="#D4AF37" />
+                <Text style={[styles.actionText, { color: '#D4AF37' }]}>Wykonaj teraz</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={styles.actionButton}
                 onPress={() => deleteRecurring(item.id)}
               >
-                <Ionicons name="trash-outline" size={18} color="#F44336" />
-                <Text style={[styles.actionText, { color: '#F44336' }]}>Usuń</Text>
+                <Ionicons name="trash-outline" size={18} color="#800020" />
+                <Text style={[styles.actionText, { color: '#800020' }]}>Usuń</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -182,7 +182,7 @@ export default function RecurringTransactions() {
       />
 
       <TouchableOpacity style={styles.fab} onPress={() => router.push('/add-recurring')}>
-        <Ionicons name="add" size={32} color="#fff" />
+        <Ionicons name="add" size={32} color="#FFFFFF" />
       </TouchableOpacity>
     </View>
   );
@@ -191,13 +191,13 @@ export default function RecurringTransactions() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0c0c0c',
+    backgroundColor: '#FAF8F3',
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#0c0c0c',
+    backgroundColor: '#FAF8F3',
   },
   header: {
     padding: 20,
@@ -206,11 +206,11 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 32,
     fontWeight: 'bold',
-    color: '#fff',
+    color: '#2A2520',
   },
   headerSubtitle: {
     fontSize: 14,
-    color: '#999',
+    color: '#6B5D52',
     marginTop: 4,
   },
   listContent: {
@@ -219,7 +219,7 @@ const styles = StyleSheet.create({
     paddingBottom: 100,
   },
   recurringCard: {
-    backgroundColor: '#1a1a1a',
+    backgroundColor: '#FFFFFF',
     padding: 20,
     borderRadius: 12,
     marginBottom: 12,
@@ -243,12 +243,12 @@ const styles = StyleSheet.create({
   recurringName: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#fff',
+    color: '#2A2520',
     marginBottom: 4,
   },
   recurringCategory: {
     fontSize: 14,
-    color: '#999',
+    color: '#6B5D52',
   },
   recurringAmount: {
     fontSize: 18,
@@ -267,14 +267,14 @@ const styles = StyleSheet.create({
   },
   infoText: {
     fontSize: 13,
-    color: '#999',
+    color: '#6B5D52',
   },
   recurringActions: {
     flexDirection: 'row',
     gap: 12,
     paddingTop: 16,
     borderTopWidth: 1,
-    borderTopColor: '#2a2a2a',
+    borderTopColor: '#F5F1E8',
   },
   actionButton: {
     flex: 1,
@@ -283,7 +283,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     padding: 12,
     borderRadius: 8,
-    backgroundColor: '#2a2a2a',
+    backgroundColor: '#F5F1E8',
     gap: 6,
   },
   actionText: {
@@ -298,24 +298,24 @@ const styles = StyleSheet.create({
   emptyStateText: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#fff',
+    color: '#2A2520',
     marginTop: 16,
   },
   emptyStateSubtext: {
     fontSize: 14,
-    color: '#999',
+    color: '#6B5D52',
     marginTop: 8,
     textAlign: 'center',
     marginBottom: 24,
   },
   addButton: {
-    backgroundColor: '#4CAF50',
+    backgroundColor: '#D4AF37',
     paddingHorizontal: 24,
     paddingVertical: 12,
     borderRadius: 8,
   },
   addButtonText: {
-    color: '#fff',
+    color: '#2A2520',
     fontSize: 16,
     fontWeight: '600',
   },
@@ -326,7 +326,7 @@ const styles = StyleSheet.create({
     width: 60,
     height: 60,
     borderRadius: 30,
-    backgroundColor: '#4CAF50',
+    backgroundColor: '#D4AF37',
     alignItems: 'center',
     justifyContent: 'center',
     shadowColor: '#000',
