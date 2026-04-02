@@ -9,6 +9,9 @@ const STORAGE_KEYS = {
   CREDITS: '@budget_ani_credits',
   BUDGETS: '@budget_ani_budgets',
   RECURRING: '@budget_ani_recurring',
+  SAVINGS_GOALS: '@budget_ani_savings_goals',
+  PIN_CODE: '@budget_ani_pin',
+  DARK_MODE: '@budget_ani_dark_mode',
   INITIALIZED: '@budget_ani_initialized',
 };
 
@@ -478,6 +481,135 @@ export const getDashboardStats = async (month?: number, year?: number) => {
     accounts_count: accounts.length,
     credits_count: credits.length,
   };
+};
+
+// Savings Goals
+export const savingsGoalsDB = {
+  getAll: async () => {
+    return await getItems(STORAGE_KEYS.SAVINGS_GOALS);
+  },
+  create: async (goal: any) => {
+    const goals = await getItems(STORAGE_KEYS.SAVINGS_GOALS);
+    const id = await generateId();
+    goals.push({ ...goal, id, current_amount: goal.current_amount || 0, created_at: new Date().toISOString() });
+    await setItems(STORAGE_KEYS.SAVINGS_GOALS, goals);
+    return id;
+  },
+  update: async (id: string, goal: any) => {
+    const goals = await getItems(STORAGE_KEYS.SAVINGS_GOALS);
+    const index = goals.findIndex((g: any) => g.id === id);
+    if (index !== -1) { goals[index] = { ...goals[index], ...goal }; await setItems(STORAGE_KEYS.SAVINGS_GOALS, goals); }
+  },
+  addAmount: async (id: string, amount: number) => {
+    const goals = await getItems(STORAGE_KEYS.SAVINGS_GOALS);
+    const index = goals.findIndex((g: any) => g.id === id);
+    if (index !== -1) { goals[index].current_amount = (goals[index].current_amount || 0) + amount; await setItems(STORAGE_KEYS.SAVINGS_GOALS, goals); }
+  },
+  delete: async (id: string) => {
+    const goals = await getItems(STORAGE_KEYS.SAVINGS_GOALS);
+    await setItems(STORAGE_KEYS.SAVINGS_GOALS, goals.filter((g: any) => g.id !== id));
+  },
+};
+
+// PIN Management
+export const pinDB = {
+  exists: async () => {
+    const pin = await AsyncStorage.getItem(STORAGE_KEYS.PIN_CODE);
+    return !!pin;
+  },
+  set: async (pin: string) => {
+    await AsyncStorage.setItem(STORAGE_KEYS.PIN_CODE, pin);
+  },
+  verify: async (pin: string) => {
+    const stored = await AsyncStorage.getItem(STORAGE_KEYS.PIN_CODE);
+    return stored === pin;
+  },
+  remove: async () => {
+    await AsyncStorage.removeItem(STORAGE_KEYS.PIN_CODE);
+  },
+};
+
+// Dark Mode
+export const darkModeDB = {
+  get: async () => {
+    const val = await AsyncStorage.getItem(STORAGE_KEYS.DARK_MODE);
+    return val === 'true';
+  },
+  set: async (enabled: boolean) => {
+    await AsyncStorage.setItem(STORAGE_KEYS.DARK_MODE, enabled ? 'true' : 'false');
+  },
+};
+
+// Transaction update
+export const transactionUpdate = async (id: string, updates: any) => {
+  const transactions = await getItems(STORAGE_KEYS.TRANSACTIONS);
+  const index = transactions.findIndex((t: any) => t.id === id);
+  if (index !== -1) {
+    // Reverse old balance
+    const old = transactions[index];
+    const account = await accountsDB.getById(old.account_id);
+    if (account) {
+      const reversed = old.type === 'income' ? account.balance - old.amount : account.balance + old.amount;
+      await accountsDB.updateBalance(old.account_id, reversed);
+    }
+    // Apply new
+    transactions[index] = { ...transactions[index], ...updates };
+    await setItems(STORAGE_KEYS.TRANSACTIONS, transactions);
+    // Apply new balance
+    const newAcc = await accountsDB.getById(updates.account_id || old.account_id);
+    if (newAcc) {
+      const newBal = (updates.type || old.type) === 'income' ? newAcc.balance + (updates.amount || old.amount) : newAcc.balance - (updates.amount || old.amount);
+      await accountsDB.updateBalance(updates.account_id || old.account_id, newBal);
+    }
+  }
+};
+
+// Statistics
+export const getStatistics = async (month: number, year: number) => {
+  const startDate = new Date(year, month - 1, 1).toISOString();
+  const endDate = new Date(year, month, 0, 23, 59, 59).toISOString();
+  const allTransactions = await transactionsDB.getByDateRange(startDate, endDate);
+
+  const byCategory: Record<string, { amount: number; type: string }> = {};
+  allTransactions.forEach((t: any) => {
+    if (!byCategory[t.category]) byCategory[t.category] = { amount: 0, type: t.type };
+    byCategory[t.category].amount += t.amount;
+  });
+
+  // Monthly trends (last 6 months)
+  const trends = [];
+  for (let i = 5; i >= 0; i--) {
+    const d = new Date(year, month - 1 - i, 1);
+    const ms = d.toISOString();
+    const me = new Date(d.getFullYear(), d.getMonth() + 1, 0, 23, 59, 59).toISOString();
+    const mt = await transactionsDB.getByDateRange(ms, me);
+    const inc = mt.filter((t: any) => t.type === 'income').reduce((s: number, t: any) => s + t.amount, 0);
+    const exp = mt.filter((t: any) => t.type === 'expense').reduce((s: number, t: any) => s + t.amount, 0);
+    trends.push({ month: d.getMonth() + 1, year: d.getFullYear(), income: inc, expenses: exp, label: d.toLocaleDateString('pl-PL', { month: 'short' }) });
+  }
+
+  return { byCategory, trends, totalIncome: allTransactions.filter((t: any) => t.type === 'income').reduce((s: number, t: any) => s + t.amount, 0), totalExpenses: allTransactions.filter((t: any) => t.type === 'expense').reduce((s: number, t: any) => s + t.amount, 0) };
+};
+
+// Export to CSV
+export const exportToCSV = async () => {
+  const transactions = await transactionsDB.getAll(9999);
+  const accounts = await accountsDB.getAll();
+  const credits = await creditsDB.getAll();
+
+  let csv = 'Typ,Kategoria,Kwota,Data,Opis,Konto\n';
+  transactions.forEach((t: any) => {
+    const acc = accounts.find((a: any) => a.id === t.account_id);
+    csv += `${t.type === 'income' ? 'Przychód' : 'Wydatek'},"${t.category}",${t.amount},${t.date},"${t.description || ''}","${acc?.name || ''}"\n`;
+  });
+
+  csv += '\n\nKonta\nNazwa,Typ,Saldo\n';
+  accounts.forEach((a: any) => { csv += `"${a.name}","${a.type}",${a.balance}\n`; });
+
+  csv += '\n\nKredyty\nNazwa,Kwota całkowita,Do spłaty,Rata,Oprocentowanie\n';
+  credits.forEach((c: any) => { csv += `"${c.name}",${c.total_amount},${c.remaining_amount},${c.monthly_payment},${c.interest_rate}%\n`; });
+
+  return csv;
 };
 
 export const getDatabase = () => {

@@ -11,16 +11,20 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { router } from 'expo-router';
-import { transactionsDB, accountsDB, categoriesDB, creditsDB } from '../lib/database';
+import { router, useLocalSearchParams } from 'expo-router';
+import { transactionsDB, transactionUpdate, accountsDB, categoriesDB, creditsDB } from '../lib/database';
 
 export default function AddTransaction() {
-  const [type, setType] = useState<'income' | 'expense'>('expense');
-  const [amount, setAmount] = useState('');
-  const [category, setCategory] = useState('');
-  const [description, setDescription] = useState('');
-  const [accountId, setAccountId] = useState('');
-  const [creditId, setCreditId] = useState('');
+  const params = useLocalSearchParams();
+  const isEdit = !!params.edit;
+  const editId = params.edit as string;
+  
+  const [type, setType] = useState<'income' | 'expense'>((params.type as any) || 'expense');
+  const [amount, setAmount] = useState(params.amount ? String(params.amount) : '');
+  const [category, setCategory] = useState(params.category ? decodeURIComponent(params.category as string) : '');
+  const [description, setDescription] = useState(params.description ? decodeURIComponent(params.description as string) : '');
+  const [accountId, setAccountId] = useState(params.account_id ? String(params.account_id) : '');
+  const [creditId, setCreditId] = useState(params.credit_id ? String(params.credit_id) : '');
   const [accounts, setAccounts] = useState<any[]>([]);
   const [credits, setCredits] = useState<any[]>([]);
   const [categories, setCategories] = useState<any[]>([]);
@@ -59,19 +63,30 @@ export default function AddTransaction() {
 
     setLoading(true);
     try {
-      await transactionsDB.create({
-        type,
-        amount: parseFloat(amount),
-        category,
-        account_id: accountId,
-        date: new Date().toISOString(),
-        description,
-        credit_id: creditId || null,
-      });
+      if (isEdit) {
+        await transactionUpdate(editId, {
+          type,
+          amount: parseFloat(amount),
+          category,
+          account_id: accountId,
+          description,
+          credit_id: creditId || null,
+        });
+      } else {
+        await transactionsDB.create({
+          type,
+          amount: parseFloat(amount),
+          category,
+          account_id: accountId,
+          date: new Date().toISOString(),
+          description,
+          credit_id: creditId || null,
+        });
+      }
       router.back();
     } catch (error) {
-      console.error('Error creating transaction:', error);
-      alert('Błąd podczas dodawania transakcji');
+      console.error('Error saving transaction:', error);
+      alert('Błąd podczas zapisywania transakcji');
     } finally {
       setLoading(false);
     }
@@ -86,7 +101,7 @@ export default function AddTransaction() {
         <TouchableOpacity onPress={() => router.back()} style={styles.closeButton}>
           <Ionicons name="close" size={28} color="#2A2520" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Dodaj Transakcję</Text>
+        <Text style={styles.headerTitle}>{isEdit ? 'Edytuj Transakcję' : 'Dodaj Transakcję'}</Text>
         <View style={{ width: 28 }} />
       </View>
 
@@ -241,7 +256,7 @@ export default function AddTransaction() {
           {loading ? (
             <ActivityIndicator color="#FFFFFF" />
           ) : (
-            <Text style={styles.submitButtonText}>Dodaj Transakcję</Text>
+            <Text style={styles.submitButtonText}>{isEdit ? 'Zapisz Zmiany' : 'Dodaj Transakcję'}</Text>
           )}
         </TouchableOpacity>
       </View>
