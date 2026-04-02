@@ -63,6 +63,7 @@ export default function Credits() {
 
   const totalRemaining = credits.reduce((sum, credit) => sum + credit.remaining_amount, 0);
   const totalBorrowed = credits.reduce((sum, credit) => sum + credit.total_amount, 0);
+  const totalMonthlyPaid = credits.reduce((sum, credit) => sum + (credit.monthly_paid || 0), 0);
 
   return (
     <View style={styles.container}>
@@ -77,6 +78,17 @@ export default function Credits() {
             <Text style={[styles.summaryAmount, { color: '#800020' }]}>{totalRemaining.toFixed(2)} PLN</Text>
           </View>
         </View>
+        
+        {totalMonthlyPaid > 0 && (
+          <View style={styles.monthlyTotalCard}>
+            <Ionicons name="checkmark-circle" size={24} color="#2C5F2D" />
+            <View style={styles.monthlyTotalContent}>
+              <Text style={styles.monthlyTotalLabel}>Spłacono w tym miesiącu</Text>
+              <Text style={styles.monthlyTotalAmount}>{totalMonthlyPaid.toFixed(2)} PLN</Text>
+            </View>
+          </View>
+        )}
+        
         <View style={styles.progressBar}>
           <View
             style={[
@@ -206,6 +218,33 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: 'bold',
     color: '#D4AF37',
+  },
+  monthlyTotalCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#2C5F2D15',
+    padding: 16,
+    borderRadius: 12,
+    marginTop: 16,
+    marginBottom: 16,
+    gap: 12,
+    borderLeftWidth: 4,
+    borderLeftColor: '#2C5F2D',
+  },
+  monthlyTotalContent: {
+    flex: 1,
+  },
+  monthlyTotalLabel: {
+    fontSize: 13,
+    color: '#6B5D52',
+    marginBottom: 4,
+    letterSpacing: 0.3,
+  },
+  monthlyTotalAmount: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: '#2C5F2D',
+    letterSpacing: -0.5,
   },
   progressBar: {
     height: 8,
