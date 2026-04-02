@@ -33,14 +33,17 @@ export default function AddTransaction() {
 
   const fetchData = async () => {
     try {
-      const [accountsRes, categoriesRes] = await Promise.all([
+      const [accountsRes, categoriesRes, creditsRes] = await Promise.all([
         fetch(`${API_URL}/api/accounts`),
         fetch(`${API_URL}/api/categories?type=${type}`),
+        fetch(`${API_URL}/api/credits`),
       ]);
       const accountsData = await accountsRes.json();
       const categoriesData = await categoriesRes.json();
+      const creditsData = await creditsRes.json();
       setAccounts(accountsData);
       setCategories(categoriesData);
+      setCredits(creditsData);
       if (accountsData.length > 0 && !accountId) {
         setAccountId(accountsData[0].id);
       }
@@ -70,6 +73,7 @@ export default function AddTransaction() {
           account_id: accountId,
           date: new Date().toISOString(),
           description,
+          credit_id: creditId || null,
         }),
       });
 
@@ -195,6 +199,49 @@ export default function AddTransaction() {
               multiline
             />
           </View>
+
+          {type === 'expense' && credits.length > 0 && (
+            <View style={styles.field}>
+              <Text style={styles.label}>Rata Kredytu (opcjonalnie)</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.categoryScroll}>
+                <TouchableOpacity
+                  style={[
+                    styles.accountChip,
+                    !creditId && styles.accountChipActive,
+                  ]}
+                  onPress={() => setCreditId('')}
+                >
+                  <Text
+                    style={[
+                      styles.accountChipText,
+                      !creditId && styles.accountChipTextActive,
+                    ]}
+                  >
+                    Brak
+                  </Text>
+                </TouchableOpacity>
+                {credits.map((credit) => (
+                  <TouchableOpacity
+                    key={credit.id}
+                    style={[
+                      styles.accountChip,
+                      creditId === credit.id && styles.accountChipActive,
+                    ]}
+                    onPress={() => setCreditId(credit.id)}
+                  >
+                    <Text
+                      style={[
+                        styles.accountChipText,
+                        creditId === credit.id && styles.accountChipTextActive,
+                      ]}
+                    >
+                      {credit.name}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            </View>
+          )}
         </View>
       </ScrollView>
 

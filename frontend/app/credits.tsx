@@ -19,10 +19,12 @@ export default function Credits() {
   const [credits, setCredits] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [selectedMonth] = useState(new Date().getMonth() + 1);
+  const [selectedYear] = useState(new Date().getFullYear());
 
   const fetchCredits = async () => {
     try {
-      const response = await fetch(`${API_URL}/api/credits`);
+      const response = await fetch(`${API_URL}/api/credits?month=${selectedMonth}&year=${selectedYear}`);
       const data = await response.json();
       setCredits(data);
     } catch (error) {
@@ -133,6 +135,15 @@ export default function Credits() {
                   </Text>
                 </View>
               </View>
+
+              {item.monthly_paid !== undefined && (
+                <View style={styles.monthlyPaymentCard}>
+                  <Ionicons name="calendar-outline" size={16} color="#2C5F2D" />
+                  <Text style={styles.monthlyPaymentText}>
+                    Spłacono w tym miesiącu: <Text style={styles.monthlyPaymentAmount}>{item.monthly_paid.toFixed(2)} PLN</Text>
+                  </Text>
+                </View>
+              )}
 
               <View style={styles.creditProgressBar}>
                 <View style={[styles.creditProgressFill, { width: `${progress * 100}%` }]} />
@@ -271,6 +282,26 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: '#2A2520',
+  },
+  monthlyPaymentCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#2C5F2D15',
+    padding: 12,
+    borderRadius: 8,
+    gap: 8,
+    marginBottom: 12,
+    borderLeftWidth: 3,
+    borderLeftColor: '#2C5F2D',
+  },
+  monthlyPaymentText: {
+    fontSize: 13,
+    color: '#6B5D52',
+    flex: 1,
+  },
+  monthlyPaymentAmount: {
+    fontWeight: '600',
+    color: '#2C5F2D',
   },
   creditProgressBar: {
     height: 6,
