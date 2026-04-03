@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -11,23 +11,48 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { accountsDB } from '../lib/database';
 
 const ACCOUNT_TYPES = [
   { value: 'bank', label: 'Konto Bankowe', icon: 'business', color: '#D4AF37' },
   { value: 'credit_card', label: 'Karta Kredytowa', icon: 'card', color: '#2196F3' },
   { value: 'cash', label: 'Gotówka', icon: 'cash', color: '#FF9800' },
+  { value: 'voucher', label: 'Bon', icon: 'pricetag', color: '#9C27B0' },
 ];
 
 const COLORS = ['#D4AF37', '#2196F3', '#800020', '#FF9800', '#9C27B0', '#E91E63', '#3F51B5', '#00BCD4'];
 
 export default function AddAccount() {
+  const params = useLocalSearchParams();
+  const isEdit = !!params.edit;
+  const editId = params.edit as string;
+
   const [name, setName] = useState('');
   const [type, setType] = useState('bank');
   const [balance, setBalance] = useState('');
   const [color, setColor] = useState('#D4AF37');
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (isEdit) {
+      loadAccountData();
+    }
+  }, [isEdit]);
+
+  const loadAccountData = async () => {
+    try {
+      const account = await accountsDB.getById(editId);
+      if (account) {
+        setName(account.name);
+        setType(account.type);
+        setBalance(String(account.balance));
+        setColor(account.color || '#D4AF37');
+      }
+    } catch (error) {
+      console.error('Error loading account:', error);
+    }
+  };
 
   const handleSubmit = async () => {
     if (!name || !balance) {
@@ -37,18 +62,23 @@ export default function AddAccount() {
 
     setLoading(true);
     try {
-      await accountsDB.create({
+      const accountData = {
         name,
         type,
         balance: parseFloat(balance),
         currency: 'PLN',
         icon: 'wallet',
         color,
-      });
+      };
+      if (isEdit) {
+        await accountsDB.update(editId, accountData);
+      } else {
+        await accountsDB.create(accountData);
+      }
       router.back();
     } catch (error) {
-      console.error('Error creating account:', error);
-      alert('Błąd podczas dodawania konta');
+      console.error('Error saving account:', error);
+      alert('Błąd podczas zapisywania konta');
     } finally {
       setLoading(false);
     }
@@ -63,7 +93,7 @@ export default function AddAccount() {
         <TouchableOpacity onPress={() => router.back()} style={styles.closeButton}>
           <Ionicons name="close" size={28} color="#2A2520" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Dodaj Konto</Text>
+        <Text style={styles.headerTitle}>{isEdit ? 'Edytuj Konto' : 'Dodaj Konto'}</Text>
         <View style={{ width: 28 }} />
       </View>
 
@@ -151,7 +181,7 @@ export default function AddAccount() {
           {loading ? (
             <ActivityIndicator color="#FFFFFF" />
           ) : (
-            <Text style={styles.submitButtonText}>Dodaj Konto</Text>
+            <Text style={styles.submitButtonText}>{isEdit ? 'Zapisz Zmiany' : 'Dodaj Konto'}</Text>
           )}
         </TouchableOpacity>
       </View>

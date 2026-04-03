@@ -44,6 +44,9 @@ export default function SavingsGoals() {
                   <Text style={s.goalName}>{item.name}</Text>
                   <Text style={s.goalTarget}>{item.current_amount.toFixed(2)} / {item.target_amount.toFixed(2)} PLN</Text>
                 </View>
+                <TouchableOpacity onPress={() => router.push({ pathname: '/add-goal', params: { edit: item.id } })}>
+                  <Ionicons name="create-outline" size={18} color="#D4AF37" />
+                </TouchableOpacity>
                 <TouchableOpacity onPress={() => Alert.alert('Usuń', `Usunąć cel "${item.name}"?`, [{ text: 'Anuluj' }, { text: 'Usuń', style: 'destructive', onPress: async () => { await savingsGoalsDB.delete(item.id); fetch_(); } }])}>
                   <Ionicons name="trash-outline" size={18} color="#800020" />
                 </TouchableOpacity>
@@ -51,7 +54,7 @@ export default function SavingsGoals() {
               <View style={s.progressBar}><View style={[s.progressFill, { width: `${Math.min(pct, 100)}%` }]} /></View>
               <Text style={s.pctText}>{pct.toFixed(0)}% osiągnięte</Text>
               <View style={s.addRow}>
-                <TextInput style={s.addInput} value={addAmount[item.id] || ''} onChangeText={v => setAddAmount({ ...addAmount, [item.id]: v })} placeholder="Kwota" placeholderTextColor="#9B8B7E" keyboardType="decimal-pad" />
+                <TextInput style={s.addInput} value={addAmount[item.id] || ''} onChangeText={v => setAddAmount({ ...addAmount, [item.id]: v.replace(',', '.') })} placeholder="Kwota" placeholderTextColor="#9B8B7E" keyboardType="numeric" />
                 <TouchableOpacity style={s.addAmtBtn} onPress={() => handleAdd(item.id)}><Text style={s.addAmtBtnText}>Dopłać</Text></TouchableOpacity>
               </View>
               {item.deadline && <Text style={s.deadline}>Termin: {new Date(item.deadline).toLocaleDateString('pl-PL')}</Text>}

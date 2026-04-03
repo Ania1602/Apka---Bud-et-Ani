@@ -4,10 +4,14 @@ import {
   KeyboardAvoidingView, Platform, ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { recurringDB, accountsDB, categoriesDB } from '../lib/database';
 
 export default function AddRecurring() {
+  const params = useLocalSearchParams();
+  const isEdit = !!params.edit;
+  const editId = params.edit as string;
+
   const [name, setName] = useState('');
   const [type, setType] = useState<'income' | 'expense'>('expense');
   const [amount, setAmount] = useState('');
@@ -22,6 +26,12 @@ export default function AddRecurring() {
   useEffect(() => {
     fetchData();
   }, [type]);
+
+  useEffect(() => {
+    if (isEdit) {
+      loadRecurringData();
+    }
+  }, [isEdit]);
 
   const fetchData = async () => {
     try {
@@ -38,6 +48,24 @@ export default function AddRecurring() {
     }
   };
 
+  const loadRecurringData = async () => {
+    try {
+      const allRecurring = await recurringDB.getAll();
+      const item = allRecurring.find((r: any) => r.id === editId);
+      if (item) {
+        setName(item.name);
+        setType(item.type);
+        setAmount(String(item.amount));
+        setCategory(item.category);
+        setAccountId(item.account_id);
+        setFrequency(item.frequency);
+        setDayOfMonth(String(item.day_of_month));
+      }
+    } catch (error) {
+      console.error('Error loading recurring:', error);
+    }
+  };
+
   const handleSubmit = async () => {
     if (!name || !amount || !category || !accountId) {
       alert('Proszę wypełnić wszystkie pola');
@@ -46,15 +74,20 @@ export default function AddRecurring() {
 
     setLoading(true);
     try {
-      await recurringDB.create({
+      const recurringData = {
         name, type, amount: parseFloat(amount), category, account_id: accountId,
         frequency, day_of_month: parseInt(dayOfMonth), start_date: new Date().toISOString(),
         is_active: true,
-      });
+      };
+      if (isEdit) {
+        await recurringDB.update(editId, recurringData);
+      } else {
+        await recurringDB.create(recurringData);
+      }
       router.back();
     } catch (error) {
-      console.error('Error creating recurring:', error);
-      alert('Błąd podczas dodawania płatności');
+      console.error('Error saving recurring:', error);
+      alert('Błąd podczas zapisywania płatności');
     } finally {
       setLoading(false);
     }
@@ -64,7 +97,7 @@ export default function AddRecurring() {
     <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()}><Ionicons name="close" size={28} color="#2A2520" /></TouchableOpacity>
-        <Text style={styles.headerTitle}>Dodaj Płatność Cykliczną</Text>
+        <Text style={styles.headerTitle}>{isEdit ? 'Edytuj Płatność Cykliczną' : 'Dodaj Płatność Cykliczną'}</Text>
         <View style={{ width: 28 }} />
       </View>
 
@@ -86,7 +119,7 @@ export default function AddRecurring() {
 
           <View style={styles.field}>
             <Text style={styles.label}>Kwota (PLN)</Text>
-            <TextInput style={styles.input} value={amount} onChangeText={setAmount} placeholder="0.00" placeholderTextColor="#9B8B7E" keyboardType="decimal-pad" />
+            <TextInput style={styles.input} value={amount} onChangeText={(t) => setAmount(t.replace(',', '.'))} placeholder="0.00" placeholderTextColor="#9B8B7E" keyboardType="numeric" />
           </View>
 
           <View style={styles.field}>
@@ -109,7 +142,7 @@ export default function AddRecurring() {
 
       <View style={styles.footer}>
         <TouchableOpacity style={[styles.submitButton, loading && styles.submitButtonDisabled]} onPress={handleSubmit} disabled={loading}>
-          {loading ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.submitButtonText}>Dodaj Płatność Cykliczną</Text>}
+          {loading ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.submitButtonText}>{isEdit ? 'Zapisz Zmiany' : 'Dodaj Płatność Cykliczną'}</Text>}
         </TouchableOpacity>
       </View>
     </KeyboardAvoidingView>

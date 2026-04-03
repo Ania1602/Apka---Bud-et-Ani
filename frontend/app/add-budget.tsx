@@ -11,32 +11,54 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { budgetsDB, categoriesDB } from '../lib/database';
 
 export default function AddBudget() {
+  const params = useLocalSearchParams();
+  const isEdit = !!params.edit;
+  const editId = params.edit as string;
+
   const [category, setCategory] = useState('');
   const [limitAmount, setLimitAmount] = useState('');
   const [categories, setCategories] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   
   const now = new Date();
-  const month = now.getMonth() + 1;
-  const year = now.getFullYear();
+  const [month, setMonth] = useState(now.getMonth() + 1);
+  const [year, setYear] = useState(now.getFullYear());
 
   useEffect(() => {
     fetchCategories();
+    if (isEdit) {
+      loadBudgetData();
+    }
   }, []);
 
   const fetchCategories = async () => {
     try {
       const data = await categoriesDB.getAll('expense');
       setCategories(data);
-      if (data.length > 0) {
+      if (data.length > 0 && !isEdit) {
         setCategory(data[0].name);
       }
     } catch (error) {
       console.error('Error fetching categories:', error);
+    }
+  };
+
+  const loadBudgetData = async () => {
+    try {
+      const allBudgets = await budgetsDB.getAll();
+      const budget = allBudgets.find((b: any) => b.id === editId);
+      if (budget) {
+        setCategory(budget.category);
+        setLimitAmount(String(budget.limit_amount));
+        setMonth(budget.month);
+        setYear(budget.year);
+      }
+    } catch (error) {
+      console.error('Error loading budget:', error);
     }
   };
 
@@ -48,16 +70,21 @@ export default function AddBudget() {
 
     setLoading(true);
     try {
-      await budgetsDB.create({
+      const budgetData = {
         category,
         month,
         year,
         limit_amount: parseFloat(limitAmount),
-      });
+      };
+      if (isEdit) {
+        await budgetsDB.update(editId, budgetData);
+      } else {
+        await budgetsDB.create(budgetData);
+      }
       router.back();
     } catch (error) {
-      console.error('Error creating budget:', error);
-      alert('Błąd podczas dodawania budżetu');
+      console.error('Error saving budget:', error);
+      alert('Błąd podczas zapisywania budżetu');
     } finally {
       setLoading(false);
     }
@@ -72,7 +99,7 @@ export default function AddBudget() {
         <TouchableOpacity onPress={() => router.back()} style={styles.closeButton}>
           <Ionicons name="close" size={28} color="#2A2520" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Dodaj Budżet</Text>
+        <Text style={styles.headerTitle}>{isEdit ? 'Edytuj Budżet' : 'Dodaj Budżet'}</Text>
         <View style={{ width: 28 }} />
       </View>
 
@@ -135,7 +162,7 @@ export default function AddBudget() {
           {loading ? (
             <ActivityIndicator color="#FFFFFF" />
           ) : (
-            <Text style={styles.submitButtonText}>Dodaj Budżet</Text>
+            <Text style={styles.submitButtonText}>{isEdit ? 'Zapisz Zmiany' : 'Dodaj Budżet'}</Text>
           )}
         </TouchableOpacity>
       </View>

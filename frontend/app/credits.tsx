@@ -138,6 +138,9 @@ export default function Credits() {
                     {format(new Date(item.end_date), 'dd MMM yyyy', { locale: pl })}
                   </Text>
                 </View>
+                <TouchableOpacity onPress={() => router.push({ pathname: '/add-credit', params: { edit: item.id } })} style={styles.editButton}>
+                  <Ionicons name="create-outline" size={18} color="#D4AF37" />
+                </TouchableOpacity>
                 <TouchableOpacity onPress={() => deleteCredit(item.id)} style={styles.deleteButton}>
                   <Ionicons name="trash-outline" size={18} color="#800020" />
                 </TouchableOpacity>
@@ -328,6 +331,10 @@ const styles = StyleSheet.create({
   },
   deleteButton: {
     padding: 4,
+  },
+  editButton: {
+    padding: 4,
+    marginRight: 8,
   },
   creditAmounts: {
     flexDirection: 'row',

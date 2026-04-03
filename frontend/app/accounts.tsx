@@ -16,6 +16,7 @@ const ACCOUNT_ICONS: Record<string, string> = {
   bank: 'business',
   credit_card: 'card',
   cash: 'cash',
+  voucher: 'pricetag',
 };
 
 export default function Accounts() {
@@ -60,6 +61,7 @@ export default function Accounts() {
       bank: 'Konto Bankowe',
       credit_card: 'Karta Kredytowa',
       cash: 'Gotówka',
+      voucher: 'Bon',
     };
     return labels[type] || type;
   };
@@ -114,9 +116,14 @@ export default function Accounts() {
             </View>
             <View style={styles.accountRight}>
               <Text style={styles.accountBalance}>{item.balance.toFixed(2)} {item.currency || 'PLN'}</Text>
-              <TouchableOpacity onPress={() => deleteAccount(item.id)} style={styles.deleteButton}>
-                <Ionicons name="trash-outline" size={18} color="#800020" />
-              </TouchableOpacity>
+              <View style={styles.actionButtons}>
+                <TouchableOpacity onPress={() => router.push({ pathname: '/add-account', params: { edit: item.id } })} style={styles.editButton}>
+                  <Ionicons name="create-outline" size={18} color="#D4AF37" />
+                </TouchableOpacity>
+                <TouchableOpacity onPress={() => deleteAccount(item.id)} style={styles.deleteButton}>
+                  <Ionicons name="trash-outline" size={18} color="#800020" />
+                </TouchableOpacity>
+              </View>
             </View>
           </View>
         )}
@@ -225,6 +232,14 @@ const styles = StyleSheet.create({
   },
   deleteButton: {
     padding: 4,
+  },
+  editButton: {
+    padding: 4,
+  },
+  actionButtons: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 4,
   },
   emptyState: {
     alignItems: 'center',

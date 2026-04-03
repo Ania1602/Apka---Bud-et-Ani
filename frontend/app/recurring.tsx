@@ -52,6 +52,9 @@ export default function RecurringPage() {
               <TouchableOpacity style={s.actionBtn} onPress={() => exec(item.id, item.name)}>
                 <Ionicons name="play" size={16} color="#D4AF37" /><Text style={[s.actionText, { color: '#D4AF37' }]}>Wykonaj</Text>
               </TouchableOpacity>
+              <TouchableOpacity style={s.actionBtn} onPress={() => router.push({ pathname: '/add-recurring', params: { edit: item.id } })}>
+                <Ionicons name="create-outline" size={16} color="#2196F3" /><Text style={[s.actionText, { color: '#2196F3' }]}>Edytuj</Text>
+              </TouchableOpacity>
               <TouchableOpacity style={s.actionBtn} onPress={async () => { await recurringDB.delete(item.id); fetch_(); }}>
                 <Ionicons name="trash-outline" size={16} color="#800020" /><Text style={[s.actionText, { color: '#800020' }]}>Usuń</Text>
               </TouchableOpacity>

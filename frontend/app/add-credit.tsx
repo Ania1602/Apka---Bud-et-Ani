@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -11,10 +11,14 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { creditsDB } from '../lib/database';
 
 export default function AddCredit() {
+  const params = useLocalSearchParams();
+  const isEdit = !!params.edit;
+  const editId = params.edit as string;
+
   const [name, setName] = useState('');
   const [totalAmount, setTotalAmount] = useState('');
   const [remainingAmount, setRemainingAmount] = useState('');
@@ -24,6 +28,30 @@ export default function AddCredit() {
   const [endDate, setEndDate] = useState('');
   const [loading, setLoading] = useState(false);
 
+  useEffect(() => {
+    if (isEdit) {
+      loadCreditData();
+    }
+  }, [isEdit]);
+
+  const loadCreditData = async () => {
+    try {
+      const allCredits = await creditsDB.getAll();
+      const credit = allCredits.find((c: any) => c.id === editId);
+      if (credit) {
+        setName(credit.name);
+        setTotalAmount(String(credit.total_amount));
+        setRemainingAmount(String(credit.remaining_amount));
+        setInterestRate(String(credit.interest_rate || ''));
+        setMonthlyPayment(String(credit.monthly_payment));
+        setStartDate(credit.start_date ? new Date(credit.start_date).toISOString().split('T')[0] : '');
+        setEndDate(credit.end_date ? new Date(credit.end_date).toISOString().split('T')[0] : '');
+      }
+    } catch (error) {
+      console.error('Error loading credit:', error);
+    }
+  };
+
   const handleSubmit = async () => {
     if (!name || !totalAmount || !remainingAmount || !monthlyPayment || !endDate) {
       alert('Proszę wypełnić wszystkie wymagane pola');
@@ -32,7 +60,7 @@ export default function AddCredit() {
 
     setLoading(true);
     try {
-      await creditsDB.create({
+      const creditData = {
         name,
         total_amount: parseFloat(totalAmount),
         remaining_amount: parseFloat(remainingAmount),
@@ -40,11 +68,16 @@ export default function AddCredit() {
         monthly_payment: parseFloat(monthlyPayment),
         start_date: new Date(startDate).toISOString(),
         end_date: new Date(endDate).toISOString(),
-      });
+      };
+      if (isEdit) {
+        await creditsDB.update(editId, creditData);
+      } else {
+        await creditsDB.create(creditData);
+      }
       router.back();
     } catch (error) {
-      console.error('Error creating credit:', error);
-      alert('Błąd podczas dodawania kredytu');
+      console.error('Error saving credit:', error);
+      alert('Błąd podczas zapisywania kredytu');
     } finally {
       setLoading(false);
     }
@@ -59,7 +92,7 @@ export default function AddCredit() {
         <TouchableOpacity onPress={() => router.back()} style={styles.closeButton}>
           <Ionicons name="close" size={28} color="#2A2520" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Dodaj Kredyt</Text>
+        <Text style={styles.headerTitle}>{isEdit ? 'Edytuj Kredyt' : 'Dodaj Kredyt'}</Text>
         <View style={{ width: 28 }} />
       </View>
 
@@ -83,10 +116,10 @@ export default function AddCredit() {
                 <TextInput
                   style={[styles.input, { flex: 1 }]}
                   value={totalAmount}
-                  onChangeText={setTotalAmount}
+                  onChangeText={(t) => setTotalAmount(t.replace(',', '.'))}
                   placeholder="0.00"
                   placeholderTextColor="#9B8B7E"
-                  keyboardType="decimal-pad"
+                  keyboardType="numeric"
                 />
                 <Text style={styles.currency}>PLN</Text>
               </View>
@@ -179,7 +212,7 @@ export default function AddCredit() {
           {loading ? (
             <ActivityIndicator color="#FFFFFF" />
           ) : (
-            <Text style={styles.submitButtonText}>Dodaj Kredyt</Text>
+            <Text style={styles.submitButtonText}>{isEdit ? 'Zapisz Zmiany' : 'Dodaj Kredyt'}</Text>
           )}
         </TouchableOpacity>
       </View>

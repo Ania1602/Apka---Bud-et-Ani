@@ -138,6 +138,9 @@ export default function Budgets() {
                         {(budget.spent_amount || 0).toFixed(2)} / {(budget.limit_amount || 0).toFixed(2)} PLN
                       </Text>
                     </View>
+                    <TouchableOpacity onPress={() => router.push({ pathname: '/add-budget', params: { edit: budget.id } })} style={styles.editButton}>
+                      <Ionicons name="create-outline" size={18} color="#D4AF37" />
+                    </TouchableOpacity>
                     <TouchableOpacity onPress={() => deleteBudget(budget.id)} style={styles.deleteButton}>
                       <Ionicons name="trash-outline" size={18} color="#800020" />
                     </TouchableOpacity>
@@ -282,6 +285,10 @@ const styles = StyleSheet.create({
   },
   deleteButton: {
     padding: 4,
+  },
+  editButton: {
+    padding: 4,
+    marginRight: 8,
   },
   budgetFooter: {
     flexDirection: 'row',
