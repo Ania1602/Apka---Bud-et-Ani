@@ -97,10 +97,10 @@ export default function AddCredit() {
                 <TextInput
                   style={[styles.input, { flex: 1 }]}
                   value={remainingAmount}
-                  onChangeText={setRemainingAmount}
+                  onChangeText={(t) => setRemainingAmount(t.replace(',', '.'))}
                   placeholder="0.00"
                   placeholderTextColor="#9B8B7E"
-                  keyboardType="decimal-pad"
+                  keyboardType="numeric"
                 />
                 <Text style={styles.currency}>PLN</Text>
               </View>
@@ -114,10 +114,10 @@ export default function AddCredit() {
                 <TextInput
                   style={[styles.input, { flex: 1 }]}
                   value={interestRate}
-                  onChangeText={setInterestRate}
+                  onChangeText={(t) => setInterestRate(t.replace(',', '.'))}
                   placeholder="0.0"
                   placeholderTextColor="#9B8B7E"
-                  keyboardType="decimal-pad"
+                  keyboardType="numeric"
                 />
                 <Text style={styles.currency}>%</Text>
               </View>
@@ -128,10 +128,10 @@ export default function AddCredit() {
                 <TextInput
                   style={[styles.input, { flex: 1 }]}
                   value={monthlyPayment}
-                  onChangeText={setMonthlyPayment}
+                  onChangeText={(t) => setMonthlyPayment(t.replace(',', '.'))}
                   placeholder="0.00"
                   placeholderTextColor="#9B8B7E"
-                  keyboardType="decimal-pad"
+                  keyboardType="numeric"
                 />
                 <Text style={styles.currency}>PLN</Text>
               </View>

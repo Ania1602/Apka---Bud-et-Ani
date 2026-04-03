@@ -134,10 +134,10 @@ export default function AddTransaction() {
           <TextInput
             style={styles.amountInput}
             value={amount}
-            onChangeText={setAmount}
+            onChangeText={(t) => setAmount(t.replace(',', '.'))}
             placeholder="0.00"
             placeholderTextColor="#9B8B7E"
-            keyboardType="decimal-pad"
+            keyboardType="numeric"
           />
         </View>
 

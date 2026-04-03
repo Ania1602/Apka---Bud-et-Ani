@@ -112,10 +112,10 @@ export default function AddAccount() {
               <TextInput
                 style={styles.input}
                 value={balance}
-                onChangeText={setBalance}
+                onChangeText={(t) => setBalance(t.replace(',', '.'))}
                 placeholder="0.00"
                 placeholderTextColor="#9B8B7E"
-                keyboardType="decimal-pad"
+                keyboardType="numeric"
               />
               <Text style={styles.currency}>PLN</Text>
             </View>

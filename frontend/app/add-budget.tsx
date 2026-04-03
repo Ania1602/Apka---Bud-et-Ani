@@ -117,10 +117,10 @@ export default function AddBudget() {
             <TextInput
               style={styles.input}
               value={limitAmount}
-              onChangeText={setLimitAmount}
+              onChangeText={(t) => setLimitAmount(t.replace(',', '.'))}
               placeholder="0.00"
               placeholderTextColor="#9B8B7E"
-              keyboardType="decimal-pad"
+              keyboardType="numeric"
             />
           </View>
         </View>
