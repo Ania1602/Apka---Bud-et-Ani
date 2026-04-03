@@ -51,6 +51,8 @@ const initDefaultCategories = async () => {
     { name: 'Zakupy', type: 'expense', color: '#3F51B5', icon: 'cart', is_default: true },
     { name: 'Zdrowie', type: 'expense', color: '#2196F3', icon: 'medkit', is_default: true },
     { name: 'Inne', type: 'expense', color: '#607D8B', icon: 'ellipsis-horizontal', is_default: true },
+    { name: 'Przelew', type: 'expense', color: '#2196F3', icon: 'swap-horizontal', is_default: true },
+    { name: 'Przelew', type: 'income', color: '#2196F3', icon: 'swap-horizontal', is_default: true },
   ];
   
   const categoriesWithIds = await Promise.all(

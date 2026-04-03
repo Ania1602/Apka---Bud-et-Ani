@@ -177,6 +177,11 @@ export default function Dashboard() {
         <Text style={styles.actionButtonText}>Nowa Transakcja</Text>
       </TouchableOpacity>
 
+      <TouchableOpacity style={styles.transferButton} onPress={() => router.push('/transfer')}>
+        <Ionicons name="swap-horizontal" size={22} color="#D4AF37" />
+        <Text style={styles.transferButtonText}>Przelew między kontami</Text>
+      </TouchableOpacity>
+
       {pieData[0].value > 0 || pieData[1].value > 0 ? (
         <View style={styles.chartCard}>
           <Text style={styles.chartTitle}>Struktura Przepływów</Text>
@@ -467,6 +472,25 @@ const styles = StyleSheet.create({
   actionButtonText: {
     color: '#FFFFFF',
     fontSize: 16,
+    fontWeight: '600',
+    letterSpacing: 0.3,
+  },
+  transferButton: {
+    backgroundColor: '#FFFFFF',
+    marginHorizontal: 20,
+    marginBottom: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 16,
+    borderRadius: 12,
+    gap: 10,
+    borderWidth: 1.5,
+    borderColor: '#D4AF37',
+  },
+  transferButtonText: {
+    color: '#D4AF37',
+    fontSize: 15,
     fontWeight: '600',
     letterSpacing: 0.3,
   },

@@ -14,7 +14,18 @@ import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
 import { categoriesDB } from '../lib/database';
 
-const COLORS = ['#D4AF37', '#800020', '#2C5F2D', '#1B2845', '#B8941F', '#2A2520', '#9C27B0', '#E91E63'];
+const COLORS = ['#D4AF37', '#800020', '#2C5F2D', '#1B2845', '#B8941F', '#2A2520', '#9C27B0', '#E91E63', '#FF9800', '#2196F3', '#00BCD4', '#607D8B'];
+
+const ICONS = [
+  'cart', 'restaurant', 'car', 'home', 'medkit', 'school', 'gift',
+  'game-controller', 'musical-notes', 'airplane', 'paw', 'shirt',
+  'barbell', 'book', 'briefcase', 'bus', 'cafe', 'call',
+  'cash', 'construct', 'desktop', 'film', 'fitness',
+  'flash', 'flower', 'globe', 'hammer', 'heart',
+  'laptop', 'leaf', 'library', 'people', 'pizza',
+  'receipt', 'ribbon', 'rocket', 'star', 'trending-up',
+  'trophy', 'wallet', 'water', 'wine', 'pricetag',
+];
 
 export default function AddCategory() {
   const params = useLocalSearchParams();
@@ -24,6 +35,7 @@ export default function AddCategory() {
   const [name, setName] = useState(params.name ? decodeURIComponent(params.name as string) : '');
   const [type, setType] = useState<'income' | 'expense'>((params.type as any) || 'expense');
   const [color, setColor] = useState(params.color ? decodeURIComponent(params.color as string) : '#D4AF37');
+  const [icon, setIcon] = useState(params.icon ? decodeURIComponent(params.icon as string) : 'pricetag');
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async () => {
@@ -38,14 +50,14 @@ export default function AddCategory() {
         await categoriesDB.update(editId, {
           name,
           type,
-          icon: 'pricetag',
+          icon,
           color,
         });
       } else {
         await categoriesDB.create({
           name,
           type,
-          icon: 'pricetag',
+          icon,
           color,
         });
       }
@@ -105,6 +117,24 @@ export default function AddCategory() {
                   Przychód
                 </Text>
               </TouchableOpacity>
+            </View>
+          </View>
+
+          <View style={styles.field}>
+            <Text style={styles.label}>Ikona</Text>
+            <View style={styles.iconGrid}>
+              {ICONS.map((ic) => (
+                <TouchableOpacity
+                  key={ic}
+                  style={[
+                    styles.iconButton,
+                    icon === ic && { backgroundColor: color + '30', borderColor: color },
+                  ]}
+                  onPress={() => setIcon(ic)}
+                >
+                  <Ionicons name={ic as any} size={22} color={icon === ic ? color : '#6B5D52'} />
+                </TouchableOpacity>
+              ))}
             </View>
           </View>
 
@@ -226,6 +256,21 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 16,
+  },
+  iconGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  iconButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1.5,
+    borderColor: '#E0D5C7',
   },
   colorCircle: {
     width: 56,

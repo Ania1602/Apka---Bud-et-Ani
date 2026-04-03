@@ -107,11 +107,11 @@ export default function Categories() {
               <TouchableOpacity
                 key={cat.id}
                 style={styles.categoryItem}
-                onPress={() => !cat.is_default && router.push(`/add-category?edit=${cat.id}&name=${encodeURIComponent(cat.name)}&type=${cat.type}&color=${encodeURIComponent(cat.color)}`)}
+                onPress={() => !cat.is_default && router.push(`/add-category?edit=${cat.id}&name=${encodeURIComponent(cat.name)}&type=${cat.type}&color=${encodeURIComponent(cat.color)}&icon=${encodeURIComponent(cat.icon || 'pricetag')}`)}
                 disabled={cat.is_default}
               >
                 <View style={[styles.categoryIcon, { backgroundColor: cat.color + '20' }]}>
-                  <View style={[styles.colorDot, { backgroundColor: cat.color }]} />
+                  <Ionicons name={(cat.icon || 'pricetag') as any} size={22} color={cat.color} />
                 </View>
                 <View style={styles.categoryInfo}>
                   <Text style={styles.categoryName}>{cat.name}</Text>
@@ -121,7 +121,7 @@ export default function Categories() {
                   <View style={styles.actionButtons}>
                     <TouchableOpacity
                       onPress={() => {
-                        router.push(`/add-category?edit=${cat.id}&name=${encodeURIComponent(cat.name)}&type=${cat.type}&color=${encodeURIComponent(cat.color)}`);
+                        router.push(`/add-category?edit=${cat.id}&name=${encodeURIComponent(cat.name)}&type=${cat.type}&color=${encodeURIComponent(cat.color)}&icon=${encodeURIComponent(cat.icon || 'pricetag')}`);
                       }}
                       style={styles.editButton}
                     >

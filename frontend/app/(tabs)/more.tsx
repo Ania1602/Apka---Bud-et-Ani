@@ -7,7 +7,8 @@ export default function More() {
   const sections = [
     { title: 'Zarządzanie', items: [
       { icon: 'wallet', title: 'Konta', subtitle: 'Zarządzaj swoimi kontami', color: '#D4AF37', route: '/accounts' },
-      { icon: 'card', title: 'Kredyty', subtitle: 'Kredyty i pożyczki', color: '#2196F3', route: '/credits' },
+      { icon: 'swap-horizontal', title: 'Przelewy', subtitle: 'Przelewaj między kontami', color: '#2196F3', route: '/transfer' },
+      { icon: 'card', title: 'Kredyty', subtitle: 'Kredyty i pożyczki', color: '#1B2845', route: '/credits' },
       { icon: 'pricetags', title: 'Kategorie', subtitle: 'Kategorie wydatków i przychodów', color: '#FF9800', route: '/categories' },
       { icon: 'repeat', title: 'Płatności Cykliczne', subtitle: 'Stałe opłaty i przychody', color: '#9C27B0', route: '/recurring' },
     ]},
