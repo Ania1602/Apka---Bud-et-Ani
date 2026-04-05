@@ -18,17 +18,17 @@ export default function Settings() {
   useEffect(() => { pinDB.exists().then(setHasPin); }, []);
 
   const handleSetPin = async () => {
-    if (pin.length < 4) { Alert.alert('Blad', 'PIN musi miec minimum 4 cyfry'); return; }
-    if (pin !== confirmPin) { Alert.alert('Blad', 'Kody PIN nie sa identyczne'); return; }
+    if (pin.length < 4) { Alert.alert('Błąd', 'PIN musi mieć minimum 4 cyfry'); return; }
+    if (pin !== confirmPin) { Alert.alert('Błąd', 'Kody PIN nie są identyczne'); return; }
     await pinDB.set(pin);
     setHasPin(true); setShowSetPin(false); setPin(''); setConfirmPin('');
-    Alert.alert('Sukces', 'PIN zostal ustawiony');
+    Alert.alert('Sukces', 'PIN został ustawiony');
   };
 
   const handleRemovePin = () => {
-    Alert.alert('Usun PIN', 'Czy na pewno chcesz wylaczyc blokade PIN?', [
+    Alert.alert('Usuń PIN', 'Czy na pewno chcesz wyłączyć blokadę PIN?', [
       { text: 'Anuluj' },
-      { text: 'Wylacz', style: 'destructive', onPress: async () => { await pinDB.remove(); setHasPin(false); } }
+      { text: 'Wyłącz', style: 'destructive', onPress: async () => { await pinDB.remove(); setHasPin(false); } }
     ]);
   };
 
@@ -41,7 +41,7 @@ export default function Settings() {
       URL.revokeObjectURL(url);
       return true;
     }
-    const dir = FileSystem.documentDirectory;
+    const dir = FileSystem.cacheDirectory;
     if (!dir) throw new Error('No document directory');
     const filePath = dir + fileName;
     await FileSystem.writeAsStringAsync(filePath, content, { encoding: FileSystem.EncodingType.UTF8 });
@@ -61,7 +61,7 @@ export default function Settings() {
       Alert.alert('Sukces', 'Backup wyeksportowany');
     } catch (error) {
       console.error('Export backup error:', error);
-      Alert.alert('Blad', 'Nie udalo sie wyeksportowac danych: ' + String(error));
+      Alert.alert('Błąd', 'Nie udało się wyeksportować danych: ' + String(error));
     } finally {
       setBackupLoading(false);
     }
@@ -76,7 +76,7 @@ export default function Settings() {
       Alert.alert('Sukces', 'CSV wyeksportowany');
     } catch (error) {
       console.error('Export CSV error:', error);
-      Alert.alert('Blad', 'Nie udalo sie wyeksportowac CSV: ' + String(error));
+      Alert.alert('Błąd', 'Nie udało się wyeksportować CSV: ' + String(error));
     } finally {
       setCsvLoading(false);
     }
@@ -88,25 +88,25 @@ export default function Settings() {
       if (result.canceled) return;
       const file = result.assets[0];
       const content = await FileSystem.readAsStringAsync(file.uri, { encoding: FileSystem.EncodingType.UTF8 });
-      try { JSON.parse(content); } catch { Alert.alert('Blad', 'Niepoprawny plik JSON'); return; }
-      Alert.alert('Importuj backup', 'Co chcesz zrobic z istniejacymi danymi?', [
+      try { JSON.parse(content); } catch { Alert.alert('Błąd', 'Niepoprawny plik JSON'); return; }
+      Alert.alert('Importuj backup', 'Co chcesz zrobić z istniejącymi danymi?', [
         { text: 'Anuluj', style: 'cancel' },
         { text: 'Nadpisz', style: 'destructive', onPress: async () => {
           setBackupLoading(true);
-          try { await importFullBackup(content, 'overwrite'); Alert.alert('Sukces', 'Dane zostaly nadpisane'); }
-          catch (e) { Alert.alert('Blad', 'Nie udalo sie zaimportowac danych'); }
+          try { await importFullBackup(content, 'overwrite'); Alert.alert('Sukces', 'Dane zostały nadpisane'); }
+          catch (e) { Alert.alert('Błąd', 'Nie udało się zaimportować danych'); }
           finally { setBackupLoading(false); }
         }},
-        { text: 'Dolacz', onPress: async () => {
+        { text: 'Dołącz', onPress: async () => {
           setBackupLoading(true);
-          try { await importFullBackup(content, 'append'); Alert.alert('Sukces', 'Dane zostaly dolaczone'); }
-          catch (e) { Alert.alert('Blad', 'Nie udalo sie zaimportowac danych'); }
+          try { await importFullBackup(content, 'append'); Alert.alert('Sukces', 'Dane zostały dołączone'); }
+          catch (e) { Alert.alert('Błąd', 'Nie udało się zaimportować danych'); }
           finally { setBackupLoading(false); }
         }},
       ]);
     } catch (error) {
       console.error('Import error:', error);
-      Alert.alert('Blad', 'Nie udalo sie otworzyc pliku');
+      Alert.alert('Błąd', 'Nie udało się otworzyć pliku');
     }
   };
 
@@ -119,7 +119,7 @@ export default function Settings() {
       </View>
 
       <View style={s.content}>
-        <Text style={s.sectionTitle}>Bezpieczenstwo</Text>
+        <Text style={s.sectionTitle}>Bezpieczeństwo</Text>
         <View style={s.settingCard}>
           <View style={s.settingRow}>
             <View style={s.settingIcon}><Ionicons name="lock-closed" size={24} color="#800020" /></View>
