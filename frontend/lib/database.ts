@@ -690,9 +690,13 @@ export const getDatabase = () => {
 export const exportFullBackup = async () => {
   const data: Record<string, any> = {};
   for (const [key, storageKey] of Object.entries(STORAGE_KEYS)) {
-    if (key === 'PIN_CODE' || key === 'DARK_MODE') continue; // Skip sensitive/preference data
-    const raw = await AsyncStorage.getItem(storageKey);
-    if (raw) data[key] = JSON.parse(raw);
+    if (key === 'PIN_CODE' || key === 'DARK_MODE' || key === 'INITIALIZED') continue;
+    try {
+      const raw = await AsyncStorage.getItem(storageKey);
+      if (raw) data[key] = JSON.parse(raw);
+    } catch (e) {
+      // Skip items that can't be parsed
+    }
   }
   return JSON.stringify(data, null, 2);
 };

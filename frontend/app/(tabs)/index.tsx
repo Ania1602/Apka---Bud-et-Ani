@@ -111,7 +111,7 @@ export default function Dashboard() {
           <Text style={styles.headerTitle}>Budżet Ani</Text>
           <TouchableOpacity onPress={() => setShowPeriodPicker(!showPeriodPicker)} style={styles.periodSelector}>
             <Text style={styles.headerSubtitle}>
-              {format(new Date(selectedYear, selectedMonth - 1), 'MMMM yyyy', { locale: pl })}
+              {format(new Date(selectedYear, selectedMonth - 1), 'LLLL yyyy', { locale: pl })}
             </Text>
             <Ionicons name="chevron-down" size={16} color="#6B5D52" />
           </TouchableOpacity>
@@ -119,7 +119,7 @@ export default function Dashboard() {
         <TouchableOpacity
           style={styles.exportButton}
           onPress={() => {
-            Alert.alert('Eksport', 'Funkcja eksportu danych będzie dostępna wkrótce.');
+            router.push('/export');
           }}
         >
           <Ionicons name="download" size={24} color="#D4AF37" />

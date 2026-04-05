@@ -149,7 +149,7 @@ export default function Transactions() {
           {!searchQuery && <TouchableOpacity style={s.addBtn} onPress={() => router.push('/add-transaction')}><Text style={s.addBtnText}>Dodaj Transakcję</Text></TouchableOpacity>}</View>}
         renderItem={({ item: section }) => (
           <View style={s.section}>
-            <Text style={s.sectionDate}>{format(new Date(section.date), 'EEEE, dd MMMM', { locale: pl })}</Text>
+            <Text style={s.sectionDate}>{format(new Date(section.date), 'EEEE, dd LLLL', { locale: pl })}</Text>
             {section.items.map(item => (
               <TouchableOpacity key={item.id} style={s.txItem}
                 onPress={() => router.push(`/add-transaction?edit=${item.id}&type=${item.type}&amount=${item.amount}&category=${encodeURIComponent(item.category)}&description=${encodeURIComponent(item.description || '')}&account_id=${item.account_id || ''}&credit_id=${item.credit_id || ''}&date=${item.date}`)}

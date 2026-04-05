@@ -37,13 +37,23 @@ export default function Settings() {
       const jsonData = await exportFullBackup();
       const date = new Date().toISOString().split('T')[0];
       const fileName = `budzetani_backup_${date}.json`;
-      const filePath = `${FileSystem.cacheDirectory}${fileName}`;
-      await FileSystem.writeAsStringAsync(filePath, jsonData, { encoding: FileSystem.EncodingType.UTF8 });
       
-      if (await Sharing.isAvailableAsync()) {
-        await Sharing.shareAsync(filePath, { mimeType: 'application/json', dialogTitle: 'Eksportuj backup' });
+      if (Platform.OS === 'web') {
+        const blob = new Blob([jsonData], { type: 'application/json;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url; a.download = fileName; a.click();
+        URL.revokeObjectURL(url);
+        Alert.alert('Sukces', 'Backup został pobrany');
       } else {
-        Alert.alert('Sukces', `Backup zapisany: ${fileName}`);
+        const filePath = `${FileSystem.cacheDirectory}${fileName}`;
+        await FileSystem.writeAsStringAsync(filePath, jsonData, { encoding: FileSystem.EncodingType.UTF8 });
+        
+        if (await Sharing.isAvailableAsync()) {
+          await Sharing.shareAsync(filePath, { mimeType: 'application/json', dialogTitle: 'Eksportuj backup' });
+        } else {
+          Alert.alert('Sukces', `Backup zapisany: ${fileName}`);
+        }
       }
     } catch (error) {
       console.error('Export error:', error);
