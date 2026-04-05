@@ -189,7 +189,13 @@ export default function AddTransaction() {
                 <TextInput
                   style={styles.dateInput}
                   value={selectedDate}
-                  onChangeText={setSelectedDate}
+                  onChangeText={(text: string) => {
+                    const digits = text.replace(/[^0-9]/g, '');
+                    let formatted = digits;
+                    if (digits.length > 4) formatted = digits.slice(0, 4) + '-' + digits.slice(4);
+                    if (digits.length > 6) formatted = digits.slice(0, 4) + '-' + digits.slice(4, 6) + '-' + digits.slice(6, 8);
+                    setSelectedDate(formatted.slice(0, 10));
+                  }}
                   placeholder="RRRR-MM-DD"
                   placeholderTextColor="#9B8B7E"
                 />

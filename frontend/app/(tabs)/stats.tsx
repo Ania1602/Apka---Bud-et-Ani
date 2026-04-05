@@ -2,7 +2,7 @@ import React, { useState, useCallback } from 'react';
 import { View, Text, StyleSheet, ScrollView, RefreshControl, ActivityIndicator, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from 'expo-router';
-import { PieChart, BarChart } from 'react-native-gifted-charts';
+import { PieChart, BarChart, LineChart } from 'react-native-gifted-charts';
 import { getStatistics, transactionsDB, categoriesDB } from '../../lib/database';
 
 const COLORS = ['#D4AF37', '#800020', '#2C5F2D', '#1B2845', '#9C27B0', '#E91E63', '#2196F3', '#FF9800', '#607D8B', '#3F51B5'];
@@ -226,6 +226,38 @@ export default function Statistics() {
                 </View>
               </View>
             )}
+
+            {stats?.trends && stats.trends.length >= 2 && (() => {
+              const months = ['Sty', 'Lut', 'Mar', 'Kwi', 'Maj', 'Cze', 'Lip', 'Sie', 'Wrz', 'Paz', 'Lis', 'Gru'];
+              const incomeData = stats.trends.map((t: any) => ({ value: t.income, label: months[t.month - 1] || '' }));
+              const expenseData = stats.trends.map((t: any) => ({ value: t.expenses, label: months[t.month - 1] || '' }));
+              const diffData = stats.trends.map((t: any) => ({ value: t.income - t.expenses, label: months[t.month - 1] || '' }));
+              const allVals = [...incomeData.map((d: any) => d.value), ...expenseData.map((d: any) => d.value), ...diffData.map((d: any) => d.value)];
+              const maxVal = Math.max(...allVals, 1) * 1.2;
+              return (
+                <View style={s.card}>
+                  <Text style={s.cardTitle}>Wykres Trendu</Text>
+                  <View style={s.chartCenter}>
+                    <LineChart
+                      data={incomeData} data2={expenseData} data3={diffData}
+                      color1="#2C5F2D" color2="#800020" color3="#D4AF37"
+                      thickness={2} spacing={50}
+                      xAxisThickness={0} yAxisThickness={0}
+                      yAxisTextStyle={{ color: '#6B5D52', fontSize: 10 }}
+                      xAxisLabelTextStyle={{ color: '#6B5D52', fontSize: 10 }}
+                      noOfSections={4} maxValue={maxVal}
+                      curved dataPointsColor1="#2C5F2D" dataPointsColor2="#800020" dataPointsColor3="#D4AF37"
+                      dataPointsRadius={4}
+                    />
+                  </View>
+                  <View style={s.trendLegend}>
+                    <View style={s.trendLegendItem}><View style={[s.trendLegendLine, { backgroundColor: '#2C5F2D' }]} /><Text style={s.trendLegendText}>Przychody</Text></View>
+                    <View style={s.trendLegendItem}><View style={[s.trendLegendLine, { backgroundColor: '#800020' }]} /><Text style={s.trendLegendText}>Wydatki</Text></View>
+                    <View style={s.trendLegendItem}><View style={[s.trendLegendLine, { backgroundColor: '#D4AF37' }]} /><Text style={s.trendLegendText}>Roznica</Text></View>
+                  </View>
+                </View>
+              );
+            })()}
           </>
         )}
 
@@ -282,4 +314,8 @@ const s = StyleSheet.create({
   subBreakdownDot: { width: 5, height: 5, borderRadius: 3, backgroundColor: '#D4AF37' },
   subBreakdownName: { flex: 1, fontSize: 13, color: '#6B5D52' },
   subBreakdownAmount: { fontSize: 13, fontWeight: '600', color: '#2A2520' },
+  trendLegend: { flexDirection: 'row', justifyContent: 'center', gap: 20, marginTop: 12 },
+  trendLegendItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  trendLegendLine: { width: 16, height: 3, borderRadius: 2 },
+  trendLegendText: { fontSize: 12, color: '#6B5D52' },
 });

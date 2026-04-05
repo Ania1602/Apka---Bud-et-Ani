@@ -22,13 +22,51 @@ export default function Upcoming() {
   const [itemAmount, setItemAmount] = useState('');
   const [itemDay, setItemDay] = useState('');
   const [itemRecurring, setItemRecurring] = useState(false);
+  const [itemFrequency, setItemFrequency] = useState(1);
   const [editingItem, setEditingItem] = useState<any>(null);
   const [editingType, setEditingType] = useState<'income' | 'expense'>('expense');
+
+  const autoPopulateRecurring = async (month: number, year: number, currentPlan: any) => {
+    const all = await plansDB.getAll();
+    const prevPlans = all.filter((p: any) => p.year < year || (p.year === year && p.month < month));
+    if (prevPlans.length === 0) return currentPlan;
+    
+    prevPlans.sort((a: any, b: any) => a.year === b.year ? a.month - b.month : a.year - b.year);
+    
+    let changed = false;
+    for (const prev of prevPlans) {
+      for (const type of ['incomes', 'expenses'] as const) {
+        const items = prev[type] || [];
+        for (const item of items) {
+          if (!item.is_recurring) continue;
+          const freq = item.frequency || 1;
+          const startMonth = prev.month + (prev.year * 12);
+          const targetMonth = month + (year * 12);
+          const diff = targetMonth - startMonth;
+          if (diff <= 0 || diff % freq !== 0) continue;
+          
+          const existingList = currentPlan[type] || [];
+          const exists = existingList.find((e: any) => e.name === item.name);
+          if (!exists) {
+            const newId = Date.now().toString(36) + Math.random().toString(36).substr(2);
+            existingList.push({ id: newId, name: item.name, amount: item.amount, day: item.day, is_recurring: true, frequency: freq, is_paid: false });
+            currentPlan[type] = existingList;
+            changed = true;
+          }
+        }
+      }
+    }
+    if (changed) {
+      await plansDB.updatePlan(currentPlan.id, currentPlan);
+    }
+    return currentPlan;
+  };
 
   const fetchData = async () => {
     try {
       let p = await plansDB.getByMonth(selectedMonth, selectedYear);
       if (!p) p = await plansDB.createForMonth(selectedMonth, selectedYear);
+      p = await autoPopulateRecurring(selectedMonth, selectedYear, p);
       setPlan(p);
     } catch (e) { console.error(e); }
     finally { setLoading(false); setRefreshing(false); }
@@ -46,22 +84,24 @@ export default function Upcoming() {
 
   const openAddModal = (type: 'income' | 'expense') => {
     setAddType(type); setItemName(''); setItemAmount(''); setItemDay('');
-    setItemRecurring(false); setEditingItem(null); setShowAddModal(true);
+    setItemRecurring(false); setItemFrequency(1); setEditingItem(null); setShowAddModal(true);
   };
 
   const openEditModal = (item: any, type: 'income' | 'expense') => {
     setAddType(type); setItemName(item.name); setItemAmount(String(item.amount));
     setItemDay(item.day ? String(item.day) : ''); setItemRecurring(item.is_recurring || false);
+    setItemFrequency(item.frequency || 1);
     setEditingItem(item); setEditingType(type); setShowAddModal(true);
   };
 
   const handleSaveItem = async () => {
     if (!itemName || !itemAmount || !plan) return;
-    const data = {
+    const data: any = {
       name: itemName,
       amount: parseFloat(itemAmount),
       day: itemDay ? parseInt(itemDay) : null,
       is_recurring: itemRecurring,
+      frequency: itemRecurring ? itemFrequency : undefined,
     };
     if (editingItem) {
       await plansDB.updateItem(plan.id, addType, editingItem.id, data);
@@ -317,9 +357,23 @@ export default function Upcoming() {
 
             <TouchableOpacity style={s.recurringToggle} onPress={() => setItemRecurring(!itemRecurring)}>
               <Ionicons name={itemRecurring ? 'checkbox' : 'square-outline'} size={22} color={itemRecurring ? '#9C27B0' : '#9B8B7E'} />
-              <Text style={s.recurringLabel}>Powtarzaj co miesiąc</Text>
+              <Text style={s.recurringLabel}>Powtarzaj automatycznie</Text>
               <Ionicons name="repeat" size={16} color="#9C27B0" />
             </TouchableOpacity>
+
+            {itemRecurring && (
+              <View style={s.freqRow}>
+                {[
+                  { v: 1, l: 'Co mies.' }, { v: 2, l: 'Co 2 mies.' }, { v: 3, l: 'Co 3 mies.' },
+                  { v: 6, l: 'Co 6 mies.' }, { v: 12, l: 'Co rok' },
+                ].map(opt => (
+                  <TouchableOpacity key={opt.v} style={[s.freqChip, itemFrequency === opt.v && s.freqChipActive]}
+                    onPress={() => setItemFrequency(opt.v)}>
+                    <Text style={[s.freqChipText, itemFrequency === opt.v && s.freqChipTextActive]}>{opt.l}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
 
             <TouchableOpacity style={[s.modalSaveBtn, { backgroundColor: addType === 'income' ? '#2C5F2D' : '#800020' }]}
               onPress={handleSaveItem}>
@@ -378,8 +432,13 @@ const s = StyleSheet.create({
   modalField: { marginBottom: 16 },
   modalLabel: { fontSize: 13, fontWeight: '500', color: '#6B5D52', marginBottom: 8 },
   modalInput: { backgroundColor: '#FFF', borderRadius: 12, padding: 14, fontSize: 16, color: '#2A2520', borderWidth: 1, borderColor: '#E0D5C7' },
-  recurringToggle: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 20, padding: 14, backgroundColor: '#FFF', borderRadius: 12 },
+  recurringToggle: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 8, padding: 14, backgroundColor: '#FFF', borderRadius: 12 },
   recurringLabel: { flex: 1, fontSize: 14, color: '#2A2520' },
+  freqRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 16 },
+  freqChip: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 16, backgroundColor: '#F5F1E8' },
+  freqChipActive: { backgroundColor: '#9C27B0' },
+  freqChipText: { fontSize: 12, fontWeight: '500', color: '#6B5D52' },
+  freqChipTextActive: { color: '#FFF' },
   modalSaveBtn: { padding: 16, borderRadius: 12, alignItems: 'center' },
   modalSaveBtnText: { fontSize: 16, fontWeight: '600', color: '#FFF' },
 });

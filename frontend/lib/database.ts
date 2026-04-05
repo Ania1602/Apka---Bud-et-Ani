@@ -407,7 +407,8 @@ export const budgetsDB = {
         const endDate = new Date(budget.year, budget.month, 0, 23, 59, 59).toISOString();
         
         const transactions = await transactionsDB.getByDateRange(startDate, endDate, 'expense');
-        const categoryTransactions = transactions.filter((t: any) => t.category === budget.category);
+        const budgetCategories = budget.categories || [budget.category];
+        const categoryTransactions = transactions.filter((t: any) => budgetCategories.includes(t.category));
         const spentAmount = categoryTransactions.reduce((sum: number, t: any) => sum + t.amount, 0);
         
         return {
@@ -904,6 +905,12 @@ export const plansDB = {
     const all = await plansDB.getAll();
     const filtered = all.filter((p: any) => p.id !== planId);
     await AsyncStorage.setItem(STORAGE_KEYS.PLANS, JSON.stringify(filtered));
+  },
+  
+  updatePlan: async (planId: string, data: any) => {
+    const all = await plansDB.getAll();
+    const idx = all.findIndex((p: any) => p.id === planId);
+    if (idx !== -1) { all[idx] = { ...all[idx], ...data }; await AsyncStorage.setItem(STORAGE_KEYS.PLANS, JSON.stringify(all)); }
   },
   
   updateItemInFutureMonths: async (planId: string, type: 'income' | 'expense', itemName: string, newAmount: number) => {

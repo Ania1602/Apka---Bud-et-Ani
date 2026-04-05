@@ -150,7 +150,7 @@ export default function Budgets() {
                       <Ionicons name="pricetag" size={24} color="#D4AF37" />
                     </View>
                     <View style={styles.budgetDetails}>
-                      <Text style={styles.budgetCategory}>{budget.category}</Text>
+                      <Text style={styles.budgetCategory}>{budget.name || budget.categories?.join(', ') || budget.category}</Text>
                       <Text style={styles.budgetAmount}>
                         {(budget.spent_amount || 0).toFixed(2)} / {(budget.limit_amount || 0).toFixed(2)} PLN
                       </Text>

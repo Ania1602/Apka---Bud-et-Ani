@@ -161,22 +161,35 @@ export default function Credits() {
       setExecModal(false);
       fetchCredits();
       
-      // Ask about updating rate
+      // Ask about overpayment strategy
       Alert.alert(
         'Nadpłata zapisana!',
-        `Pomniejszono dług o ${amount.toFixed(2)} PLN.\n\nCzy chcesz zaktualizować wysokość miesięcznej raty?`,
+        `Pomniejszono dług o ${amount.toFixed(2)} PLN.\n\nCo chcesz zrobić?`,
         [
-          { text: 'Nie, zostaw bez zmian', style: 'cancel' },
           {
-            text: 'Tak, zmień ratę',
+            text: 'Obniżyć ratę',
             onPress: () => {
               setRateCredit(execCredit);
-              setFirstRate('');
-              setRegularRate('');
-              setLastRate('');
+              setFirstRate(''); setRegularRate(''); setLastRate('');
               setRateModal(true);
             },
           },
+          {
+            text: 'Skrócić okres',
+            onPress: () => {
+              const newRemaining = Math.max(0, (execCredit.remaining_amount || 0) - amount);
+              const monthlyPmt = execCredit.monthly_payment || 0;
+              if (monthlyPmt > 0) {
+                const newMonths = Math.ceil(newRemaining / monthlyPmt);
+                const now = new Date();
+                const endDate = new Date(now.getFullYear(), now.getMonth() + newMonths, now.getDate());
+                Alert.alert('Skrócony okres', `Nowa data końca spłaty: ${endDate.toLocaleDateString('pl-PL')}\nPozostało ${newMonths} rat`);
+              } else {
+                Alert.alert('Info', 'Okres skrócony - rata bez zmian');
+              }
+            },
+          },
+          { text: 'Bez zmian', style: 'cancel' },
         ]
       );
     } catch (error) {

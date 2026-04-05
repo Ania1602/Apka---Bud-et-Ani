@@ -19,7 +19,8 @@ export default function AddBudget() {
   const isEdit = !!params.edit;
   const editId = params.edit as string;
 
-  const [category, setCategory] = useState('');
+  const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
+  const [budgetName, setBudgetName] = useState('');
   const [limitAmount, setLimitAmount] = useState('');
   const [categories, setCategories] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
@@ -30,21 +31,14 @@ export default function AddBudget() {
 
   useEffect(() => {
     fetchCategories();
-    if (isEdit) {
-      loadBudgetData();
-    }
+    if (isEdit) { loadBudgetData(); }
   }, []);
 
   const fetchCategories = async () => {
     try {
       const data = await categoriesDB.getAll('expense');
       setCategories(data);
-      if (data.length > 0 && !isEdit) {
-        setCategory(data[0].name);
-      }
-    } catch (error) {
-      console.error('Error fetching categories:', error);
-    }
+    } catch (error) { console.error('Error fetching categories:', error); }
   };
 
   const loadBudgetData = async () => {
@@ -52,42 +46,39 @@ export default function AddBudget() {
       const allBudgets = await budgetsDB.getAll();
       const budget = allBudgets.find((b: any) => b.id === editId);
       if (budget) {
-        setCategory(budget.category);
+        setBudgetName(budget.name || '');
+        setSelectedCategories(budget.categories || (budget.category ? [budget.category] : []));
         setLimitAmount(String(budget.limit_amount));
-        setMonth(budget.month);
-        setYear(budget.year);
+        setMonth(budget.month); setYear(budget.year);
       }
-    } catch (error) {
-      console.error('Error loading budget:', error);
-    }
+    } catch (error) { console.error('Error loading budget:', error); }
+  };
+
+  const toggleCategory = (catName: string) => {
+    setSelectedCategories(prev => prev.includes(catName) ? prev.filter(c => c !== catName) : [...prev, catName]);
   };
 
   const handleSubmit = async () => {
-    if (!category || !limitAmount) {
-      alert('Proszę wypełnić wszystkie pola');
-      return;
+    if (selectedCategories.length === 0 || !limitAmount) {
+      alert('Wybierz kategorii i podaj kwote'); return;
     }
 
     setLoading(true);
     try {
       const budgetData = {
-        category,
-        month,
-        year,
+        name: budgetName || selectedCategories.join(', '),
+        category: selectedCategories[0],
+        categories: selectedCategories,
+        month, year,
         limit_amount: parseFloat(limitAmount),
       };
-      if (isEdit) {
-        await budgetsDB.update(editId, budgetData);
-      } else {
-        await budgetsDB.create(budgetData);
-      }
+      if (isEdit) { await budgetsDB.update(editId, budgetData); }
+      else { await budgetsDB.create(budgetData); }
       router.back();
     } catch (error) {
       console.error('Error saving budget:', error);
-      alert('Błąd podczas zapisywania budżetu');
-    } finally {
-      setLoading(false);
-    }
+      alert('Blad podczas zapisywania budzetu');
+    } finally { setLoading(false); }
   };
 
   return (
@@ -115,28 +106,27 @@ export default function AddBudget() {
 
         <View style={styles.form}>
           <View style={styles.field}>
-            <Text style={styles.label}>Kategoria</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.categoryScroll}>
-              {categories.map((cat) => (
-                <TouchableOpacity
-                  key={cat.id}
-                  style={[
-                    styles.categoryChip,
-                    category === cat.name && { backgroundColor: cat.color },
-                  ]}
-                  onPress={() => setCategory(cat.name)}
-                >
-                  <Text
-                    style={[
-                      styles.categoryChipText,
-                      category === cat.name && styles.categoryChipTextActive,
-                    ]}
+            <Text style={styles.label}>Nazwa budzetu (opcjonalnie)</Text>
+            <TextInput style={styles.input} value={budgetName} onChangeText={setBudgetName} placeholder="np. Codzienne" placeholderTextColor="#9B8B7E" />
+          </View>
+
+          <View style={styles.field}>
+            <Text style={styles.label}>Kategorie ({selectedCategories.length} wybrano)</Text>
+            <View style={styles.categoryGrid}>
+              {categories.map((cat) => {
+                const isSelected = selectedCategories.includes(cat.name);
+                return (
+                  <TouchableOpacity
+                    key={cat.id}
+                    style={[styles.categoryChip, isSelected && { backgroundColor: cat.color }]}
+                    onPress={() => toggleCategory(cat.name)}
                   >
-                    {cat.name}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
+                    <Ionicons name={isSelected ? 'checkbox' : 'square-outline'} size={18} color={isSelected ? '#FFF' : '#6B5D52'} />
+                    <Text style={[styles.categoryChipText, isSelected && styles.categoryChipTextActive]}>{cat.name}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
           </View>
 
           <View style={styles.field}>
@@ -237,12 +227,15 @@ const styles = StyleSheet.create({
   categoryScroll: {
     flexDirection: 'row',
   },
+  categoryGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   categoryChip: {
-    paddingHorizontal: 20,
-    paddingVertical: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
     borderRadius: 20,
     backgroundColor: '#FFFFFF',
-    marginRight: 8,
   },
   categoryChipText: {
     fontSize: 14,

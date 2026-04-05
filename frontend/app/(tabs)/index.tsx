@@ -119,10 +119,10 @@ export default function Dashboard() {
         <TouchableOpacity
           style={styles.exportButton}
           onPress={() => {
-            router.push('/export');
+            router.push('/settings');
           }}
         >
-          <Ionicons name="download" size={24} color="#D4AF37" />
+          <Ionicons name="settings-outline" size={24} color="#D4AF37" />
         </TouchableOpacity>
       </View>
 
