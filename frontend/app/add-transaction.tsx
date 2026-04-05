@@ -33,6 +33,7 @@ export default function AddTransaction() {
   const [credits, setCredits] = useState<any[]>([]);
   const [categories, setCategories] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
+  const [subcategory, setSubcategory] = useState(params.subcategory ? decodeURIComponent(params.subcategory as string) : '');
 
   useEffect(() => {
     fetchData();
@@ -93,6 +94,7 @@ export default function AddTransaction() {
         credit_id: creditId || null,
         date: new Date(selectedDate + 'T12:00:00').toISOString(),
         tags: tagsList,
+        subcategory: subcategory || null,
         capital_part: creditId && capitalPart ? parseFloat(capitalPart) : null,
         interest_part: creditId && interestPart ? parseFloat(interestPart) : null,
       };
@@ -215,7 +217,7 @@ export default function AddTransaction() {
                     styles.categoryChip,
                     category === cat.name && { backgroundColor: cat.color },
                   ]}
-                  onPress={() => setCategory(cat.name)}
+                  onPress={() => { setCategory(cat.name); setSubcategory(''); }}
                 >
                   <Text
                     style={[
@@ -229,6 +231,35 @@ export default function AddTransaction() {
               ))}
             </ScrollView>
           </View>
+
+          {/* Subcategory picker */}
+          {(() => {
+            const selectedCat = categories.find(c => c.name === category);
+            const subs = selectedCat?.subcategories || [];
+            if (subs.length === 0) return null;
+            return (
+              <View style={styles.field}>
+                <Text style={styles.label}>Podkategoria (opcjonalnie)</Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.categoryScroll}>
+                  <TouchableOpacity
+                    style={[styles.subChip, !subcategory && styles.subChipActive]}
+                    onPress={() => setSubcategory('')}
+                  >
+                    <Text style={[styles.subChipText, !subcategory && styles.subChipTextActive]}>Brak</Text>
+                  </TouchableOpacity>
+                  {subs.map((sub: any) => (
+                    <TouchableOpacity
+                      key={sub.id}
+                      style={[styles.subChip, subcategory === sub.name && styles.subChipActive]}
+                      onPress={() => setSubcategory(sub.name)}
+                    >
+                      <Text style={[styles.subChipText, subcategory === sub.name && styles.subChipTextActive]}>{sub.name}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+              </View>
+            );
+          })()}
 
           <View style={styles.field}>
             <Text style={styles.label}>Konto</Text>
@@ -539,4 +570,8 @@ const styles = StyleSheet.create({
   creditSplitLabel: { fontSize: 12, color: '#6B5D52', marginBottom: 6 },
   creditSplitInput: { backgroundColor: '#FAF8F3', borderRadius: 10, padding: 12, fontSize: 16, fontWeight: '600', color: '#2A2520', borderWidth: 1, borderColor: '#E0D5C7' },
   creditSplitInfo: { fontSize: 12, color: '#2C5F2D', marginTop: 10, textAlign: 'center', fontWeight: '500' },
+  subChip: { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 20, backgroundColor: '#FFFFFF', marginRight: 8, borderWidth: 1, borderColor: '#E0D5C7' },
+  subChipActive: { backgroundColor: '#2C5F2D', borderColor: '#2C5F2D' },
+  subChipText: { fontSize: 13, fontWeight: '500', color: '#6B5D52' },
+  subChipTextActive: { color: '#FFFFFF' },
 });

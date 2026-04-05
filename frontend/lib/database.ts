@@ -172,6 +172,36 @@ export const categoriesDB = {
     const categories = await getItems(STORAGE_KEYS.CATEGORIES);
     const filtered = categories.filter((cat: any) => cat.id !== id && !cat.is_default);
     await setItems(STORAGE_KEYS.CATEGORIES, filtered);
+  },
+  
+  addSubcategory: async (categoryId: string, name: string) => {
+    const categories = await getItems(STORAGE_KEYS.CATEGORIES);
+    const index = categories.findIndex((c: any) => c.id === categoryId);
+    if (index !== -1) {
+      if (!categories[index].subcategories) categories[index].subcategories = [];
+      const id = await generateId();
+      categories[index].subcategories.push({ id, name });
+      await setItems(STORAGE_KEYS.CATEGORIES, categories);
+      return id;
+    }
+  },
+  
+  updateSubcategory: async (categoryId: string, subId: string, newName: string) => {
+    const categories = await getItems(STORAGE_KEYS.CATEGORIES);
+    const index = categories.findIndex((c: any) => c.id === categoryId);
+    if (index !== -1 && categories[index].subcategories) {
+      const sub = categories[index].subcategories.find((s: any) => s.id === subId);
+      if (sub) { sub.name = newName; await setItems(STORAGE_KEYS.CATEGORIES, categories); }
+    }
+  },
+  
+  deleteSubcategory: async (categoryId: string, subId: string) => {
+    const categories = await getItems(STORAGE_KEYS.CATEGORIES);
+    const index = categories.findIndex((c: any) => c.id === categoryId);
+    if (index !== -1 && categories[index].subcategories) {
+      categories[index].subcategories = categories[index].subcategories.filter((s: any) => s.id !== subId);
+      await setItems(STORAGE_KEYS.CATEGORIES, categories);
+    }
   }
 };
 

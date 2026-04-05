@@ -158,7 +158,7 @@ export default function Transactions() {
                   <Ionicons name={item.is_transfer ? 'swap-horizontal' : item.type === 'income' ? 'arrow-down' : 'arrow-up'} size={20} color={item.is_transfer ? '#2196F3' : item.type === 'income' ? '#2C5F2D' : '#800020'} />
                 </View>
                 <View style={s.txDetails}>
-                  <Text style={s.txCategory}>{item.category}</Text>
+                  <Text style={s.txCategory}>{item.category}{item.subcategory ? ` → ${item.subcategory}` : ''}</Text>
                   {item.description ? <Text style={s.txDesc} numberOfLines={1}>{item.description}</Text> : null}
                   {item.capital_part ? <Text style={s.txDesc}>Kapitał: {item.capital_part.toFixed(2)} | Odsetki: {(item.interest_part || 0).toFixed(2)}</Text> : null}
                   {item.tags && item.tags.length > 0 ? <Text style={s.txTags}>{item.tags.map((t: string) => `#${t}`).join(' ')}</Text> : null}

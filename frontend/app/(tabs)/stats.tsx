@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, ScrollView, RefreshControl, ActivityIndicator, 
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from 'expo-router';
 import { PieChart, BarChart } from 'react-native-gifted-charts';
-import { getStatistics, transactionsDB } from '../../lib/database';
+import { getStatistics, transactionsDB, categoriesDB } from '../../lib/database';
 
 const COLORS = ['#D4AF37', '#800020', '#2C5F2D', '#1B2845', '#9C27B0', '#E91E63', '#2196F3', '#FF9800', '#607D8B', '#3F51B5'];
 
@@ -16,6 +16,8 @@ export default function Statistics() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [view, setView] = useState<'monthly' | 'weekly'>('monthly');
+  const [expandedCat, setExpandedCat] = useState<string | null>(null);
+  const [subBreakdown, setSubBreakdown] = useState<Record<string, any[]>>({});
   const now = new Date();
 
   const fetchStats = async () => {
@@ -59,6 +61,23 @@ export default function Statistics() {
         return td >= prevWeekStart && td < weekStart;
       }).reduce((s: number, t: any) => s + t.amount, 0);
       setPrevWeekTotal(pwTotal);
+      
+      // Compute subcategory breakdown from transactions
+      const monthTx = allTx.filter((t: any) => {
+        if (t.is_transfer || t.type !== 'expense') return false;
+        const d = new Date(t.date);
+        return d.getMonth() + 1 === now.getMonth() + 1 && d.getFullYear() === now.getFullYear();
+      });
+      const breakdown: Record<string, any[]> = {};
+      monthTx.forEach((t: any) => {
+        if (t.subcategory) {
+          if (!breakdown[t.category]) breakdown[t.category] = [];
+          const existing = breakdown[t.category].find((s: any) => s.name === t.subcategory);
+          if (existing) { existing.amount += t.amount; }
+          else { breakdown[t.category].push({ name: t.subcategory, amount: t.amount }); }
+        }
+      });
+      setSubBreakdown(breakdown);
     } catch (e) { console.error(e); }
     finally { setLoading(false); setRefreshing(false); }
   };
@@ -142,15 +161,33 @@ export default function Statistics() {
                     centerLabelComponent={() => <Text style={s.pieCenter}>{categoryData.length}</Text>} />
                 </View>
                 <View style={s.legendGrid}>
-                  {categoryData.map((item, i) => (
-                    <View key={i} style={s.legendItem}>
-                      <View style={[s.legendDot, { backgroundColor: item.color }]} />
-                      <View style={{ flex: 1 }}>
-                        <Text style={s.legendName} numberOfLines={1}>{item.label}</Text>
-                        <Text style={s.legendAmount}>{item.value.toFixed(2)} PLN</Text>
+                  {categoryData.map((item, i) => {
+                    const subs = subBreakdown[item.label] || [];
+                    const isExp = expandedCat === item.label;
+                    return (
+                      <View key={i}>
+                        <TouchableOpacity style={s.legendItem} onPress={() => setExpandedCat(isExp ? null : item.label)} activeOpacity={0.7}>
+                          <View style={[s.legendDot, { backgroundColor: item.color }]} />
+                          <View style={{ flex: 1 }}>
+                            <Text style={s.legendName} numberOfLines={1}>{item.label}</Text>
+                            <Text style={s.legendAmount}>{item.value.toFixed(2)} PLN</Text>
+                          </View>
+                          {subs.length > 0 && <Ionicons name={isExp ? 'chevron-up' : 'chevron-down'} size={14} color="#9B8B7E" />}
+                        </TouchableOpacity>
+                        {isExp && subs.length > 0 && (
+                          <View style={s.subBreakdown}>
+                            {subs.sort((a: any, b: any) => b.amount - a.amount).map((sub: any, j: number) => (
+                              <View key={j} style={s.subBreakdownItem}>
+                                <View style={s.subBreakdownDot} />
+                                <Text style={s.subBreakdownName}>{sub.name}</Text>
+                                <Text style={s.subBreakdownAmount}>{sub.amount.toFixed(2)} PLN</Text>
+                              </View>
+                            ))}
+                          </View>
+                        )}
                       </View>
-                    </View>
-                  ))}
+                    );
+                  })}
                 </View>
               </View>
             )}
@@ -240,4 +277,9 @@ const s = StyleSheet.create({
   empty: { alignItems: 'center', padding: 60 },
   emptyText: { fontSize: 18, fontWeight: '600', color: '#2A2520' },
   emptySubtext: { fontSize: 14, color: '#6B5D52', marginTop: 8 },
+  subBreakdown: { marginLeft: 22, paddingLeft: 12, borderLeftWidth: 2, borderLeftColor: '#E0D5C7', marginBottom: 8 },
+  subBreakdownItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 4, gap: 8 },
+  subBreakdownDot: { width: 5, height: 5, borderRadius: 3, backgroundColor: '#D4AF37' },
+  subBreakdownName: { flex: 1, fontSize: 13, color: '#6B5D52' },
+  subBreakdownAmount: { fontSize: 13, fontWeight: '600', color: '#2A2520' },
 });
