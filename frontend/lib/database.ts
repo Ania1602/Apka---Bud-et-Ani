@@ -312,6 +312,26 @@ export const creditsDB = {
     const credits = await getItems(STORAGE_KEYS.CREDITS);
     const filtered = credits.filter((c: any) => c.id !== id);
     await setItems(STORAGE_KEYS.CREDITS, filtered);
+  },
+  
+  markAsPaid: async (id: string) => {
+    const credits = await getItems(STORAGE_KEYS.CREDITS);
+    const index = credits.findIndex((c: any) => c.id === id);
+    if (index !== -1) {
+      credits[index].status = 'paid';
+      credits[index].paid_date = new Date().toISOString();
+      await setItems(STORAGE_KEYS.CREDITS, credits);
+    }
+  },
+  
+  restoreActive: async (id: string) => {
+    const credits = await getItems(STORAGE_KEYS.CREDITS);
+    const index = credits.findIndex((c: any) => c.id === id);
+    if (index !== -1) {
+      credits[index].status = 'active';
+      delete credits[index].paid_date;
+      await setItems(STORAGE_KEYS.CREDITS, credits);
+    }
   }
 };
 
@@ -472,8 +492,8 @@ export const getDashboardStats = async (month?: number, year?: number) => {
   const incomeTransactions = await transactionsDB.getByDateRange(startDate, endDate, 'income');
   const expenseTransactions = await transactionsDB.getByDateRange(startDate, endDate, 'expense');
   
-  // Exclude transfers from stats
-  const totalIncome = incomeTransactions.filter((t: any) => !t.is_transfer).reduce((sum: number, t: any) => sum + t.amount, 0);
+  // Exclude transfers and limit refunds from stats
+  const totalIncome = incomeTransactions.filter((t: any) => !t.is_transfer && !t.is_limit_refund).reduce((sum: number, t: any) => sum + t.amount, 0);
   const totalExpenses = expenseTransactions.filter((t: any) => !t.is_transfer).reduce((sum: number, t: any) => sum + t.amount, 0);
   
   const credits = await creditsDB.getAll();
@@ -576,9 +596,11 @@ export const getStatistics = async (month: number, year: number) => {
 
   // Exclude transfers from statistics
   const nonTransferTransactions = allTransactions.filter((t: any) => !t.is_transfer);
+  // Also exclude limit refunds from income stats
+  const statsTransactions = nonTransferTransactions.filter((t: any) => !(t.type === 'income' && t.is_limit_refund));
 
   const byCategory: Record<string, { amount: number; type: string }> = {};
-  nonTransferTransactions.forEach((t: any) => {
+  statsTransactions.forEach((t: any) => {
     if (!byCategory[t.category]) byCategory[t.category] = { amount: 0, type: t.type };
     byCategory[t.category].amount += t.amount;
   });
@@ -591,12 +613,12 @@ export const getStatistics = async (month: number, year: number) => {
     const me = new Date(d.getFullYear(), d.getMonth() + 1, 0, 23, 59, 59).toISOString();
     const mt = await transactionsDB.getByDateRange(ms, me);
     const nonTransfer = mt.filter((t: any) => !t.is_transfer);
-    const inc = nonTransfer.filter((t: any) => t.type === 'income').reduce((s: number, t: any) => s + t.amount, 0);
+    const inc = nonTransfer.filter((t: any) => t.type === 'income' && !t.is_limit_refund).reduce((s: number, t: any) => s + t.amount, 0);
     const exp = nonTransfer.filter((t: any) => t.type === 'expense').reduce((s: number, t: any) => s + t.amount, 0);
     trends.push({ month: d.getMonth() + 1, year: d.getFullYear(), income: inc, expenses: exp, label: d.toLocaleDateString('pl-PL', { month: 'short' }) });
   }
 
-  return { byCategory, trends, totalIncome: nonTransferTransactions.filter((t: any) => t.type === 'income').reduce((s: number, t: any) => s + t.amount, 0), totalExpenses: nonTransferTransactions.filter((t: any) => t.type === 'expense').reduce((s: number, t: any) => s + t.amount, 0) };
+  return { byCategory, trends, totalIncome: statsTransactions.filter((t: any) => t.type === 'income').reduce((s: number, t: any) => s + t.amount, 0), totalExpenses: statsTransactions.filter((t: any) => t.type === 'expense').reduce((s: number, t: any) => s + t.amount, 0) };
 };
 
 // Export to CSV

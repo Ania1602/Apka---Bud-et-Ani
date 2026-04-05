@@ -283,7 +283,8 @@ export default function Dashboard() {
       ) : null}
 
       {(() => {
-        const totalCreditDebt = credits.reduce((sum: number, c: any) => sum + (c.remaining_amount || 0), 0);
+        const activeCredits = credits.filter((c: any) => c.status !== 'paid');
+        const totalCreditDebt = activeCredits.reduce((sum: number, c: any) => sum + (c.remaining_amount || 0), 0);
         // Unified calculation: for limit accounts effective = balance - credit_limit
         const limitAccounts = accounts.filter((a: any) => (a.type === 'credit_card' || a.type === 'revolving') && a.credit_limit);
         const regularAccounts = accounts.filter((a: any) => !((a.type === 'credit_card' || a.type === 'revolving') && a.credit_limit));

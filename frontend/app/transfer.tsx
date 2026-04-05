@@ -78,34 +78,39 @@ export default function Transfer() {
       const toAccount = accounts.find(a => a.id === toAccountId);
       const desc = description || `Przelew: ${fromAccount?.name} → ${toAccount?.name}`;
 
-      // Withdraw from source (expense transaction - but we manually update balance)
-      const transactions = await transactionsDB.getAll(99999);
-      
+      const isFromLimit = (fromAccount?.type === 'credit_card' || fromAccount?.type === 'revolving') && fromAccount?.credit_limit;
+      const isToLimit = (toAccount?.type === 'credit_card' || toAccount?.type === 'revolving') && toAccount?.credit_limit;
+
+      // Regular → Limit = expense (paying off debt)
+      // All others = neutral transfer
+      const isDebtPayment = !isFromLimit && isToLimit;
+
       // Create expense transaction on source account
       await transactionsDB.create({
         type: 'expense',
         amount: transferAmount,
-        category: 'Przelew',
+        category: isDebtPayment ? 'Spłata limitu' : 'Przelew',
         account_id: fromAccountId,
         date: new Date().toISOString(),
         description: desc,
-        is_transfer: true,
+        is_transfer: !isDebtPayment,
       });
 
       // Create income transaction on destination account
       await transactionsDB.create({
         type: 'income',
         amount: transferAmount,
-        category: 'Przelew',
+        category: isDebtPayment ? 'Spłata limitu' : 'Przelew',
         account_id: toAccountId,
         date: new Date().toISOString(),
         description: desc,
         is_transfer: true,
+        is_limit_refund: isToLimit ? true : false,
       });
 
       Alert.alert(
         'Sukces',
-        `Przelano ${transferAmount.toFixed(2)} PLN\nz "${fromAccount?.name}" na "${toAccount?.name}"`,
+        `Przelano ${transferAmount.toFixed(2)} PLN\nz "${fromAccount?.name}" na "${toAccount?.name}"${isDebtPayment ? '\n(spłata limitu - liczone jako wydatek)' : ''}`,
         [{ text: 'OK', onPress: () => router.back() }]
       );
     } catch (error) {

@@ -10,12 +10,15 @@ import {
   Modal,
   TextInput,
   ScrollView,
+  Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useFocusEffect } from 'expo-router';
 import { format } from 'date-fns';
 import { pl } from 'date-fns/locale';
 import { creditsDB } from '../lib/database';
+
+type CreditFilter = 'active' | 'paid' | 'all';
 
 export default function Credits() {
   const [credits, setCredits] = useState<any[]>([]);
@@ -26,6 +29,7 @@ export default function Credits() {
   const [overpayAmount, setOverpayAmount] = useState('');
   const [selectedMonth] = useState(new Date().getMonth() + 1);
   const [selectedYear] = useState(new Date().getFullYear());
+  const [filter, setFilter] = useState<CreditFilter>('active');
 
   const fetchCredits = async () => {
     try {
@@ -59,6 +63,48 @@ export default function Credits() {
     }
   };
 
+  const handleMarkAsPaid = (id: string, name: string) => {
+    Alert.alert(
+      'Oznacz jako spłacony',
+      `Czy na pewno chcesz oznaczyć kredyt "${name}" jako spłacony?`,
+      [
+        { text: 'Anuluj', style: 'cancel' },
+        {
+          text: 'Tak, spłacony',
+          onPress: async () => {
+            try {
+              await creditsDB.markAsPaid(id);
+              fetchCredits();
+            } catch (error) {
+              console.error('Error marking credit as paid:', error);
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const handleRestoreActive = (id: string, name: string) => {
+    Alert.alert(
+      'Przywróć jako aktywny',
+      `Czy na pewno chcesz przywrócić kredyt "${name}" jako aktywny?`,
+      [
+        { text: 'Anuluj', style: 'cancel' },
+        {
+          text: 'Tak, przywróć',
+          onPress: async () => {
+            try {
+              await creditsDB.restoreActive(id);
+              fetchCredits();
+            } catch (error) {
+              console.error('Error restoring credit:', error);
+            }
+          },
+        },
+      ]
+    );
+  };
+
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
@@ -67,9 +113,15 @@ export default function Credits() {
     );
   }
 
-  const totalRemaining = credits.reduce((sum, credit) => sum + credit.remaining_amount, 0);
-  const totalBorrowed = credits.reduce((sum, credit) => sum + credit.total_amount, 0);
-  const totalMonthlyPaid = credits.reduce((sum, credit) => sum + (credit.monthly_paid || 0), 0);
+  const activeCredits = credits.filter(c => c.status !== 'paid');
+  const paidCredits = credits.filter(c => c.status === 'paid');
+  const totalRemaining = activeCredits.reduce((sum, credit) => sum + credit.remaining_amount, 0);
+  const totalBorrowed = activeCredits.reduce((sum, credit) => sum + credit.total_amount, 0);
+  const totalMonthlyPaid = activeCredits.reduce((sum, credit) => sum + (credit.monthly_paid || 0), 0);
+
+  const filteredCredits = filter === 'active' ? activeCredits 
+    : filter === 'paid' ? paidCredits 
+    : [...activeCredits, ...paidCredits];
 
   // Debt calculator
   const calcCredit = (credit: any) => {
@@ -136,40 +188,72 @@ export default function Credits() {
         </Text>
       </View>
 
+      {/* Filter tabs */}
+      <View style={styles.filterTabs}>
+        {([
+          { key: 'active' as CreditFilter, label: 'Aktywne', count: activeCredits.length },
+          { key: 'paid' as CreditFilter, label: 'Spłacone', count: paidCredits.length },
+          { key: 'all' as CreditFilter, label: 'Wszystkie', count: credits.length },
+        ]).map((tab) => (
+          <TouchableOpacity
+            key={tab.key}
+            style={[styles.filterTab, filter === tab.key && styles.filterTabActive]}
+            onPress={() => setFilter(tab.key)}
+          >
+            <Text style={[styles.filterTabText, filter === tab.key && styles.filterTabTextActive]}>
+              {tab.label} ({tab.count})
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+
       <FlatList
-        data={credits}
+        data={filteredCredits}
         keyExtractor={(item) => item.id}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#D4AF37" />}
         ListEmptyComponent={
           <View style={styles.emptyState}>
             <Ionicons name="card-outline" size={64} color="#9B8B7E" />
-            <Text style={styles.emptyStateText}>Brak kredytów</Text>
-            <TouchableOpacity style={styles.addButton} onPress={() => router.push('/add-credit')}>
-              <Text style={styles.addButtonText}>Dodaj Kredyt</Text>
-            </TouchableOpacity>
+            <Text style={styles.emptyStateText}>{filter === 'paid' ? 'Brak spłaconych kredytów' : filter === 'active' ? 'Brak aktywnych kredytów' : 'Brak kredytów'}</Text>
+            {filter === 'active' && (
+              <TouchableOpacity style={styles.addButton} onPress={() => router.push('/add-credit')}>
+                <Text style={styles.addButtonText}>Dodaj Kredyt</Text>
+              </TouchableOpacity>
+            )}
           </View>
         }
         renderItem={({ item }) => {
+          const isPaid = item.status === 'paid';
           const progress = item.total_amount > 0 ? (item.total_amount - item.remaining_amount) / item.total_amount : 0;
           return (
-            <View style={styles.creditItem}>
+            <View style={[styles.creditItem, isPaid && styles.creditItemPaid]}>
+              {isPaid && (
+                <View style={styles.paidBadge}>
+                  <Ionicons name="checkmark-circle" size={14} color="#2C5F2D" />
+                  <Text style={styles.paidBadgeText}>Spłacony</Text>
+                </View>
+              )}
               <View style={styles.creditHeader}>
-                <View style={styles.creditIcon}>
-                  <Ionicons name="card" size={24} color="#2196F3" />
+                <View style={[styles.creditIcon, isPaid && { opacity: 0.5 }]}>
+                  <Ionicons name="card" size={24} color={isPaid ? '#9B8B7E' : '#2196F3'} />
                 </View>
                 <View style={styles.creditDetails}>
-                  <Text style={styles.creditName}>{item.name}</Text>
+                  <Text style={[styles.creditName, isPaid && { color: '#9B8B7E' }]}>{item.name}</Text>
                   <Text style={styles.creditDate}>
                     {format(new Date(item.start_date), 'dd MMM yyyy', { locale: pl })} -{' '}
                     {format(new Date(item.end_date), 'dd MMM yyyy', { locale: pl })}
                   </Text>
                 </View>
-                <TouchableOpacity onPress={() => router.push({ pathname: '/add-credit', params: { edit: item.id } })} style={styles.editButton}>
-                  <Ionicons name="create-outline" size={18} color="#D4AF37" />
-                </TouchableOpacity>
-                <TouchableOpacity onPress={() => deleteCredit(item.id)} style={styles.deleteButton}>
-                  <Ionicons name="trash-outline" size={18} color="#800020" />
-                </TouchableOpacity>
+                {!isPaid && (
+                  <>
+                    <TouchableOpacity onPress={() => router.push({ pathname: '/add-credit', params: { edit: item.id } })} style={styles.editButton}>
+                      <Ionicons name="create-outline" size={18} color="#D4AF37" />
+                    </TouchableOpacity>
+                    <TouchableOpacity onPress={() => deleteCredit(item.id)} style={styles.deleteButton}>
+                      <Ionicons name="trash-outline" size={18} color="#800020" />
+                    </TouchableOpacity>
+                  </>
+                )}
               </View>
 
               <View style={styles.creditAmounts}>
@@ -211,7 +295,7 @@ export default function Credits() {
 
               {(() => {
                 const calc = calcCredit(item);
-                if (calc.months === 0) return null;
+                if (calc.months === 0 || isPaid) return null;
                 return (
                   <View style={styles.calcCard}>
                     <Text style={styles.calcTitle}>Kalkulator spłaty</Text>
@@ -244,6 +328,19 @@ export default function Credits() {
                   </View>
                 );
               })()}
+
+              {/* Mark as paid / Restore button */}
+              {isPaid ? (
+                <TouchableOpacity style={styles.restoreBtn} onPress={() => handleRestoreActive(item.id, item.name)}>
+                  <Ionicons name="refresh" size={16} color="#D4AF37" />
+                  <Text style={styles.restoreBtnText}>Przywróć jako aktywny</Text>
+                </TouchableOpacity>
+              ) : (
+                <TouchableOpacity style={styles.markPaidBtn} onPress={() => handleMarkAsPaid(item.id, item.name)}>
+                  <Ionicons name="checkmark-done" size={16} color="#2C5F2D" />
+                  <Text style={styles.markPaidBtnText}>Oznacz jako spłacony</Text>
+                </TouchableOpacity>
+              )}
             </View>
           );
         }}
@@ -637,4 +734,86 @@ const styles = StyleSheet.create({
   scenarioValue: { fontSize: 14, fontWeight: '700', color: '#2A2520' },
   scenarioTip: { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 12, backgroundColor: '#D4AF3710', borderRadius: 10, marginBottom: 16 },
   scenarioTipText: { fontSize: 12, color: '#6B5D52', flex: 1 },
+  filterTabs: {
+    flexDirection: 'row',
+    marginHorizontal: 16,
+    marginBottom: 8,
+    backgroundColor: '#F5F1E8',
+    borderRadius: 12,
+    padding: 4,
+  },
+  filterTab: {
+    flex: 1,
+    paddingVertical: 10,
+    alignItems: 'center',
+    borderRadius: 10,
+  },
+  filterTabActive: {
+    backgroundColor: '#FFFFFF',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  filterTabText: {
+    fontSize: 13,
+    fontWeight: '500',
+    color: '#9B8B7E',
+  },
+  filterTabTextActive: {
+    color: '#2A2520',
+    fontWeight: '600',
+  },
+  creditItemPaid: {
+    opacity: 0.65,
+    borderWidth: 1,
+    borderColor: '#E0D5C7',
+  },
+  paidBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#2C5F2D15',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
+    alignSelf: 'flex-start',
+    marginBottom: 8,
+  },
+  paidBadgeText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#2C5F2D',
+  },
+  markPaidBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 10,
+    marginTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#F5F1E8',
+  },
+  markPaidBtnText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#2C5F2D',
+  },
+  restoreBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 10,
+    marginTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#F5F1E8',
+  },
+  restoreBtnText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#D4AF37',
+  },
 });
