@@ -14,29 +14,61 @@ import { router, useFocusEffect } from 'expo-router';
 import { PieChart } from 'react-native-gifted-charts';
 import { format } from 'date-fns';
 import { pl } from 'date-fns/locale';
-import { initDatabase, getDashboardStats, transactionsDB, creditsDB } from '../../lib/database';
+import * as Notifications from 'expo-notifications';
+import { initDatabase, getDashboardStats, transactionsDB, creditsDB, accountsDB, budgetsDB } from '../../lib/database';
 
 export default function Dashboard() {
   const [stats, setStats] = useState<any>(null);
   const [transactions, setTransactions] = useState<any[]>([]);
   const [credits, setCredits] = useState<any[]>([]);
+  const [accounts, setAccounts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [showPeriodPicker, setShowPeriodPicker] = useState(false);
 
+  const updateBadge = async (budgetsData: any[], totalExpenses: number) => {
+    try {
+      const totalBudget = budgetsData.reduce((sum: number, b: any) => sum + (b.amount || b.limit || 0), 0);
+      if (totalBudget <= 0) {
+        await Notifications.setBadgeCountAsync(0);
+        return;
+      }
+      const remaining = totalBudget - totalExpenses;
+      const now = new Date();
+      const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+      const daysLeft = daysInMonth - now.getDate() + 1;
+      const dailyBudget = Math.max(0, Math.round(remaining / daysLeft));
+      await Notifications.setBadgeCountAsync(dailyBudget);
+    } catch (e) {
+      console.log('Badge update error:', e);
+    }
+  };
+
   const fetchData = async () => {
     try {
       await initDatabase();
-      const [statsData, transactionsData, creditsData] = await Promise.all([
+      const now = new Date();
+      const currentMonth = now.getMonth() + 1;
+      const currentYear = now.getFullYear();
+      const [statsData, transactionsData, creditsData, accountsData, budgetsData] = await Promise.all([
         getDashboardStats(selectedMonth, selectedYear),
         transactionsDB.getAll(5),
         creditsDB.getAll(),
+        accountsDB.getAll(),
+        budgetsDB.getAll(currentMonth, currentYear),
       ]);
       setStats(statsData);
       setTransactions(transactionsData);
       setCredits(creditsData);
+      setAccounts(accountsData);
+
+      // Update badge with current month data
+      const currentStats = (selectedMonth === currentMonth && selectedYear === currentYear) 
+        ? statsData 
+        : await getDashboardStats(currentMonth, currentYear);
+      updateBadge(budgetsData, currentStats.total_expenses || 0);
     } catch (error) {
       console.error('Error fetching data:', error);
     } finally {
@@ -149,7 +181,13 @@ export default function Dashboard() {
           <Ionicons name="shield-checkmark" size={24} color="#D4AF37" />
           <Text style={styles.balanceLabel}>Całkowity Bilans</Text>
         </View>
-        <Text style={styles.balanceAmount}>{stats?.total_balance?.toFixed(2) || '0.00'} PLN</Text>
+        <Text style={styles.balanceAmount}>
+          {(() => {
+            const regular = accounts.filter((a: any) => !((a.type === 'credit_card' || a.type === 'revolving') && a.credit_limit));
+            const bal = regular.reduce((s: number, a: any) => s + (a.balance || 0), 0);
+            return bal.toFixed(2);
+          })()} PLN
+        </Text>
         
         <View style={styles.divider} />
         
@@ -242,7 +280,16 @@ export default function Dashboard() {
 
       {(() => {
         const totalDebt = credits.reduce((sum: number, c: any) => sum + (c.remaining_amount || 0), 0);
-        const netWorth = (stats?.total_balance || 0) - totalDebt;
+        // For credit card / revolving: utilized limit is debt, balance is NOT an asset
+        const limitAccounts = accounts.filter((a: any) => (a.type === 'credit_card' || a.type === 'revolving') && a.credit_limit);
+        const regularAccounts = accounts.filter((a: any) => !((a.type === 'credit_card' || a.type === 'revolving') && a.credit_limit));
+        const assetsBalance = regularAccounts.reduce((sum: number, a: any) => sum + (a.balance || 0), 0);
+        const utilizedLimits = limitAccounts.reduce((sum: number, a: any) => {
+          const used = (a.credit_limit || 0) - (a.balance || 0);
+          return sum + Math.max(0, used);
+        }, 0);
+        const totalDebts = totalDebt + utilizedLimits;
+        const netWorth = assetsBalance - totalDebts;
         return (
           <View style={styles.netWorthCard}>
             <View style={styles.netWorthHeader}>
@@ -255,13 +302,51 @@ export default function Dashboard() {
             <View style={styles.netWorthDetails}>
               <View style={styles.netWorthItem}>
                 <Text style={styles.netWorthItemLabel}>Aktywa (konta)</Text>
-                <Text style={[styles.netWorthItemValue, { color: '#2C5F2D' }]}>{(stats?.total_balance || 0).toFixed(2)}</Text>
+                <Text style={[styles.netWorthItemValue, { color: '#2C5F2D' }]}>{assetsBalance.toFixed(2)}</Text>
               </View>
               <View style={styles.netWorthItem}>
-                <Text style={styles.netWorthItemLabel}>Zobowiązania (kredyty)</Text>
+                <Text style={styles.netWorthItemLabel}>Kredyty</Text>
                 <Text style={[styles.netWorthItemValue, { color: '#800020' }]}>-{totalDebt.toFixed(2)}</Text>
               </View>
+              {utilizedLimits > 0 && (
+                <View style={styles.netWorthItem}>
+                  <Text style={styles.netWorthItemLabel}>Karty/Limity</Text>
+                  <Text style={[styles.netWorthItemValue, { color: '#800020' }]}>-{utilizedLimits.toFixed(2)}</Text>
+                </View>
+              )}
             </View>
+
+            {/* Credit Card / Revolving Limit accounts */}
+            {limitAccounts.length > 0 && (
+              <View style={styles.limitAccountsSection}>
+                {limitAccounts.map((acc: any) => {
+                  const used = Math.max(0, (acc.credit_limit || 0) - (acc.balance || 0));
+                  const usedPct = acc.credit_limit ? (used / acc.credit_limit) * 100 : 0;
+                  const limitColor = usedPct > 80 ? '#D32F2F' : usedPct > 50 ? '#FF9800' : '#2C5F2D';
+                  const typeLabel = acc.type === 'credit_card' ? 'Karta' : 'Limit';
+                  return (
+                    <View key={acc.id} style={styles.limitAccountRow}>
+                      <View style={styles.limitAccountInfo}>
+                        <View style={styles.limitAccountNameRow}>
+                          <Ionicons name={acc.type === 'credit_card' ? 'card' : 'refresh-circle'} size={16} color={acc.color || '#D4AF37'} />
+                          <Text style={styles.limitAccountName} numberOfLines={1}>{acc.name}</Text>
+                          <Text style={styles.limitAccountType}>{typeLabel}</Text>
+                        </View>
+                        <View style={styles.limitBarContainer}>
+                          <View style={styles.limitBarBg}>
+                            <View style={[styles.limitBarFg, { width: `${Math.min(Math.max(0, usedPct), 100)}%`, backgroundColor: limitColor }]} />
+                          </View>
+                        </View>
+                        <View style={styles.limitAccountValues}>
+                          <Text style={styles.limitUsedText}>Wykorzystano: {used.toFixed(0)} {acc.currency || 'PLN'}</Text>
+                          <Text style={[styles.limitAvailText, { color: limitColor }]}>Dostępne: {Math.max(0, acc.balance || 0).toFixed(0)} {acc.currency || 'PLN'}</Text>
+                        </View>
+                      </View>
+                    </View>
+                  );
+                })}
+              </View>
+            )}
           </View>
         );
       })()}
@@ -750,11 +835,15 @@ const styles = StyleSheet.create({
   netWorthDetails: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+    flexWrap: 'wrap',
     paddingTop: 12,
     borderTopWidth: 1,
     borderTopColor: '#F5F1E8',
+    gap: 8,
   },
-  netWorthItem: {},
+  netWorthItem: {
+    minWidth: '30%',
+  },
   netWorthItemLabel: {
     fontSize: 11,
     color: '#9B8B7E',
@@ -762,6 +851,67 @@ const styles = StyleSheet.create({
   },
   netWorthItemValue: {
     fontSize: 15,
+    fontWeight: '600',
+  },
+  limitAccountsSection: {
+    marginTop: 16,
+    paddingTop: 14,
+    borderTopWidth: 1,
+    borderTopColor: '#F5F1E8',
+    gap: 12,
+  },
+  limitAccountRow: {
+    backgroundColor: '#FAF8F3',
+    borderRadius: 10,
+    padding: 12,
+  },
+  limitAccountInfo: {
+    gap: 6,
+  },
+  limitAccountNameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  limitAccountName: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#2A2520',
+    flex: 1,
+  },
+  limitAccountType: {
+    fontSize: 11,
+    color: '#9B8B7E',
+    fontWeight: '500',
+    backgroundColor: '#F5F1E8',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+    overflow: 'hidden',
+  },
+  limitBarContainer: {
+    marginTop: 2,
+  },
+  limitBarBg: {
+    height: 6,
+    backgroundColor: '#E0D5C7',
+    borderRadius: 3,
+    overflow: 'hidden',
+  },
+  limitBarFg: {
+    height: 6,
+    borderRadius: 3,
+  },
+  limitAccountValues: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  limitUsedText: {
+    fontSize: 11,
+    color: '#6B5D52',
+  },
+  limitAvailText: {
+    fontSize: 11,
     fontWeight: '600',
   },
 });

@@ -295,4 +295,26 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 5,
   },
+  limitInfo: {
+    marginTop: 6,
+    gap: 4,
+  },
+  limitText: {
+    fontSize: 11,
+    color: '#6B5D52',
+  },
+  limitBar: {
+    height: 5,
+    backgroundColor: '#E0D5C7',
+    borderRadius: 3,
+    overflow: 'hidden',
+  },
+  limitBarFill: {
+    height: 5,
+    borderRadius: 3,
+  },
+  limitAvailable: {
+    fontSize: 11,
+    fontWeight: '600',
+  },
 });
