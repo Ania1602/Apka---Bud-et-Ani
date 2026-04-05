@@ -13,6 +13,7 @@ const STORAGE_KEYS = {
   PIN_CODE: '@budget_ani_pin',
   DARK_MODE: '@budget_ani_dark_mode',
   INITIALIZED: '@budget_ani_initialized',
+  PLANS: '@budget_ani_plans',
 };
 
 // Helper function to generate UUID
@@ -655,4 +656,157 @@ export const importFullBackup = async (jsonString: string, mode: 'overwrite' | '
       }
     }
   }
+};
+
+// ========== PLANS (Monthly Budget Planning) ==========
+export const plansDB = {
+  getAll: async () => {
+    const raw = await AsyncStorage.getItem(STORAGE_KEYS.PLANS);
+    return raw ? JSON.parse(raw) : [];
+  },
+
+  getByMonth: async (month: number, year: number) => {
+    const all = await plansDB.getAll();
+    return all.find((p: any) => p.month === month && p.year === year) || null;
+  },
+
+  save: async (plan: any) => {
+    const all = await plansDB.getAll();
+    const idx = all.findIndex((p: any) => p.id === plan.id);
+    if (idx >= 0) {
+      all[idx] = plan;
+    } else {
+      all.push(plan);
+    }
+    await AsyncStorage.setItem(STORAGE_KEYS.PLANS, JSON.stringify(all));
+    return plan;
+  },
+
+  createForMonth: async (month: number, year: number) => {
+    const existing = await plansDB.getByMonth(month, year);
+    if (existing) return existing;
+    const plan = {
+      id: await generateId(),
+      month,
+      year,
+      incomes: [],
+      expenses: [],
+      created_at: new Date().toISOString(),
+    };
+    const all = await plansDB.getAll();
+    all.push(plan);
+    await AsyncStorage.setItem(STORAGE_KEYS.PLANS, JSON.stringify(all));
+    return plan;
+  },
+
+  addItem: async (planId: string, type: 'income' | 'expense', item: any) => {
+    const all = await plansDB.getAll();
+    const plan = all.find((p: any) => p.id === planId);
+    if (!plan) return;
+    const newItem = { ...item, id: await generateId(), paid: false };
+    if (type === 'income') {
+      plan.incomes.push(newItem);
+    } else {
+      plan.expenses.push(newItem);
+    }
+    await AsyncStorage.setItem(STORAGE_KEYS.PLANS, JSON.stringify(all));
+    return plan;
+  },
+
+  updateItem: async (planId: string, type: 'income' | 'expense', itemId: string, updates: any) => {
+    const all = await plansDB.getAll();
+    const plan = all.find((p: any) => p.id === planId);
+    if (!plan) return;
+    const list = type === 'income' ? plan.incomes : plan.expenses;
+    const idx = list.findIndex((i: any) => i.id === itemId);
+    if (idx >= 0) list[idx] = { ...list[idx], ...updates };
+    await AsyncStorage.setItem(STORAGE_KEYS.PLANS, JSON.stringify(all));
+    return plan;
+  },
+
+  deleteItem: async (planId: string, type: 'income' | 'expense', itemId: string) => {
+    const all = await plansDB.getAll();
+    const plan = all.find((p: any) => p.id === planId);
+    if (!plan) return;
+    if (type === 'income') {
+      plan.incomes = plan.incomes.filter((i: any) => i.id !== itemId);
+    } else {
+      plan.expenses = plan.expenses.filter((i: any) => i.id !== itemId);
+    }
+    await AsyncStorage.setItem(STORAGE_KEYS.PLANS, JSON.stringify(all));
+    return plan;
+  },
+
+  togglePaid: async (planId: string, type: 'income' | 'expense', itemId: string) => {
+    const all = await plansDB.getAll();
+    const plan = all.find((p: any) => p.id === planId);
+    if (!plan) return;
+    const list = type === 'income' ? plan.incomes : plan.expenses;
+    const item = list.find((i: any) => i.id === itemId);
+    if (item) item.paid = !item.paid;
+    await AsyncStorage.setItem(STORAGE_KEYS.PLANS, JSON.stringify(all));
+    return plan;
+  },
+
+  copyToMonth: async (sourcePlanId: string, targetMonth: number, targetYear: number) => {
+    const all = await plansDB.getAll();
+    const source = all.find((p: any) => p.id === sourcePlanId);
+    if (!source) return null;
+    
+    // Check if target already exists
+    const existingTarget = all.find((p: any) => p.month === targetMonth && p.year === targetYear);
+    if (existingTarget) return existingTarget;
+
+    const newPlan = {
+      id: await generateId(),
+      month: targetMonth,
+      year: targetYear,
+      incomes: await Promise.all(source.incomes.map(async (i: any) => ({
+        ...i, id: await generateId(), paid: false,
+      }))),
+      expenses: await Promise.all(source.expenses.map(async (e: any) => ({
+        ...e, id: await generateId(), paid: false,
+      }))),
+      created_at: new Date().toISOString(),
+    };
+    all.push(newPlan);
+    await AsyncStorage.setItem(STORAGE_KEYS.PLANS, JSON.stringify(all));
+    return newPlan;
+  },
+
+  copyToMultipleMonths: async (sourcePlanId: string, count: number) => {
+    const all = await plansDB.getAll();
+    const source = all.find((p: any) => p.id === sourcePlanId);
+    if (!source) return;
+    
+    for (let i = 1; i <= count; i++) {
+      let m = source.month + i;
+      let y = source.year;
+      while (m > 12) { m -= 12; y++; }
+      
+      const exists = all.find((p: any) => p.month === m && p.year === y);
+      if (!exists) {
+        const newPlan = {
+          id: await generateId(),
+          month: m,
+          year: y,
+          incomes: await Promise.all(source.incomes.map(async (inc: any) => ({
+            ...inc, id: await generateId(), paid: false,
+          }))),
+          expenses: await Promise.all(source.expenses.map(async (exp: any) => ({
+            ...exp, id: await generateId(), paid: false,
+          }))),
+          created_at: new Date().toISOString(),
+        };
+        all.push(newPlan);
+      }
+    }
+    await AsyncStorage.setItem(STORAGE_KEYS.PLANS, JSON.stringify(all));
+  },
+
+  deletePlan: async (planId: string) => {
+    const all = await plansDB.getAll();
+    const filtered = all.filter((p: any) => p.id !== planId);
+    await AsyncStorage.setItem(STORAGE_KEYS.PLANS, JSON.stringify(filtered));
+  },
 };
