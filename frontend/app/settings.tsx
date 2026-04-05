@@ -125,7 +125,7 @@ export default function Settings() {
             <View style={s.settingIcon}><Ionicons name="lock-closed" size={24} color="#800020" /></View>
             <View style={{ flex: 1 }}>
               <Text style={s.settingLabel}>Blokada PIN</Text>
-              <Text style={s.settingDesc}>{hasPin ? 'Wlaczony' : 'Wylaczony'}</Text>
+              <Text style={s.settingDesc}>{hasPin ? 'Włączony' : 'Wyłączony'}</Text>
             </View>
             <Switch value={hasPin} onValueChange={(v) => { if (v) setShowSetPin(true); else handleRemovePin(); }}
               trackColor={{ false: '#E0D5C7', true: '#D4AF37' }} thumbColor="#FFF" />
@@ -136,7 +136,7 @@ export default function Settings() {
           <View style={s.pinCard}>
             <Text style={s.pinTitle}>Ustaw nowy PIN</Text>
             <TextInput style={s.pinInput} value={pin} onChangeText={setPin} placeholder="Wpisz PIN (min. 4 cyfry)" placeholderTextColor="#9B8B7E" keyboardType="number-pad" secureTextEntry maxLength={6} />
-            <TextInput style={s.pinInput} value={confirmPin} onChangeText={setConfirmPin} placeholder="Potwierdz PIN" placeholderTextColor="#9B8B7E" keyboardType="number-pad" secureTextEntry maxLength={6} />
+            <TextInput style={s.pinInput} value={confirmPin} onChangeText={setConfirmPin} placeholder="Potwierdź PIN" placeholderTextColor="#9B8B7E" keyboardType="number-pad" secureTextEntry maxLength={6} />
             <View style={s.pinButtons}>
               <TouchableOpacity style={s.cancelBtn} onPress={() => { setShowSetPin(false); setPin(''); setConfirmPin(''); }}>
                 <Text style={s.cancelBtnText}>Anuluj</Text>
@@ -193,7 +193,7 @@ export default function Settings() {
 
         <View style={s.infoCard}>
           <Ionicons name="information-circle" size={20} color="#2196F3" />
-          <Text style={s.infoText}>Dane sa przechowywane lokalnie. Backup pozwala przeniesc dane na inne urzadzenie lub zabezpieczyc przed utrata.</Text>
+          <Text style={s.infoText}>Dane są przechowywane lokalnie. Backup pozwala przenieść dane na inne urządzenie lub zabezpieczyć przed utratą.</Text>
         </View>
       </View>
     </ScrollView>

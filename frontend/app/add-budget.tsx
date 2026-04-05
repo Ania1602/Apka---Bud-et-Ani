@@ -60,7 +60,7 @@ export default function AddBudget() {
 
   const handleSubmit = async () => {
     if (selectedCategories.length === 0 || !limitAmount) {
-      alert('Wybierz kategorii i podaj kwote'); return;
+      alert('Wybierz kategorię i podaj kwotę'); return;
     }
 
     setLoading(true);
@@ -77,7 +77,7 @@ export default function AddBudget() {
       router.back();
     } catch (error) {
       console.error('Error saving budget:', error);
-      alert('Blad podczas zapisywania budzetu');
+      alert('Błąd podczas zapisywania budżetu');
     } finally { setLoading(false); }
   };
 
@@ -106,7 +106,7 @@ export default function AddBudget() {
 
         <View style={styles.form}>
           <View style={styles.field}>
-            <Text style={styles.label}>Nazwa budzetu (opcjonalnie)</Text>
+            <Text style={styles.label}>Nazwa budżetu (opcjonalnie)</Text>
             <TextInput style={styles.input} value={budgetName} onChangeText={setBudgetName} placeholder="np. Codzienne" placeholderTextColor="#9B8B7E" />
           </View>
 

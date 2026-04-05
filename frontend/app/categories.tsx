@@ -40,10 +40,10 @@ export default function Categories() {
   const onRefresh = () => { setRefreshing(true); fetchCategories(); };
 
   const deleteCategory = async (id: string, name: string, isDefault: boolean) => {
-    if (isDefault) { Alert.alert('Blad', 'Nie mozna usunac domyslnej kategorii'); return; }
-    Alert.alert('Usun Kategorie', `Czy na pewno chcesz usunac kategorie "${name}"?`, [
+    if (isDefault) { Alert.alert('Błąd', 'Nie można usunąć domyślnej kategorii'); return; }
+    Alert.alert('Usuń kategorię', `Czy na pewno chcesz usunąć kategorię "${name}"?`, [
       { text: 'Anuluj', style: 'cancel' },
-      { text: 'Usun', style: 'destructive', onPress: async () => {
+      { text: 'Usuń', style: 'destructive', onPress: async () => {
         await categoriesDB.delete(id); fetchCategories();
       }},
     ]);
@@ -65,9 +65,9 @@ export default function Categories() {
   };
 
   const handleDeleteSubcategory = (catId: string, subId: string, subName: string) => {
-    Alert.alert('Usun podkategorie', `Usunac "${subName}"?`, [
+    Alert.alert('Usuń podkategorię', `Usunąć "${subName}"?`, [
       { text: 'Anuluj', style: 'cancel' },
-      { text: 'Usun', style: 'destructive', onPress: async () => {
+      { text: 'Usuń', style: 'destructive', onPress: async () => {
         await categoriesDB.deleteSubcategory(catId, subId); fetchCategories();
       }},
     ]);
@@ -169,7 +169,7 @@ export default function Categories() {
             ) : (
               <TouchableOpacity style={styles.addSubBtn} onPress={() => { setAddingSubTo(cat.id); setNewSubName(''); }}>
                 <Ionicons name="add-circle-outline" size={16} color="#D4AF37" />
-                <Text style={styles.addSubBtnText}>Dodaj podkategorie</Text>
+                <Text style={styles.addSubBtnText}>Dodaj podkategorię</Text>
               </TouchableOpacity>
             )}
           </View>
