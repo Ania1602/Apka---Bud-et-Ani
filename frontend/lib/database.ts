@@ -471,8 +471,9 @@ export const getDashboardStats = async (month?: number, year?: number) => {
   const incomeTransactions = await transactionsDB.getByDateRange(startDate, endDate, 'income');
   const expenseTransactions = await transactionsDB.getByDateRange(startDate, endDate, 'expense');
   
-  const totalIncome = incomeTransactions.reduce((sum: number, t: any) => sum + t.amount, 0);
-  const totalExpenses = expenseTransactions.reduce((sum: number, t: any) => sum + t.amount, 0);
+  // Exclude transfers from stats
+  const totalIncome = incomeTransactions.filter((t: any) => !t.is_transfer).reduce((sum: number, t: any) => sum + t.amount, 0);
+  const totalExpenses = expenseTransactions.filter((t: any) => !t.is_transfer).reduce((sum: number, t: any) => sum + t.amount, 0);
   
   const credits = await creditsDB.getAll();
   
@@ -572,8 +573,11 @@ export const getStatistics = async (month: number, year: number) => {
   const endDate = new Date(year, month, 0, 23, 59, 59).toISOString();
   const allTransactions = await transactionsDB.getByDateRange(startDate, endDate);
 
+  // Exclude transfers from statistics
+  const nonTransferTransactions = allTransactions.filter((t: any) => !t.is_transfer);
+
   const byCategory: Record<string, { amount: number; type: string }> = {};
-  allTransactions.forEach((t: any) => {
+  nonTransferTransactions.forEach((t: any) => {
     if (!byCategory[t.category]) byCategory[t.category] = { amount: 0, type: t.type };
     byCategory[t.category].amount += t.amount;
   });
@@ -585,12 +589,13 @@ export const getStatistics = async (month: number, year: number) => {
     const ms = d.toISOString();
     const me = new Date(d.getFullYear(), d.getMonth() + 1, 0, 23, 59, 59).toISOString();
     const mt = await transactionsDB.getByDateRange(ms, me);
-    const inc = mt.filter((t: any) => t.type === 'income').reduce((s: number, t: any) => s + t.amount, 0);
-    const exp = mt.filter((t: any) => t.type === 'expense').reduce((s: number, t: any) => s + t.amount, 0);
+    const nonTransfer = mt.filter((t: any) => !t.is_transfer);
+    const inc = nonTransfer.filter((t: any) => t.type === 'income').reduce((s: number, t: any) => s + t.amount, 0);
+    const exp = nonTransfer.filter((t: any) => t.type === 'expense').reduce((s: number, t: any) => s + t.amount, 0);
     trends.push({ month: d.getMonth() + 1, year: d.getFullYear(), income: inc, expenses: exp, label: d.toLocaleDateString('pl-PL', { month: 'short' }) });
   }
 
-  return { byCategory, trends, totalIncome: allTransactions.filter((t: any) => t.type === 'income').reduce((s: number, t: any) => s + t.amount, 0), totalExpenses: allTransactions.filter((t: any) => t.type === 'expense').reduce((s: number, t: any) => s + t.amount, 0) };
+  return { byCategory, trends, totalIncome: nonTransferTransactions.filter((t: any) => t.type === 'income').reduce((s: number, t: any) => s + t.amount, 0), totalExpenses: nonTransferTransactions.filter((t: any) => t.type === 'expense').reduce((s: number, t: any) => s + t.amount, 0) };
 };
 
 // Export to CSV
@@ -616,4 +621,38 @@ export const exportToCSV = async () => {
 
 export const getDatabase = () => {
   return { initialized: true };
+};
+
+// Full Backup Export
+export const exportFullBackup = async () => {
+  const data: Record<string, any> = {};
+  for (const [key, storageKey] of Object.entries(STORAGE_KEYS)) {
+    if (key === 'PIN_CODE' || key === 'DARK_MODE') continue; // Skip sensitive/preference data
+    const raw = await AsyncStorage.getItem(storageKey);
+    if (raw) data[key] = JSON.parse(raw);
+  }
+  return JSON.stringify(data, null, 2);
+};
+
+// Full Backup Import
+export const importFullBackup = async (jsonString: string, mode: 'overwrite' | 'append') => {
+  const data = JSON.parse(jsonString);
+  
+  for (const [key, storageKey] of Object.entries(STORAGE_KEYS)) {
+    if (key === 'PIN_CODE' || key === 'DARK_MODE' || key === 'INITIALIZED') continue;
+    if (!data[key]) continue;
+    
+    if (mode === 'overwrite') {
+      await AsyncStorage.setItem(storageKey, JSON.stringify(data[key]));
+    } else {
+      // Append mode - merge arrays
+      const existing = await AsyncStorage.getItem(storageKey);
+      const existingData = existing ? JSON.parse(existing) : [];
+      if (Array.isArray(existingData) && Array.isArray(data[key])) {
+        const existingIds = new Set(existingData.map((item: any) => item.id));
+        const newItems = data[key].filter((item: any) => !existingIds.has(item.id));
+        await AsyncStorage.setItem(storageKey, JSON.stringify([...existingData, ...newItems]));
+      }
+    }
+  }
 };

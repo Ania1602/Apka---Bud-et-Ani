@@ -55,9 +55,16 @@ export default function Budgets() {
   };
 
   const getStatusColor = (percentage: number) => {
-    if (percentage >= 100) return '#800020';
+    if (percentage >= 100) return '#D32F2F';
     if (percentage >= 80) return '#FF9800';
-    return '#D4AF37';
+    if (percentage >= 50) return '#FFC107';
+    return '#2C5F2D';
+  };
+
+  const getDaysRemaining = () => {
+    const now = new Date();
+    const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+    return lastDay - now.getDate() + 1; // include today
   };
 
   if (loading) {
@@ -125,9 +132,19 @@ export default function Budgets() {
             {budgets.map((budget) => {
               const percentage = getPercentage(budget.spent_amount || 0, budget.limit_amount || 0);
               const statusColor = getStatusColor(percentage);
+              const remaining = (budget.limit_amount || 0) - (budget.spent_amount || 0);
+              const daysLeft = getDaysRemaining();
+              const perDay = daysLeft > 0 ? remaining / daysLeft : 0;
+              const alertText = percentage >= 100 ? 'PRZEKROCZONO LIMIT!' : percentage >= 80 ? 'Zbliżasz się do limitu!' : null;
               
               return (
                 <View key={budget.id} style={styles.budgetCard}>
+                  {alertText && (
+                    <View style={[styles.alertBanner, { backgroundColor: percentage >= 100 ? '#D32F2F15' : '#FF980015' }]}>
+                      <Ionicons name={percentage >= 100 ? 'alert-circle' : 'warning'} size={16} color={statusColor} />
+                      <Text style={[styles.alertText, { color: statusColor }]}>{alertText}</Text>
+                    </View>
+                  )}
                   <View style={styles.budgetHeader}>
                     <View style={styles.budgetIcon}>
                       <Ionicons name="pricetag" size={24} color="#D4AF37" />
@@ -160,7 +177,13 @@ export default function Budgets() {
                       {percentage.toFixed(0)}% wykorzystane
                     </Text>
                     <Text style={styles.remainingText}>
-                      Pozostało: {((budget.limit_amount || 0) - (budget.spent_amount || 0)).toFixed(2)} PLN
+                      Pozostało: {remaining.toFixed(2)} PLN
+                    </Text>
+                  </View>
+                  <View style={styles.perDayRow}>
+                    <Ionicons name="calendar-outline" size={14} color="#6B5D52" />
+                    <Text style={styles.perDayText}>
+                      {perDay > 0 ? `${perDay.toFixed(2)} zł/dzień` : 'Limit wyczerpany'} ({daysLeft} dni do końca miesiąca)
                     </Text>
                   </View>
                 </View>
@@ -302,6 +325,32 @@ const styles = StyleSheet.create({
   remainingText: {
     fontSize: 14,
     color: '#6B5D52',
+  },
+  perDayRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 8,
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: '#F5F1E8',
+  },
+  perDayText: {
+    fontSize: 13,
+    color: '#6B5D52',
+    fontWeight: '500',
+  },
+  alertBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    padding: 10,
+    borderRadius: 8,
+    marginBottom: 12,
+  },
+  alertText: {
+    fontSize: 12,
+    fontWeight: '600',
   },
   emptyState: {
     alignItems: 'center',

@@ -1,14 +1,18 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, TextInput, Alert, Switch, KeyboardAvoidingView, Platform } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, TextInput, Alert, Switch, KeyboardAvoidingView, Platform, ScrollView, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { pinDB } from '../lib/database';
+import { pinDB, exportFullBackup, importFullBackup } from '../lib/database';
+import * as FileSystem from 'expo-file-system';
+import * as Sharing from 'expo-sharing';
+import * as DocumentPicker from 'expo-document-picker';
 
 export default function Settings() {
   const [hasPin, setHasPin] = useState(false);
   const [showSetPin, setShowSetPin] = useState(false);
   const [pin, setPin] = useState('');
   const [confirmPin, setConfirmPin] = useState('');
+  const [backupLoading, setBackupLoading] = useState(false);
 
   useEffect(() => { pinDB.exists().then(setHasPin); }, []);
 
@@ -27,8 +31,71 @@ export default function Settings() {
     ]);
   };
 
+  const handleExportBackup = async () => {
+    setBackupLoading(true);
+    try {
+      const jsonData = await exportFullBackup();
+      const date = new Date().toISOString().split('T')[0];
+      const fileName = `budzetani_backup_${date}.json`;
+      const filePath = `${FileSystem.cacheDirectory}${fileName}`;
+      await FileSystem.writeAsStringAsync(filePath, jsonData, { encoding: FileSystem.EncodingType.UTF8 });
+      
+      if (await Sharing.isAvailableAsync()) {
+        await Sharing.shareAsync(filePath, { mimeType: 'application/json', dialogTitle: 'Eksportuj backup' });
+      } else {
+        Alert.alert('Sukces', `Backup zapisany: ${fileName}`);
+      }
+    } catch (error) {
+      console.error('Export error:', error);
+      Alert.alert('Błąd', 'Nie udało się wyeksportować danych');
+    } finally {
+      setBackupLoading(false);
+    }
+  };
+
+  const handleImportBackup = async () => {
+    try {
+      const result = await DocumentPicker.getDocumentAsync({ type: 'application/json', copyToCacheDirectory: true });
+      
+      if (result.canceled) return;
+      
+      const file = result.assets[0];
+      const content = await FileSystem.readAsStringAsync(file.uri, { encoding: FileSystem.EncodingType.UTF8 });
+      
+      // Validate JSON
+      try { JSON.parse(content); } catch { Alert.alert('Błąd', 'Niepoprawny plik JSON'); return; }
+      
+      Alert.alert(
+        'Importuj backup',
+        'Co chcesz zrobić z istniejącymi danymi?',
+        [
+          { text: 'Anuluj', style: 'cancel' },
+          { text: 'Nadpisz', style: 'destructive', onPress: async () => {
+            setBackupLoading(true);
+            try {
+              await importFullBackup(content, 'overwrite');
+              Alert.alert('Sukces', 'Dane zostały nadpisane');
+            } catch (e) { Alert.alert('Błąd', 'Nie udało się zaimportować danych'); }
+            finally { setBackupLoading(false); }
+          }},
+          { text: 'Dołącz', onPress: async () => {
+            setBackupLoading(true);
+            try {
+              await importFullBackup(content, 'append');
+              Alert.alert('Sukces', 'Dane zostały dołączone');
+            } catch (e) { Alert.alert('Błąd', 'Nie udało się zaimportować danych'); }
+            finally { setBackupLoading(false); }
+          }},
+        ]
+      );
+    } catch (error) {
+      console.error('Import error:', error);
+      Alert.alert('Błąd', 'Nie udało się otworzyć pliku');
+    }
+  };
+
   return (
-    <KeyboardAvoidingView style={s.container} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+    <ScrollView style={s.container}>
       <View style={s.headerBar}>
         <TouchableOpacity onPress={() => router.back()}><Ionicons name="arrow-back" size={24} color="#2A2520" /></TouchableOpacity>
         <Text style={s.headerTitle}>Ustawienia</Text>
@@ -66,12 +133,53 @@ export default function Settings() {
           </View>
         )}
 
+        <Text style={[s.sectionTitle, { marginTop: 24 }]}>Dane</Text>
+
+        <View style={s.settingCard}>
+          <TouchableOpacity style={s.settingRow} onPress={handleExportBackup} disabled={backupLoading}>
+            <View style={[s.settingIcon, { backgroundColor: '#2C5F2D20' }]}>
+              {backupLoading ? <ActivityIndicator color="#2C5F2D" /> : <Ionicons name="cloud-upload" size={24} color="#2C5F2D" />}
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={s.settingLabel}>Eksportuj backup</Text>
+              <Text style={s.settingDesc}>Zapisz wszystkie dane do pliku JSON</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color="#9B8B7E" />
+          </TouchableOpacity>
+        </View>
+
+        <View style={s.settingCard}>
+          <TouchableOpacity style={s.settingRow} onPress={handleImportBackup} disabled={backupLoading}>
+            <View style={[s.settingIcon, { backgroundColor: '#2196F320' }]}>
+              {backupLoading ? <ActivityIndicator color="#2196F3" /> : <Ionicons name="cloud-download" size={24} color="#2196F3" />}
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={s.settingLabel}>Importuj backup</Text>
+              <Text style={s.settingDesc}>Wczytaj dane z pliku JSON</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color="#9B8B7E" />
+          </TouchableOpacity>
+        </View>
+
+        <View style={s.settingCard}>
+          <TouchableOpacity style={s.settingRow} onPress={() => router.push('/export')}>
+            <View style={[s.settingIcon, { backgroundColor: '#D4AF3720' }]}>
+              <Ionicons name="document-text" size={24} color="#D4AF37" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={s.settingLabel}>Eksport CSV</Text>
+              <Text style={s.settingDesc}>Eksportuj transakcje do pliku CSV</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color="#9B8B7E" />
+          </TouchableOpacity>
+        </View>
+
         <View style={s.infoCard}>
           <Ionicons name="information-circle" size={20} color="#2196F3" />
-          <Text style={s.infoText}>PIN jest przechowywany lokalnie na urządzeniu. Aplikacja nie wysyła żadnych danych przez internet.</Text>
+          <Text style={s.infoText}>Wszystkie dane są przechowywane lokalnie na urządzeniu. Backup pozwala przenieść dane na inne urządzenie lub zabezpieczyć przed utratą.</Text>
         </View>
       </View>
-    </KeyboardAvoidingView>
+    </ScrollView>
   );
 }
 

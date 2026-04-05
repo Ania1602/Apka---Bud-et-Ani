@@ -14,11 +14,12 @@ import { router, useFocusEffect } from 'expo-router';
 import { PieChart } from 'react-native-gifted-charts';
 import { format } from 'date-fns';
 import { pl } from 'date-fns/locale';
-import { initDatabase, getDashboardStats, transactionsDB } from '../../lib/database';
+import { initDatabase, getDashboardStats, transactionsDB, creditsDB } from '../../lib/database';
 
 export default function Dashboard() {
   const [stats, setStats] = useState<any>(null);
   const [transactions, setTransactions] = useState<any[]>([]);
+  const [credits, setCredits] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
@@ -28,12 +29,14 @@ export default function Dashboard() {
   const fetchData = async () => {
     try {
       await initDatabase();
-      const [statsData, transactionsData] = await Promise.all([
+      const [statsData, transactionsData, creditsData] = await Promise.all([
         getDashboardStats(selectedMonth, selectedYear),
         transactionsDB.getAll(5),
+        creditsDB.getAll(),
       ]);
       setStats(statsData);
       setTransactions(transactionsData);
+      setCredits(creditsData);
     } catch (error) {
       console.error('Error fetching data:', error);
     } finally {
@@ -213,6 +216,32 @@ export default function Dashboard() {
           </View>
         </View>
       ) : null}
+
+      {(() => {
+        const totalDebt = credits.reduce((sum: number, c: any) => sum + (c.remaining_amount || 0), 0);
+        const netWorth = (stats?.total_balance || 0) - totalDebt;
+        return (
+          <View style={styles.netWorthCard}>
+            <View style={styles.netWorthHeader}>
+              <Ionicons name="trending-up" size={20} color="#D4AF37" />
+              <Text style={styles.netWorthLabel}>Wartość Netto</Text>
+            </View>
+            <Text style={[styles.netWorthAmount, { color: netWorth >= 0 ? '#2C5F2D' : '#800020' }]}>
+              {netWorth.toFixed(2)} PLN
+            </Text>
+            <View style={styles.netWorthDetails}>
+              <View style={styles.netWorthItem}>
+                <Text style={styles.netWorthItemLabel}>Aktywa (konta)</Text>
+                <Text style={[styles.netWorthItemValue, { color: '#2C5F2D' }]}>{(stats?.total_balance || 0).toFixed(2)}</Text>
+              </View>
+              <View style={styles.netWorthItem}>
+                <Text style={styles.netWorthItemLabel}>Zobowiązania (kredyty)</Text>
+                <Text style={[styles.netWorthItemValue, { color: '#800020' }]}>-{totalDebt.toFixed(2)}</Text>
+              </View>
+            </View>
+          </View>
+        );
+      })()}
 
       <View style={styles.section}>
         <View style={styles.sectionHeader}>
@@ -662,5 +691,48 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: '#6B5D52',
     letterSpacing: 0.3,
+  },
+  netWorthCard: {
+    backgroundColor: '#FFFFFF',
+    marginHorizontal: 20,
+    marginBottom: 16,
+    padding: 20,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#E0D5C7',
+  },
+  netWorthHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 8,
+  },
+  netWorthLabel: {
+    fontSize: 13,
+    color: '#6B5D52',
+    letterSpacing: 0.5,
+    textTransform: 'uppercase',
+  },
+  netWorthAmount: {
+    fontSize: 28,
+    fontWeight: '600',
+    marginBottom: 12,
+  },
+  netWorthDetails: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#F5F1E8',
+  },
+  netWorthItem: {},
+  netWorthItemLabel: {
+    fontSize: 11,
+    color: '#9B8B7E',
+    marginBottom: 2,
+  },
+  netWorthItemValue: {
+    fontSize: 15,
+    fontWeight: '600',
   },
 });
