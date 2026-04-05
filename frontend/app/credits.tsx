@@ -7,6 +7,9 @@ import {
   TouchableOpacity,
   RefreshControl,
   ActivityIndicator,
+  Modal,
+  TextInput,
+  ScrollView,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useFocusEffect } from 'expo-router';
@@ -18,6 +21,9 @@ export default function Credits() {
   const [credits, setCredits] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [overpayModal, setOverpayModal] = useState(false);
+  const [overpayCredit, setOverpayCredit] = useState<any>(null);
+  const [overpayAmount, setOverpayAmount] = useState('');
   const [selectedMonth] = useState(new Date().getMonth() + 1);
   const [selectedYear] = useState(new Date().getFullYear());
 
@@ -231,6 +237,10 @@ export default function Credits() {
                         </Text>
                       </View>
                     )}
+                    <TouchableOpacity style={styles.overpayBtn} onPress={() => { setOverpayCredit(item); setOverpayAmount(''); setOverpayModal(true); }}>
+                      <Ionicons name="calculator" size={16} color="#D4AF37" />
+                      <Text style={styles.overpayBtnText}>Co jeśli nadpłacę?</Text>
+                    </TouchableOpacity>
                   </View>
                 );
               })()}
@@ -243,6 +253,117 @@ export default function Credits() {
       <TouchableOpacity style={styles.fab} onPress={() => router.push('/add-credit')}>
         <Ionicons name="add" size={32} color="#FFFFFF" />
       </TouchableOpacity>
+
+      {/* Overpayment Calculator Modal */}
+      <Modal visible={overpayModal} transparent animationType="slide">
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Kalkulator nadpłaty</Text>
+              <TouchableOpacity onPress={() => setOverpayModal(false)}>
+                <Ionicons name="close" size={24} color="#2A2520" />
+              </TouchableOpacity>
+            </View>
+            {overpayCredit && (
+              <ScrollView>
+                <Text style={styles.modalSubtitle}>{overpayCredit.name}</Text>
+                <Text style={styles.modalInfo}>Pozostało: {overpayCredit.remaining_amount?.toFixed(2)} PLN | Rata: {overpayCredit.monthly_payment?.toFixed(2)} PLN</Text>
+                
+                <View style={styles.modalField}>
+                  <Text style={styles.modalLabel}>Kwota jednorazowej nadpłaty</Text>
+                  <TextInput style={styles.modalInput} value={overpayAmount}
+                    onChangeText={(t) => setOverpayAmount(t.replace(',', '.'))}
+                    placeholder="np. 5000" placeholderTextColor="#9B8B7E" keyboardType="numeric" />
+                </View>
+
+                {overpayAmount && parseFloat(overpayAmount) > 0 && (() => {
+                  const extra = parseFloat(overpayAmount);
+                  const rate = (overpayCredit.interest_rate || 0) / 100 / 12;
+                  const remaining = overpayCredit.remaining_amount || 0;
+                  const monthly = overpayCredit.monthly_payment || 0;
+
+                  // Current scenario
+                  let bal1 = remaining, int1 = 0, m1 = 0;
+                  while (bal1 > 0 && m1 < 600) { const i = bal1 * rate; int1 += i; bal1 -= Math.min(monthly - i, bal1); m1++; }
+
+                  // Scenario 1: Same payment, shorter period
+                  let bal2 = remaining - extra, int2 = 0, m2 = 0;
+                  while (bal2 > 0 && m2 < 600) { const i = bal2 * rate; int2 += i; bal2 -= Math.min(monthly - i, bal2); m2++; }
+
+                  // Scenario 2: Same period, lower payment
+                  const newRemaining = remaining - extra;
+                  let newMonthly = monthly;
+                  if (m1 > 0 && rate > 0) {
+                    newMonthly = newRemaining * rate * Math.pow(1 + rate, m1) / (Math.pow(1 + rate, m1) - 1);
+                  } else if (m1 > 0) {
+                    newMonthly = newRemaining / m1;
+                  }
+                  let bal3 = newRemaining, int3 = 0, m3 = 0;
+                  while (bal3 > 0 && m3 < 600) { const i = bal3 * rate; int3 += i; bal3 -= Math.min(newMonthly - i, bal3); m3++; }
+
+                  const savedMonths = m1 - m2;
+                  const savedInterest1 = int1 - int2;
+                  const savedInterest2 = int1 - int3;
+                  const rateDiff = monthly - newMonthly;
+
+                  return (
+                    <View>
+                      <View style={styles.scenarioCard}>
+                        <View style={styles.scenarioHeader}>
+                          <Ionicons name="time" size={18} color="#2C5F2D" />
+                          <Text style={styles.scenarioTitle}>Krótsza spłata (ta sama rata)</Text>
+                        </View>
+                        <View style={styles.scenarioGrid}>
+                          <View style={styles.scenarioItem}>
+                            <Text style={styles.scenarioLabel}>Krócej o</Text>
+                            <Text style={[styles.scenarioValue, { color: '#2C5F2D' }]}>{savedMonths} mies.</Text>
+                          </View>
+                          <View style={styles.scenarioItem}>
+                            <Text style={styles.scenarioLabel}>Oszczędność odsetek</Text>
+                            <Text style={[styles.scenarioValue, { color: '#2C5F2D' }]}>{savedInterest1.toFixed(0)} PLN</Text>
+                          </View>
+                          <View style={styles.scenarioItem}>
+                            <Text style={styles.scenarioLabel}>Spłata w</Text>
+                            <Text style={styles.scenarioValue}>{m2} mies.</Text>
+                          </View>
+                        </View>
+                      </View>
+
+                      <View style={styles.scenarioCard}>
+                        <View style={styles.scenarioHeader}>
+                          <Ionicons name="wallet" size={18} color="#2196F3" />
+                          <Text style={styles.scenarioTitle}>Niższa rata (ten sam okres)</Text>
+                        </View>
+                        <View style={styles.scenarioGrid}>
+                          <View style={styles.scenarioItem}>
+                            <Text style={styles.scenarioLabel}>Nowa rata</Text>
+                            <Text style={[styles.scenarioValue, { color: '#2196F3' }]}>{newMonthly.toFixed(2)} PLN</Text>
+                          </View>
+                          <View style={styles.scenarioItem}>
+                            <Text style={styles.scenarioLabel}>Mniej o</Text>
+                            <Text style={[styles.scenarioValue, { color: '#2196F3' }]}>{rateDiff.toFixed(2)} PLN/mies.</Text>
+                          </View>
+                          <View style={styles.scenarioItem}>
+                            <Text style={styles.scenarioLabel}>Oszczędność odsetek</Text>
+                            <Text style={[styles.scenarioValue, { color: '#2C5F2D' }]}>{savedInterest2.toFixed(0)} PLN</Text>
+                          </View>
+                        </View>
+                      </View>
+
+                      <View style={styles.scenarioTip}>
+                        <Ionicons name="bulb" size={16} color="#D4AF37" />
+                        <Text style={styles.scenarioTipText}>
+                          Krótsza spłata oszczędza więcej odsetek ({savedInterest1.toFixed(0)} vs {savedInterest2.toFixed(0)} PLN)
+                        </Text>
+                      </View>
+                    </View>
+                  );
+                })()}
+              </ScrollView>
+            )}
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -496,4 +617,24 @@ const styles = StyleSheet.create({
   calcValue: { fontSize: 14, fontWeight: '700', color: '#2A2520' },
   calcExtraRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 10, paddingTop: 8, borderTopWidth: 1, borderTopColor: '#E0D5C7' },
   calcExtra: { fontSize: 12, color: '#6B5D52', flex: 1 },
+  overpayBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: '#E0D5C7', padding: 8 },
+  overpayBtnText: { fontSize: 13, fontWeight: '600', color: '#D4AF37' },
+  modalOverlay: { flex: 1, justifyContent: 'flex-end', backgroundColor: '#00000060' },
+  modalContent: { backgroundColor: '#FAF8F3', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, maxHeight: '85%' },
+  modalHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
+  modalTitle: { fontSize: 18, fontWeight: '700', color: '#2A2520' },
+  modalSubtitle: { fontSize: 16, fontWeight: '600', color: '#D4AF37', marginBottom: 4 },
+  modalInfo: { fontSize: 13, color: '#6B5D52', marginBottom: 16 },
+  modalField: { marginBottom: 16 },
+  modalLabel: { fontSize: 13, fontWeight: '500', color: '#6B5D52', marginBottom: 8 },
+  modalInput: { backgroundColor: '#FFF', borderRadius: 12, padding: 14, fontSize: 18, fontWeight: '600', color: '#2A2520', borderWidth: 1, borderColor: '#E0D5C7' },
+  scenarioCard: { backgroundColor: '#FFF', borderRadius: 12, padding: 16, marginBottom: 12 },
+  scenarioHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 },
+  scenarioTitle: { fontSize: 14, fontWeight: '600', color: '#2A2520' },
+  scenarioGrid: { flexDirection: 'row', justifyContent: 'space-between' },
+  scenarioItem: { alignItems: 'center', flex: 1 },
+  scenarioLabel: { fontSize: 10, color: '#6B5D52', marginBottom: 2 },
+  scenarioValue: { fontSize: 14, fontWeight: '700', color: '#2A2520' },
+  scenarioTip: { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 12, backgroundColor: '#D4AF3710', borderRadius: 10, marginBottom: 16 },
+  scenarioTipText: { fontSize: 12, color: '#6B5D52', flex: 1 },
 });

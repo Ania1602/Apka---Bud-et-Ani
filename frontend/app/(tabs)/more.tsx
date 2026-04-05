@@ -15,7 +15,6 @@ export default function More() {
     { title: 'Cele i Narzędzia', items: [
       { icon: 'trophy', title: 'Cele Oszczędnościowe', subtitle: 'Planuj i śledź swoje cele', color: '#2C5F2D', route: '/savings-goals' },
       { icon: 'calendar', title: 'Planowanie Wydatków', subtitle: 'Nadchodzące płatności i raty', color: '#E91E63', route: '/upcoming' },
-      { icon: 'download', title: 'Eksport Danych', subtitle: 'Pobierz dane jako CSV', color: '#1B2845', route: '/export' },
     ]},
     { title: 'Bezpieczeństwo', items: [
       { icon: 'lock-closed', title: 'Ustawienia i Backup', subtitle: 'PIN, backup, eksport/import', color: '#800020', route: '/settings' },

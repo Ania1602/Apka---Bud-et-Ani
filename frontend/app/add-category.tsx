@@ -14,7 +14,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
 import { categoriesDB } from '../lib/database';
 
-const COLORS = ['#D4AF37', '#800020', '#2C5F2D', '#1B2845', '#B8941F', '#2A2520', '#9C27B0', '#E91E63', '#FF9800', '#2196F3', '#00BCD4', '#607D8B'];
+const COLORS = ['#800020', '#E53935', '#FF6B6B', '#C62828', '#FF8C00', '#FFB74D', '#E65100', '#D4AF37', '#FFD600', '#FFF176', '#2C5F2D', '#4CAF50', '#81C784', '#00897B', '#1B2845', '#2196F3', '#42A5F5', '#0288D1', '#9C27B0', '#673AB7', '#BA68C8', '#E91E63', '#F48FB1', '#607D8B', '#9E9E9E', '#455A64'];
 
 const ICONS = [
   'cart', 'restaurant', 'car', 'home', 'medkit', 'school', 'gift',

@@ -19,9 +19,10 @@ const ACCOUNT_TYPES = [
   { value: 'credit_card', label: 'Karta Kredytowa', icon: 'card', color: '#2196F3' },
   { value: 'cash', label: 'Gotówka', icon: 'cash', color: '#FF9800' },
   { value: 'voucher', label: 'Bon', icon: 'pricetag', color: '#9C27B0' },
+  { value: 'revolving', label: 'Limit Odnawialny', icon: 'refresh-circle', color: '#E91E63' },
 ];
 
-const COLORS = ['#D4AF37', '#2196F3', '#800020', '#FF9800', '#9C27B0', '#E91E63', '#3F51B5', '#00BCD4'];
+const COLORS = ['#800020', '#E53935', '#FF6B6B', '#C62828', '#FF8C00', '#FFB74D', '#E65100', '#D4AF37', '#FFD600', '#FFF176', '#2C5F2D', '#4CAF50', '#81C784', '#00897B', '#1B2845', '#2196F3', '#42A5F5', '#0288D1', '#9C27B0', '#673AB7', '#BA68C8', '#E91E63', '#F48FB1', '#607D8B', '#9E9E9E', '#455A64'];
 const CURRENCIES = ['PLN', 'EUR', 'USD', 'GBP', 'CZK', 'CHF'];
 
 export default function AddAccount() {
@@ -34,6 +35,7 @@ export default function AddAccount() {
   const [balance, setBalance] = useState('');
   const [color, setColor] = useState('#D4AF37');
   const [currency, setCurrency] = useState('PLN');
+  const [creditLimit, setCreditLimit] = useState('');
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -51,6 +53,7 @@ export default function AddAccount() {
         setBalance(String(account.balance));
         setColor(account.color || '#D4AF37');
         setCurrency(account.currency || 'PLN');
+        setCreditLimit(account.credit_limit ? String(account.credit_limit) : '');
       }
     } catch (error) {
       console.error('Error loading account:', error);
@@ -72,6 +75,7 @@ export default function AddAccount() {
         currency: currency,
         icon: 'wallet',
         color,
+        credit_limit: (type === 'credit_card' || type === 'revolving') && creditLimit ? parseFloat(creditLimit) : null,
       };
       if (isEdit) {
         await accountsDB.update(editId, accountData);
@@ -165,6 +169,21 @@ export default function AddAccount() {
               ))}
             </View>
           </View>
+
+          {(type === 'credit_card' || type === 'revolving') && (
+            <View style={styles.field}>
+              <Text style={styles.label}>Limit kredytowy</Text>
+              <TextInput
+                style={styles.input}
+                value={creditLimit}
+                onChangeText={(t) => setCreditLimit(t.replace(',', '.'))}
+                placeholder="np. 5000"
+                placeholderTextColor="#9B8B7E"
+                keyboardType="numeric"
+              />
+              <Text style={styles.limitHint}>Saldo konta = saldo - limit. Np. limit 5000, saldo 3000 → wyświetla -2000 (wykorzystano 2000 z limitu)</Text>
+            </View>
+          )}
 
           <View style={styles.field}>
             <Text style={styles.label}>Kolor</Text>
@@ -328,4 +347,5 @@ const styles = StyleSheet.create({
   currencyBtnActive: { backgroundColor: '#D4AF37', borderColor: '#D4AF37' },
   currencyBtnText: { fontSize: 14, fontWeight: '600', color: '#6B5D52' },
   currencyBtnTextActive: { color: '#FFF' },
+  limitHint: { fontSize: 11, color: '#9B8B7E', marginTop: 8, lineHeight: 16 },
 });

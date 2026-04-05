@@ -17,6 +17,7 @@ const ACCOUNT_ICONS: Record<string, string> = {
   credit_card: 'card',
   cash: 'cash',
   voucher: 'pricetag',
+  revolving: 'refresh-circle',
 };
 
 export default function Accounts() {
@@ -62,6 +63,7 @@ export default function Accounts() {
       credit_card: 'Karta Kredytowa',
       cash: 'Gotówka',
       voucher: 'Bon',
+      revolving: 'Limit Odnawialny',
     };
     return labels[type] || type;
   };
@@ -116,6 +118,20 @@ export default function Accounts() {
             </View>
             <View style={styles.accountRight}>
               <Text style={styles.accountBalance}>{item.balance.toFixed(2)} {item.currency || 'PLN'}</Text>
+              {item.credit_limit && (item.type === 'credit_card' || item.type === 'revolving') && (() => {
+                const used = item.credit_limit - item.balance;
+                const usedPct = (used / item.credit_limit) * 100;
+                const limitColor = usedPct > 80 ? '#D32F2F' : usedPct > 50 ? '#FF9800' : '#2C5F2D';
+                return (
+                  <View style={styles.limitInfo}>
+                    <Text style={styles.limitText}>Wykorzystano: {Math.max(0, used).toFixed(0)} z {item.credit_limit.toFixed(0)}</Text>
+                    <View style={styles.limitBar}>
+                      <View style={[styles.limitBarFill, { width: `${Math.min(Math.max(0, usedPct), 100)}%`, backgroundColor: limitColor }]} />
+                    </View>
+                    <Text style={[styles.limitAvailable, { color: limitColor }]}>Dostępne: {Math.max(0, item.balance).toFixed(0)} {item.currency || 'PLN'}</Text>
+                  </View>
+                );
+              })()}
               <View style={styles.actionButtons}>
                 <TouchableOpacity onPress={() => router.push({ pathname: '/add-account', params: { edit: item.id } })} style={styles.editButton}>
                   <Ionicons name="create-outline" size={18} color="#D4AF37" />

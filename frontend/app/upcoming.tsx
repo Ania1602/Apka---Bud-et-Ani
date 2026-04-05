@@ -5,7 +5,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useFocusEffect } from 'expo-router';
-import { plansDB, accountsDB } from '../lib/database';
+import { plansDB } from '../lib/database';
 
 const MONTH_NAMES = ['Styczeń', 'Luty', 'Marzec', 'Kwiecień', 'Maj', 'Czerwiec', 'Lipiec', 'Sierpień', 'Wrzesień', 'Październik', 'Listopad', 'Grudzień'];
 
@@ -14,7 +14,6 @@ export default function Upcoming() {
   const [selectedMonth, setSelectedMonth] = useState(now.getMonth() + 1);
   const [selectedYear, setSelectedYear] = useState(now.getFullYear());
   const [plan, setPlan] = useState<any>(null);
-  const [totalBalance, setTotalBalance] = useState(0);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
@@ -31,8 +30,6 @@ export default function Upcoming() {
       let p = await plansDB.getByMonth(selectedMonth, selectedYear);
       if (!p) p = await plansDB.createForMonth(selectedMonth, selectedYear);
       setPlan(p);
-      const acc = await accountsDB.getAll();
-      setTotalBalance(acc.reduce((s: number, a: any) => s + (a.balance || 0), 0));
     } catch (e) { console.error(e); }
     finally { setLoading(false); setRefreshing(false); }
   };
@@ -120,7 +117,7 @@ export default function Upcoming() {
   const unpaidExpenses = plan?.expenses?.filter((e: any) => !e.paid).reduce((s: number, e: any) => s + e.amount, 0) || 0;
   const paidExpenses = totalExpense - unpaidExpenses;
   const unpaidIncome = plan?.incomes?.filter((i: any) => !i.paid).reduce((s: number, i: any) => s + i.amount, 0) || 0;
-  const availableAfter = totalBalance - unpaidExpenses;
+  const availableAfter = totalIncome - unpaidExpenses;
 
   return (
     <View style={s.container}>
