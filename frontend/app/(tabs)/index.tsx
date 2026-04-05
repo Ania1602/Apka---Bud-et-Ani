@@ -183,8 +183,12 @@ export default function Dashboard() {
         </View>
         <Text style={styles.balanceAmount}>
           {(() => {
-            const regular = accounts.filter((a: any) => !((a.type === 'credit_card' || a.type === 'revolving') && a.credit_limit));
-            const bal = regular.reduce((s: number, a: any) => s + (a.balance || 0), 0);
+            const bal = accounts.reduce((s: number, a: any) => {
+              if ((a.type === 'credit_card' || a.type === 'revolving') && a.credit_limit) {
+                return s + ((a.balance || 0) - a.credit_limit);
+              }
+              return s + (a.balance || 0);
+            }, 0);
             return bal.toFixed(2);
           })()} PLN
         </Text>
@@ -279,17 +283,14 @@ export default function Dashboard() {
       ) : null}
 
       {(() => {
-        const totalDebt = credits.reduce((sum: number, c: any) => sum + (c.remaining_amount || 0), 0);
-        // For credit card / revolving: utilized limit is debt, balance is NOT an asset
+        const totalCreditDebt = credits.reduce((sum: number, c: any) => sum + (c.remaining_amount || 0), 0);
+        // Unified calculation: for limit accounts effective = balance - credit_limit
         const limitAccounts = accounts.filter((a: any) => (a.type === 'credit_card' || a.type === 'revolving') && a.credit_limit);
         const regularAccounts = accounts.filter((a: any) => !((a.type === 'credit_card' || a.type === 'revolving') && a.credit_limit));
-        const assetsBalance = regularAccounts.reduce((sum: number, a: any) => sum + (a.balance || 0), 0);
-        const utilizedLimits = limitAccounts.reduce((sum: number, a: any) => {
-          const used = (a.credit_limit || 0) - (a.balance || 0);
-          return sum + Math.max(0, used);
-        }, 0);
-        const totalDebts = totalDebt + utilizedLimits;
-        const netWorth = assetsBalance - totalDebts;
+        const regularBalance = regularAccounts.reduce((sum: number, a: any) => sum + (a.balance || 0), 0);
+        const limitEffective = limitAccounts.reduce((sum: number, a: any) => sum + ((a.balance || 0) - (a.credit_limit || 0)), 0);
+        const totalBalance = regularBalance + limitEffective;
+        const netWorth = totalBalance - totalCreditDebt;
         return (
           <View style={styles.netWorthCard}>
             <View style={styles.netWorthHeader}>
@@ -301,17 +302,13 @@ export default function Dashboard() {
             </Text>
             <View style={styles.netWorthDetails}>
               <View style={styles.netWorthItem}>
-                <Text style={styles.netWorthItemLabel}>Aktywa (konta)</Text>
-                <Text style={[styles.netWorthItemValue, { color: '#2C5F2D' }]}>{assetsBalance.toFixed(2)}</Text>
+                <Text style={styles.netWorthItemLabel}>Bilans kont</Text>
+                <Text style={[styles.netWorthItemValue, { color: totalBalance >= 0 ? '#2C5F2D' : '#800020' }]}>{totalBalance.toFixed(2)}</Text>
               </View>
-              <View style={styles.netWorthItem}>
-                <Text style={styles.netWorthItemLabel}>Kredyty</Text>
-                <Text style={[styles.netWorthItemValue, { color: '#800020' }]}>-{totalDebt.toFixed(2)}</Text>
-              </View>
-              {utilizedLimits > 0 && (
+              {totalCreditDebt > 0 && (
                 <View style={styles.netWorthItem}>
-                  <Text style={styles.netWorthItemLabel}>Karty/Limity</Text>
-                  <Text style={[styles.netWorthItemValue, { color: '#800020' }]}>-{utilizedLimits.toFixed(2)}</Text>
+                  <Text style={styles.netWorthItemLabel}>Kredyty</Text>
+                  <Text style={[styles.netWorthItemValue, { color: '#800020' }]}>-{totalCreditDebt.toFixed(2)}</Text>
                 </View>
               )}
             </View>
@@ -322,6 +319,7 @@ export default function Dashboard() {
                 {limitAccounts.map((acc: any) => {
                   const used = Math.max(0, (acc.credit_limit || 0) - (acc.balance || 0));
                   const usedPct = acc.credit_limit ? (used / acc.credit_limit) * 100 : 0;
+                  const effective = (acc.balance || 0) - (acc.credit_limit || 0);
                   const limitColor = usedPct > 80 ? '#D32F2F' : usedPct > 50 ? '#FF9800' : '#2C5F2D';
                   const typeLabel = acc.type === 'credit_card' ? 'Karta' : 'Limit';
                   return (
@@ -338,8 +336,10 @@ export default function Dashboard() {
                           </View>
                         </View>
                         <View style={styles.limitAccountValues}>
-                          <Text style={styles.limitUsedText}>Wykorzystano: {used.toFixed(0)} {acc.currency || 'PLN'}</Text>
-                          <Text style={[styles.limitAvailText, { color: limitColor }]}>Dostępne: {Math.max(0, acc.balance || 0).toFixed(0)} {acc.currency || 'PLN'}</Text>
+                          <Text style={styles.limitUsedText}>Wykorzystano: {used.toFixed(0)} z {(acc.credit_limit || 0).toFixed(0)} {acc.currency || 'PLN'}</Text>
+                          <Text style={[styles.limitAvailText, { color: effective >= 0 ? '#2C5F2D' : '#800020' }]}>
+                            W bilansie: {effective >= 0 ? '+' : ''}{effective.toFixed(0)} {acc.currency || 'PLN'}
+                          </Text>
                         </View>
                       </View>
                     </View>
