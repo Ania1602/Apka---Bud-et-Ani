@@ -22,6 +22,7 @@ const ACCOUNT_TYPES = [
 ];
 
 const COLORS = ['#D4AF37', '#2196F3', '#800020', '#FF9800', '#9C27B0', '#E91E63', '#3F51B5', '#00BCD4'];
+const CURRENCIES = ['PLN', 'EUR', 'USD', 'GBP', 'CZK', 'CHF'];
 
 export default function AddAccount() {
   const params = useLocalSearchParams();
@@ -32,6 +33,7 @@ export default function AddAccount() {
   const [type, setType] = useState('bank');
   const [balance, setBalance] = useState('');
   const [color, setColor] = useState('#D4AF37');
+  const [currency, setCurrency] = useState('PLN');
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -48,6 +50,7 @@ export default function AddAccount() {
         setType(account.type);
         setBalance(String(account.balance));
         setColor(account.color || '#D4AF37');
+        setCurrency(account.currency || 'PLN');
       }
     } catch (error) {
       console.error('Error loading account:', error);
@@ -66,7 +69,7 @@ export default function AddAccount() {
         name,
         type,
         balance: parseFloat(balance),
-        currency: 'PLN',
+        currency: currency,
         icon: 'wallet',
         color,
       };
@@ -147,7 +150,19 @@ export default function AddAccount() {
                 placeholderTextColor="#9B8B7E"
                 keyboardType="numeric"
               />
-              <Text style={styles.currency}>PLN</Text>
+              <Text style={styles.currency}>{currency}</Text>
+            </View>
+          </View>
+
+          <View style={styles.field}>
+            <Text style={styles.label}>Waluta</Text>
+            <View style={styles.currencyGrid}>
+              {CURRENCIES.map((cur) => (
+                <TouchableOpacity key={cur} style={[styles.currencyBtn, currency === cur && styles.currencyBtnActive]}
+                  onPress={() => setCurrency(cur)}>
+                  <Text style={[styles.currencyBtnText, currency === cur && styles.currencyBtnTextActive]}>{cur}</Text>
+                </TouchableOpacity>
+              ))}
             </View>
           </View>
 
@@ -308,4 +323,9 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#FFFFFF',
   },
+  currencyGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  currencyBtn: { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 10, backgroundColor: '#FFF', borderWidth: 1.5, borderColor: '#E0D5C7' },
+  currencyBtnActive: { backgroundColor: '#D4AF37', borderColor: '#D4AF37' },
+  currencyBtnText: { fontSize: 14, fontWeight: '600', color: '#6B5D52' },
+  currencyBtnTextActive: { color: '#FFF' },
 });

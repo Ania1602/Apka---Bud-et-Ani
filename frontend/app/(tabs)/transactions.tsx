@@ -160,6 +160,8 @@ export default function Transactions() {
                 <View style={s.txDetails}>
                   <Text style={s.txCategory}>{item.category}</Text>
                   {item.description ? <Text style={s.txDesc} numberOfLines={1}>{item.description}</Text> : null}
+                  {item.capital_part ? <Text style={s.txDesc}>Kapitał: {item.capital_part.toFixed(2)} | Odsetki: {(item.interest_part || 0).toFixed(2)}</Text> : null}
+                  {item.tags && item.tags.length > 0 ? <Text style={s.txTags}>{item.tags.map((t: string) => `#${t}`).join(' ')}</Text> : null}
                   {getAccountName(item.account_id) ? <Text style={s.txAccount}>{getAccountName(item.account_id)}</Text> : null}
                   <Text style={s.txTime}>{format(new Date(item.date), 'HH:mm')}</Text>
                 </View>
@@ -208,6 +210,7 @@ const s = StyleSheet.create({
   clearFiltersBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, alignSelf: 'flex-end', paddingTop: 4 },
   clearFiltersText: { fontSize: 12, color: '#800020', fontWeight: '500' },
   txAccount: { fontSize: 11, color: '#D4AF37', marginBottom: 2 },
+  txTags: { fontSize: 11, color: '#9C27B0', marginBottom: 2 },
   list: { padding: 20, paddingTop: 0, paddingBottom: 100 },
   section: { marginBottom: 16 },
   sectionDate: { fontSize: 13, fontWeight: '600', color: '#9B8B7E', marginBottom: 8, textTransform: 'capitalize' },

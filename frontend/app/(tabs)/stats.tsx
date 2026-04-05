@@ -1,22 +1,66 @@
 import React, { useState, useCallback } from 'react';
-import { View, Text, StyleSheet, ScrollView, RefreshControl, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, RefreshControl, ActivityIndicator, TouchableOpacity } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from 'expo-router';
 import { PieChart, BarChart } from 'react-native-gifted-charts';
-import { getStatistics } from '../../lib/database';
+import { getStatistics, transactionsDB } from '../../lib/database';
 
-const CATEGORY_COLORS = ['#D4AF37', '#800020', '#2C5F2D', '#1B2845', '#9C27B0', '#E91E63', '#2196F3', '#FF9800', '#607D8B', '#3F51B5'];
+const COLORS = ['#D4AF37', '#800020', '#2C5F2D', '#1B2845', '#9C27B0', '#E91E63', '#2196F3', '#FF9800', '#607D8B', '#3F51B5'];
 
 export default function Statistics() {
   const [stats, setStats] = useState<any>(null);
+  const [prevStats, setPrevStats] = useState<any>(null);
+  const [weekData, setWeekData] = useState<any[]>([]);
+  const [weekTotal, setWeekTotal] = useState(0);
+  const [prevWeekTotal, setPrevWeekTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [view, setView] = useState<'monthly' | 'weekly'>('monthly');
   const now = new Date();
 
   const fetchStats = async () => {
     try {
       const data = await getStatistics(now.getMonth() + 1, now.getFullYear());
       setStats(data);
-    } catch (e) { console.error(e); } finally { setLoading(false); setRefreshing(false); }
+
+      // Previous month for comparison
+      const prevMonth = now.getMonth() === 0 ? 12 : now.getMonth();
+      const prevYear = now.getMonth() === 0 ? now.getFullYear() - 1 : now.getFullYear();
+      const prevData = await getStatistics(prevMonth, prevYear);
+      setPrevStats(prevData);
+
+      // Weekly data
+      const today = new Date();
+      const dayOfWeek = today.getDay() || 7;
+      const weekStart = new Date(today);
+      weekStart.setDate(today.getDate() - dayOfWeek + 1);
+      weekStart.setHours(0, 0, 0, 0);
+
+      const prevWeekStart = new Date(weekStart);
+      prevWeekStart.setDate(prevWeekStart.getDate() - 7);
+
+      const allTx = await transactionsDB.getAll(9999);
+      const days = ['Pon', 'Wt', 'Śr', 'Czw', 'Pt', 'Sob', 'Ndz'];
+      const dailyData = days.map((label, i) => {
+        const date = new Date(weekStart);
+        date.setDate(weekStart.getDate() + i);
+        const dateStr = date.toISOString().split('T')[0];
+        const dayExpenses = allTx.filter((t: any) => !t.is_transfer && t.type === 'expense' && t.date.split('T')[0] === dateStr)
+          .reduce((s: number, t: any) => s + t.amount, 0);
+        return { value: dayExpenses, label, frontColor: '#800020' };
+      });
+      setWeekData(dailyData);
+      setWeekTotal(dailyData.reduce((s, d) => s + d.value, 0));
+
+      // Previous week total
+      const pwTotal = allTx.filter((t: any) => {
+        if (t.is_transfer || t.type !== 'expense') return false;
+        const td = new Date(t.date);
+        return td >= prevWeekStart && td < weekStart;
+      }).reduce((s: number, t: any) => s + t.amount, 0);
+      setPrevWeekTotal(pwTotal);
+    } catch (e) { console.error(e); }
+    finally { setLoading(false); setRefreshing(false); }
   };
 
   useFocusEffect(useCallback(() => { fetchStats(); }, []));
@@ -26,10 +70,16 @@ export default function Statistics() {
   const categoryData = stats ? Object.entries(stats.byCategory)
     .filter(([_, v]: any) => v.type === 'expense')
     .sort((a: any, b: any) => b[1].amount - a[1].amount)
-    .map(([name, v]: any, i) => ({ value: v.amount, text: name, color: CATEGORY_COLORS[i % CATEGORY_COLORS.length], label: name })) : [];
+    .map(([name, v]: any, i) => ({ value: v.amount, text: name, color: COLORS[i % COLORS.length], label: name })) : [];
 
   const trendData = stats?.trends?.map((t: any) => ({ value: t.expenses, label: t.label, frontColor: '#800020' })) || [];
-  const trendIncomeData = stats?.trends?.map((t: any) => ({ value: t.income, label: t.label, frontColor: '#2C5F2D' })) || [];
+
+  // Month comparison
+  const comparison = categoryData.map(item => {
+    const prevAmount = prevStats?.byCategory?.[item.label]?.amount || 0;
+    const diff = item.value - prevAmount;
+    return { name: item.label, current: item.value, previous: prevAmount, diff, color: item.color };
+  });
 
   return (
     <View style={s.container}>
@@ -37,6 +87,15 @@ export default function Statistics() {
         <View style={s.header}>
           <Text style={s.title}>Statystyki</Text>
           <Text style={s.subtitle}>{now.toLocaleDateString('pl-PL', { month: 'long', year: 'numeric' })}</Text>
+        </View>
+
+        <View style={s.viewToggle}>
+          <TouchableOpacity style={[s.viewBtn, view === 'monthly' && s.viewBtnActive]} onPress={() => setView('monthly')}>
+            <Text style={[s.viewBtnText, view === 'monthly' && s.viewBtnTextActive]}>Miesięczne</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={[s.viewBtn, view === 'weekly' && s.viewBtnActive]} onPress={() => setView('weekly')}>
+            <Text style={[s.viewBtnText, view === 'weekly' && s.viewBtnTextActive]}>Tygodniowe</Text>
+          </TouchableOpacity>
         </View>
 
         <View style={s.summaryRow}>
@@ -50,39 +109,87 @@ export default function Statistics() {
           </View>
         </View>
 
-        {categoryData.length > 0 && (
-          <View style={s.card}>
-            <Text style={s.cardTitle}>Wydatki wg Kategorii</Text>
-            <View style={s.chartCenter}>
-              <PieChart data={categoryData} donut radius={90} innerRadius={55}
-                centerLabelComponent={() => <Text style={s.pieCenter}>{categoryData.length}</Text>} />
-            </View>
-            <View style={s.legendGrid}>
-              {categoryData.map((item, i) => (
-                <View key={i} style={s.legendItem}>
-                  <View style={[s.legendDot, { backgroundColor: item.color }]} />
-                  <View style={{ flex: 1 }}>
-                    <Text style={s.legendName} numberOfLines={1}>{item.label}</Text>
-                    <Text style={s.legendAmount}>{item.value.toFixed(2)} PLN</Text>
-                  </View>
+        {view === 'weekly' ? (
+          <>
+            <View style={s.card}>
+              <Text style={s.cardTitle}>Wydatki w tym tygodniu</Text>
+              <Text style={s.weekTotal}>{weekTotal.toFixed(2)} PLN</Text>
+              <View style={s.weekCompare}>
+                <Ionicons name={weekTotal <= prevWeekTotal ? 'trending-down' : 'trending-up'} size={16}
+                  color={weekTotal <= prevWeekTotal ? '#2C5F2D' : '#800020'} />
+                <Text style={[s.weekCompareText, { color: weekTotal <= prevWeekTotal ? '#2C5F2D' : '#800020' }]}>
+                  {weekTotal <= prevWeekTotal ? 'Mniej' : 'Więcej'} o {Math.abs(weekTotal - prevWeekTotal).toFixed(2)} PLN vs poprzedni tydzień
+                </Text>
+              </View>
+              {weekData.length > 0 && (
+                <View style={s.chartCenter}>
+                  <BarChart data={weekData} barWidth={30} spacing={14} roundedTop
+                    xAxisThickness={0} yAxisThickness={0}
+                    yAxisTextStyle={{ color: '#6B5D52', fontSize: 10 }}
+                    xAxisLabelTextStyle={{ color: '#6B5D52', fontSize: 10 }}
+                    noOfSections={4} maxValue={Math.max(...weekData.map(d => d.value), 1) * 1.2} />
                 </View>
-              ))}
+              )}
             </View>
-          </View>
-        )}
+          </>
+        ) : (
+          <>
+            {categoryData.length > 0 && (
+              <View style={s.card}>
+                <Text style={s.cardTitle}>Wydatki wg Kategorii</Text>
+                <View style={s.chartCenter}>
+                  <PieChart data={categoryData} donut radius={90} innerRadius={55}
+                    centerLabelComponent={() => <Text style={s.pieCenter}>{categoryData.length}</Text>} />
+                </View>
+                <View style={s.legendGrid}>
+                  {categoryData.map((item, i) => (
+                    <View key={i} style={s.legendItem}>
+                      <View style={[s.legendDot, { backgroundColor: item.color }]} />
+                      <View style={{ flex: 1 }}>
+                        <Text style={s.legendName} numberOfLines={1}>{item.label}</Text>
+                        <Text style={s.legendAmount}>{item.value.toFixed(2)} PLN</Text>
+                      </View>
+                    </View>
+                  ))}
+                </View>
+              </View>
+            )}
 
-        {trendData.length > 0 && (
-          <View style={s.card}>
-            <Text style={s.cardTitle}>Trend Miesięczny (6 mies.)</Text>
-            <View style={s.chartCenter}>
-              <BarChart data={trendData} barWidth={22} spacing={18} roundedTop xAxisThickness={0} yAxisThickness={0}
-                yAxisTextStyle={{ color: '#6B5D52', fontSize: 10 }} xAxisLabelTextStyle={{ color: '#6B5D52', fontSize: 10 }}
-                noOfSections={4} maxValue={Math.max(...trendData.map((d: any) => d.value), 1) * 1.2} />
-            </View>
-            <View style={s.trendLegend}>
-              <View style={s.trendItem}><View style={[s.trendDot, { backgroundColor: '#800020' }]} /><Text style={s.trendLabel}>Wydatki</Text></View>
-            </View>
-          </View>
+            {comparison.length > 0 && (
+              <View style={s.card}>
+                <Text style={s.cardTitle}>Porównanie z poprzednim miesiącem</Text>
+                {comparison.map((item, i) => (
+                  <View key={i} style={s.compareRow}>
+                    <View style={[s.compareDot, { backgroundColor: item.color }]} />
+                    <Text style={s.compareName} numberOfLines={1}>{item.name}</Text>
+                    <View style={s.compareRight}>
+                      <Text style={s.compareAmount}>{item.current.toFixed(0)} PLN</Text>
+                      <View style={[s.compareBadge, { backgroundColor: item.diff > 0 ? '#80002015' : '#2C5F2D15' }]}>
+                        <Ionicons name={item.diff > 0 ? 'arrow-up' : 'arrow-down'} size={12}
+                          color={item.diff > 0 ? '#800020' : '#2C5F2D'} />
+                        <Text style={{ fontSize: 11, color: item.diff > 0 ? '#800020' : '#2C5F2D', fontWeight: '600' }}>
+                          {item.diff > 0 ? '+' : ''}{item.diff.toFixed(0)}
+                        </Text>
+                      </View>
+                    </View>
+                  </View>
+                ))}
+              </View>
+            )}
+
+            {trendData.length > 0 && (
+              <View style={s.card}>
+                <Text style={s.cardTitle}>Trend Miesięczny (6 mies.)</Text>
+                <View style={s.chartCenter}>
+                  <BarChart data={trendData} barWidth={22} spacing={18} roundedTop
+                    xAxisThickness={0} yAxisThickness={0}
+                    yAxisTextStyle={{ color: '#6B5D52', fontSize: 10 }}
+                    xAxisLabelTextStyle={{ color: '#6B5D52', fontSize: 10 }}
+                    noOfSections={4} maxValue={Math.max(...trendData.map((d: any) => d.value), 1) * 1.2} />
+                </View>
+              </View>
+            )}
+          </>
         )}
 
         {(!categoryData.length && !trendData.length) && (
@@ -103,6 +210,11 @@ const s = StyleSheet.create({
   header: { padding: 20, paddingTop: 60 },
   title: { fontSize: 32, fontWeight: 'bold', color: '#2A2520' },
   subtitle: { fontSize: 14, color: '#6B5D52', marginTop: 4, textTransform: 'capitalize' },
+  viewToggle: { flexDirection: 'row', marginHorizontal: 20, marginBottom: 16, backgroundColor: '#FFF', borderRadius: 12, padding: 4 },
+  viewBtn: { flex: 1, padding: 10, borderRadius: 8, alignItems: 'center' },
+  viewBtnActive: { backgroundColor: '#D4AF37' },
+  viewBtnText: { fontSize: 14, fontWeight: '500', color: '#6B5D52' },
+  viewBtnTextActive: { color: '#FFF' },
   summaryRow: { flexDirection: 'row', paddingHorizontal: 20, gap: 12, marginBottom: 16 },
   summaryCard: { flex: 1, backgroundColor: '#FFF', padding: 16, borderRadius: 12, borderLeftWidth: 4 },
   summaryLabel: { fontSize: 12, color: '#6B5D52', marginBottom: 4 },
@@ -116,10 +228,15 @@ const s = StyleSheet.create({
   legendDot: { width: 12, height: 12, borderRadius: 6 },
   legendName: { fontSize: 14, color: '#2A2520' },
   legendAmount: { fontSize: 12, color: '#6B5D52' },
-  trendLegend: { flexDirection: 'row', justifyContent: 'center', gap: 20 },
-  trendItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  trendDot: { width: 10, height: 10, borderRadius: 5 },
-  trendLabel: { fontSize: 12, color: '#6B5D52' },
+  weekTotal: { fontSize: 28, fontWeight: 'bold', color: '#2A2520', marginBottom: 4 },
+  weekCompare: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 20 },
+  weekCompareText: { fontSize: 13 },
+  compareRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#F5F1E8', gap: 8 },
+  compareDot: { width: 10, height: 10, borderRadius: 5 },
+  compareName: { flex: 1, fontSize: 14, color: '#2A2520' },
+  compareRight: { alignItems: 'flex-end' },
+  compareAmount: { fontSize: 14, fontWeight: '600', color: '#2A2520' },
+  compareBadge: { flexDirection: 'row', alignItems: 'center', gap: 2, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 8, marginTop: 2 },
   empty: { alignItems: 'center', padding: 60 },
   emptyText: { fontSize: 18, fontWeight: '600', color: '#2A2520' },
   emptySubtext: { fontSize: 14, color: '#6B5D52', marginTop: 8 },

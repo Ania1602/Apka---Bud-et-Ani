@@ -26,6 +26,9 @@ export default function AddTransaction() {
   const [accountId, setAccountId] = useState(params.account_id ? String(params.account_id) : '');
   const [creditId, setCreditId] = useState(params.credit_id ? String(params.credit_id) : '');
   const [selectedDate, setSelectedDate] = useState(params.date ? String(params.date).split('T')[0] : new Date().toISOString().split('T')[0]);
+  const [capitalPart, setCapitalPart] = useState('');
+  const [interestPart, setInterestPart] = useState('');
+  const [tags, setTags] = useState('');
   const [accounts, setAccounts] = useState<any[]>([]);
   const [credits, setCredits] = useState<any[]>([]);
   const [categories, setCategories] = useState<any[]>([]);
@@ -62,28 +65,45 @@ export default function AddTransaction() {
       return;
     }
 
+    // Validate credit split
+    if (creditId && capitalPart && interestPart) {
+      const cap = parseFloat(capitalPart) || 0;
+      const interest = parseFloat(interestPart) || 0;
+      const total = parseFloat(amount);
+      if (Math.abs((cap + interest) - total) > 0.01) {
+        alert(`Suma kapitału (${cap.toFixed(2)}) i odsetek (${interest.toFixed(2)}) musi równać się kwocie transakcji (${total.toFixed(2)})`);
+        return;
+      }
+    }
+
     setLoading(true);
     try {
+      const tagsList = tags ? tags.split(',').map(t => t.trim().replace(/^#/, '')).filter(Boolean) : [];
+      const txData: any = {
+        type,
+        amount: parseFloat(amount),
+        category,
+        account_id: accountId,
+        description,
+        credit_id: creditId || null,
+        date: new Date(selectedDate + 'T12:00:00').toISOString(),
+        tags: tagsList,
+        capital_part: creditId && capitalPart ? parseFloat(capitalPart) : null,
+        interest_part: creditId && interestPart ? parseFloat(interestPart) : null,
+      };
+
       if (isEdit) {
-        await transactionUpdate(editId, {
-          type,
-          amount: parseFloat(amount),
-          category,
-          account_id: accountId,
-          description,
-          credit_id: creditId || null,
-          date: new Date(selectedDate + 'T12:00:00').toISOString(),
-        });
+        await transactionUpdate(editId, txData);
       } else {
-        await transactionsDB.create({
-          type,
-          amount: parseFloat(amount),
-          category,
-          account_id: accountId,
-          date: new Date(selectedDate + 'T12:00:00').toISOString(),
-          description,
-          credit_id: creditId || null,
-        });
+        await transactionsDB.create(txData);
+        // If credit installment with capital part, reduce remaining_amount
+        if (creditId && capitalPart) {
+          const credit = credits.find(c => c.id === creditId);
+          if (credit) {
+            const newRemaining = (credit.remaining_amount || 0) - (parseFloat(capitalPart) || 0);
+            await creditsDB.update(creditId, { ...credit, remaining_amount: Math.max(0, newRemaining) });
+          }
+        }
       }
       router.back();
     } catch (error) {
@@ -242,43 +262,62 @@ export default function AddTransaction() {
               <Text style={styles.label}>Rata Kredytu (opcjonalnie)</Text>
               <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.categoryScroll}>
                 <TouchableOpacity
-                  style={[
-                    styles.accountChip,
-                    !creditId && styles.accountChipActive,
-                  ]}
-                  onPress={() => setCreditId('')}
+                  style={[styles.accountChip, !creditId && styles.accountChipActive]}
+                  onPress={() => { setCreditId(''); setCapitalPart(''); setInterestPart(''); }}
                 >
-                  <Text
-                    style={[
-                      styles.accountChipText,
-                      !creditId && styles.accountChipTextActive,
-                    ]}
-                  >
-                    Brak
-                  </Text>
+                  <Text style={[styles.accountChipText, !creditId && styles.accountChipTextActive]}>Brak</Text>
                 </TouchableOpacity>
                 {credits.map((credit) => (
                   <TouchableOpacity
                     key={credit.id}
-                    style={[
-                      styles.accountChip,
-                      creditId === credit.id && styles.accountChipActive,
-                    ]}
+                    style={[styles.accountChip, creditId === credit.id && styles.accountChipActive]}
                     onPress={() => setCreditId(credit.id)}
                   >
-                    <Text
-                      style={[
-                        styles.accountChipText,
-                        creditId === credit.id && styles.accountChipTextActive,
-                      ]}
-                    >
-                      {credit.name}
-                    </Text>
+                    <Text style={[styles.accountChipText, creditId === credit.id && styles.accountChipTextActive]}>{credit.name}</Text>
                   </TouchableOpacity>
                 ))}
               </ScrollView>
             </View>
           )}
+
+          {creditId ? (
+            <View style={styles.creditSplitCard}>
+              <Text style={styles.creditSplitTitle}>Podział raty</Text>
+              <View style={styles.creditSplitRow}>
+                <View style={styles.creditSplitField}>
+                  <Text style={styles.creditSplitLabel}>Kapitał</Text>
+                  <TextInput style={styles.creditSplitInput} value={capitalPart}
+                    onChangeText={(t) => {
+                      const val = t.replace(',', '.');
+                      setCapitalPart(val);
+                      if (amount && val) setInterestPart((parseFloat(amount) - (parseFloat(val) || 0)).toFixed(2));
+                    }}
+                    placeholder="0.00" placeholderTextColor="#9B8B7E" keyboardType="numeric" />
+                </View>
+                <View style={styles.creditSplitField}>
+                  <Text style={styles.creditSplitLabel}>Odsetki</Text>
+                  <TextInput style={styles.creditSplitInput} value={interestPart}
+                    onChangeText={(t) => {
+                      const val = t.replace(',', '.');
+                      setInterestPart(val);
+                      if (amount && val) setCapitalPart((parseFloat(amount) - (parseFloat(val) || 0)).toFixed(2));
+                    }}
+                    placeholder="0.00" placeholderTextColor="#9B8B7E" keyboardType="numeric" />
+                </View>
+              </View>
+              {capitalPart && interestPart && amount && (
+                <Text style={[styles.creditSplitInfo, Math.abs((parseFloat(capitalPart) + parseFloat(interestPart)) - parseFloat(amount)) > 0.01 ? { color: '#D32F2F' } : {}]}>
+                  Suma: {((parseFloat(capitalPart) || 0) + (parseFloat(interestPart) || 0)).toFixed(2)} / {parseFloat(amount).toFixed(2)} PLN
+                </Text>
+              )}
+            </View>
+          ) : null}
+
+          <View style={styles.field}>
+            <Text style={styles.label}>Tagi (opcjonalnie, oddziel przecinkami)</Text>
+            <TextInput style={[styles.input, { minHeight: 48 }]} value={tags} onChangeText={setTags}
+              placeholder="#wakacje, #remont, #prezent" placeholderTextColor="#9B8B7E" />
+          </View>
         </View>
       </ScrollView>
 
@@ -483,4 +522,11 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#FFFFFF',
   },
+  creditSplitCard: { backgroundColor: '#FFF', borderRadius: 12, padding: 16, marginBottom: 24, borderWidth: 1, borderColor: '#D4AF3730' },
+  creditSplitTitle: { fontSize: 14, fontWeight: '600', color: '#D4AF37', marginBottom: 12 },
+  creditSplitRow: { flexDirection: 'row', gap: 12 },
+  creditSplitField: { flex: 1 },
+  creditSplitLabel: { fontSize: 12, color: '#6B5D52', marginBottom: 6 },
+  creditSplitInput: { backgroundColor: '#FAF8F3', borderRadius: 10, padding: 12, fontSize: 16, fontWeight: '600', color: '#2A2520', borderWidth: 1, borderColor: '#E0D5C7' },
+  creditSplitInfo: { fontSize: 12, color: '#2C5F2D', marginTop: 10, textAlign: 'center', fontWeight: '500' },
 });

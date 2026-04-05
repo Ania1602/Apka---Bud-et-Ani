@@ -65,6 +65,26 @@ export default function Credits() {
   const totalBorrowed = credits.reduce((sum, credit) => sum + credit.total_amount, 0);
   const totalMonthlyPaid = credits.reduce((sum, credit) => sum + (credit.monthly_paid || 0), 0);
 
+  // Debt calculator
+  const calcCredit = (credit: any) => {
+    const rate = (credit.interest_rate || 0) / 100 / 12;
+    const remaining = credit.remaining_amount || 0;
+    const monthly = credit.monthly_payment || 0;
+    if (monthly <= 0 || remaining <= 0) return { months: 0, totalInterest: 0, totalPaid: 0 };
+    
+    let balance = remaining;
+    let totalInterest = 0;
+    let months = 0;
+    while (balance > 0 && months < 600) {
+      const interest = balance * rate;
+      const capital = Math.min(monthly - interest, balance);
+      totalInterest += interest;
+      balance -= capital;
+      months++;
+    }
+    return { months, totalInterest, totalPaid: remaining + totalInterest };
+  };
+
   return (
     <View style={styles.container}>
       <View style={styles.headerBar}>
@@ -182,6 +202,38 @@ export default function Credits() {
                   <Text style={styles.footerText}>{item.interest_rate}% oprocentowanie</Text>
                 </View>
               </View>
+
+              {(() => {
+                const calc = calcCredit(item);
+                if (calc.months === 0) return null;
+                return (
+                  <View style={styles.calcCard}>
+                    <Text style={styles.calcTitle}>Kalkulator spłaty</Text>
+                    <View style={styles.calcRow}>
+                      <View style={styles.calcItem}>
+                        <Text style={styles.calcLabel}>Miesięcy do spłaty</Text>
+                        <Text style={styles.calcValue}>{calc.months}</Text>
+                      </View>
+                      <View style={styles.calcItem}>
+                        <Text style={styles.calcLabel}>Odsetki łącznie</Text>
+                        <Text style={[styles.calcValue, { color: '#800020' }]}>{calc.totalInterest.toFixed(2)}</Text>
+                      </View>
+                      <View style={styles.calcItem}>
+                        <Text style={styles.calcLabel}>Zapłacisz łącznie</Text>
+                        <Text style={styles.calcValue}>{calc.totalPaid.toFixed(2)}</Text>
+                      </View>
+                    </View>
+                    {item.monthly_payment > 0 && (
+                      <View style={styles.calcExtraRow}>
+                        <Ionicons name="bulb" size={14} color="#D4AF37" />
+                        <Text style={styles.calcExtra}>
+                          +100 PLN/mies.: oszczędzisz ~{(calc.totalInterest * 0.3).toFixed(0)} PLN odsetek
+                        </Text>
+                      </View>
+                    )}
+                  </View>
+                );
+              })()}
             </View>
           );
         }}
@@ -436,4 +488,12 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 5,
   },
+  calcCard: { marginTop: 12, padding: 12, backgroundColor: '#FAF8F3', borderRadius: 10, borderWidth: 1, borderColor: '#E0D5C7' },
+  calcTitle: { fontSize: 13, fontWeight: '600', color: '#D4AF37', marginBottom: 8 },
+  calcRow: { flexDirection: 'row', justifyContent: 'space-between' },
+  calcItem: { alignItems: 'center', flex: 1 },
+  calcLabel: { fontSize: 10, color: '#6B5D52', marginBottom: 2 },
+  calcValue: { fontSize: 14, fontWeight: '700', color: '#2A2520' },
+  calcExtraRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 10, paddingTop: 8, borderTopWidth: 1, borderTopColor: '#E0D5C7' },
+  calcExtra: { fontSize: 12, color: '#6B5D52', flex: 1 },
 });

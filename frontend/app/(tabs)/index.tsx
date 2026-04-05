@@ -185,6 +185,29 @@ export default function Dashboard() {
         <Text style={styles.transferButtonText}>Przelew między kontami</Text>
       </TouchableOpacity>
 
+      {/* Quick Add Categories */}
+      <View style={styles.quickAddSection}>
+        <Text style={styles.quickAddTitle}>Szybkie dodawanie</Text>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.quickAddScroll}>
+          {[
+            { icon: 'cart', label: 'Zakupy', color: '#2196F3' },
+            { icon: 'restaurant', label: 'Jedzenie', color: '#FF9800' },
+            { icon: 'car', label: 'Transport', color: '#9C27B0' },
+            { icon: 'home', label: 'Dom', color: '#2C5F2D' },
+            { icon: 'medkit', label: 'Zdrowie', color: '#E91E63' },
+            { icon: 'flash', label: 'Rachunki', color: '#607D8B' },
+          ].map((item) => (
+            <TouchableOpacity key={item.label} style={styles.quickAddItem}
+              onPress={() => router.push(`/add-transaction?type=expense&category=${encodeURIComponent(item.label)}`)}>
+              <View style={[styles.quickAddIcon, { backgroundColor: item.color + '15' }]}>
+                <Ionicons name={item.icon as any} size={22} color={item.color} />
+              </View>
+              <Text style={styles.quickAddLabel}>{item.label}</Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+      </View>
+
       {pieData[0].value > 0 || pieData[1].value > 0 ? (
         <View style={styles.chartCard}>
           <Text style={styles.chartTitle}>Struktura Przepływów</Text>
@@ -523,6 +546,12 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     letterSpacing: 0.3,
   },
+  quickAddSection: { paddingHorizontal: 20, marginBottom: 16 },
+  quickAddTitle: { fontSize: 13, fontWeight: '600', color: '#9B8B7E', marginBottom: 10, textTransform: 'uppercase', letterSpacing: 0.5 },
+  quickAddScroll: {},
+  quickAddItem: { alignItems: 'center', marginRight: 16, width: 64 },
+  quickAddIcon: { width: 48, height: 48, borderRadius: 14, alignItems: 'center', justifyContent: 'center', marginBottom: 6 },
+  quickAddLabel: { fontSize: 11, color: '#6B5D52', textAlign: 'center' },
   chartCard: {
     backgroundColor: '#FFFFFF',
     marginHorizontal: 20,
