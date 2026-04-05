@@ -65,6 +65,26 @@ export default function Upcoming() {
     };
     if (editingItem) {
       await plansDB.updateItem(plan.id, addType, editingItem.id, data);
+      
+      // If amount changed, ask about future months
+      if (editingItem.amount !== data.amount) {
+        Alert.alert(
+          'Aktualizuj kolejne miesiące?',
+          `Czy zaktualizować kwotę "${itemName}" (${data.amount.toFixed(2)} PLN) również w kolejnych miesiącach?`,
+          [
+            { text: 'Nie, tylko ten miesiąc', style: 'cancel' },
+            {
+              text: 'Tak, wszystkie',
+              onPress: async () => {
+                const count = await plansDB.updateItemInFutureMonths(plan.id, addType, itemName, data.amount);
+                if (count > 0) {
+                  Alert.alert('Gotowe', `Zaktualizowano w ${count} kolejnych miesiącach`);
+                }
+              },
+            },
+          ]
+        );
+      }
     } else {
       await plansDB.addItem(plan.id, addType, data);
     }

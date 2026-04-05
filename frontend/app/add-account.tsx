@@ -65,6 +65,12 @@ export default function AddAccount() {
       alert('Proszę wypełnić wszystkie wymagane pola');
       return;
     }
+    
+    // Force credit limit for limit account types
+    if ((type === 'credit_card' || type === 'revolving') && !creditLimit) {
+      alert('Podaj kwotę limitu dla tego typu konta');
+      return;
+    }
 
     setLoading(true);
     try {

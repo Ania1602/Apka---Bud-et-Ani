@@ -16,12 +16,13 @@ import { Ionicons } from '@expo/vector-icons';
 import { router, useFocusEffect } from 'expo-router';
 import { format } from 'date-fns';
 import { pl } from 'date-fns/locale';
-import { creditsDB } from '../lib/database';
+import { creditsDB, accountsDB, transactionsDB, recurringDB } from '../lib/database';
 
 type CreditFilter = 'active' | 'paid' | 'all';
 
 export default function Credits() {
   const [credits, setCredits] = useState<any[]>([]);
+  const [accounts, setAccounts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [overpayModal, setOverpayModal] = useState(false);
@@ -30,11 +31,29 @@ export default function Credits() {
   const [selectedMonth] = useState(new Date().getMonth() + 1);
   const [selectedYear] = useState(new Date().getFullYear());
   const [filter, setFilter] = useState<CreditFilter>('active');
+  
+  // Overpayment execution state
+  const [execModal, setExecModal] = useState(false);
+  const [execCredit, setExecCredit] = useState<any>(null);
+  const [execAmount, setExecAmount] = useState('');
+  const [execAccountId, setExecAccountId] = useState('');
+  const [execLoading, setExecLoading] = useState(false);
+  
+  // Post-overpayment rate update state
+  const [rateModal, setRateModal] = useState(false);
+  const [rateCredit, setRateCredit] = useState<any>(null);
+  const [firstRate, setFirstRate] = useState('');
+  const [regularRate, setRegularRate] = useState('');
+  const [lastRate, setLastRate] = useState('');
 
   const fetchCredits = async () => {
     try {
-      const data = await creditsDB.getAll(selectedMonth, selectedYear);
+      const [data, accs] = await Promise.all([
+        creditsDB.getAll(selectedMonth, selectedYear),
+        accountsDB.getAll(),
+      ]);
       setCredits(data);
+      setAccounts(accs);
     } catch (error) {
       console.error('Error fetching credits:', error);
     } finally {
@@ -74,6 +93,7 @@ export default function Credits() {
           onPress: async () => {
             try {
               await creditsDB.markAsPaid(id);
+              await recurringDB.deactivateByCreditId(id);
               fetchCredits();
             } catch (error) {
               console.error('Error marking credit as paid:', error);
@@ -103,6 +123,97 @@ export default function Credits() {
         },
       ]
     );
+  };
+
+  const handleOpenOverpay = (credit: any) => {
+    setExecCredit(credit);
+    setExecAmount('');
+    setExecAccountId(accounts.length > 0 ? accounts[0].id : '');
+    setExecModal(true);
+  };
+
+  const handleExecuteOverpay = async () => {
+    if (!execCredit || !execAmount || !execAccountId) return;
+    const amount = parseFloat(execAmount);
+    if (isNaN(amount) || amount <= 0) { Alert.alert('Błąd', 'Podaj prawidłową kwotę'); return; }
+    
+    const account = accounts.find(a => a.id === execAccountId);
+    if (!account) return;
+    
+    setExecLoading(true);
+    try {
+      // Create expense transaction
+      await transactionsDB.create({
+        type: 'expense',
+        amount,
+        category: 'Nadpłata kredytu',
+        account_id: execAccountId,
+        date: new Date().toISOString(),
+        description: `Nadpłata kredytu: ${execCredit.name}`,
+        credit_id: execCredit.id,
+        capital_part: amount,
+        interest_part: 0,
+      });
+      
+      // Update credit remaining amount
+      await creditsDB.overpay(execCredit.id, amount);
+      
+      setExecModal(false);
+      fetchCredits();
+      
+      // Ask about updating rate
+      Alert.alert(
+        'Nadpłata zapisana!',
+        `Pomniejszono dług o ${amount.toFixed(2)} PLN.\n\nCzy chcesz zaktualizować wysokość miesięcznej raty?`,
+        [
+          { text: 'Nie, zostaw bez zmian', style: 'cancel' },
+          {
+            text: 'Tak, zmień ratę',
+            onPress: () => {
+              setRateCredit(execCredit);
+              setFirstRate('');
+              setRegularRate('');
+              setLastRate('');
+              setRateModal(true);
+            },
+          },
+        ]
+      );
+    } catch (error) {
+      console.error('Error executing overpayment:', error);
+      Alert.alert('Błąd', 'Nie udało się wykonać nadpłaty');
+    } finally {
+      setExecLoading(false);
+    }
+  };
+
+  const handleSaveRate = async () => {
+    if (!rateCredit) return;
+    try {
+      const rateInfo: any = {};
+      if (firstRate) rateInfo.first_rate = parseFloat(firstRate);
+      if (regularRate) rateInfo.regular_rate = parseFloat(regularRate);
+      if (lastRate) rateInfo.last_rate = parseFloat(lastRate);
+      if (regularRate) rateInfo.monthly_payment = parseFloat(regularRate);
+      
+      await creditsDB.overpay(rateCredit.id, 0, rateInfo);
+      
+      // Update recurring transaction if exists
+      if (regularRate) {
+        const recurrings = await recurringDB.getAll();
+        const linked = recurrings.find((r: any) => r.credit_id === rateCredit.id && r.is_active);
+        if (linked) {
+          await recurringDB.update(linked.id, { amount: parseFloat(regularRate) });
+        }
+      }
+      
+      setRateModal(false);
+      fetchCredits();
+      Alert.alert('Gotowe', 'Raty zostały zaktualizowane');
+    } catch (error) {
+      console.error('Error updating rate:', error);
+      Alert.alert('Błąd', 'Nie udało się zaktualizować raty');
+    }
   };
 
   if (loading) {
@@ -336,10 +447,16 @@ export default function Credits() {
                   <Text style={styles.restoreBtnText}>Przywróć jako aktywny</Text>
                 </TouchableOpacity>
               ) : (
-                <TouchableOpacity style={styles.markPaidBtn} onPress={() => handleMarkAsPaid(item.id, item.name)}>
-                  <Ionicons name="checkmark-done" size={16} color="#2C5F2D" />
-                  <Text style={styles.markPaidBtnText}>Oznacz jako spłacony</Text>
-                </TouchableOpacity>
+                <View style={styles.actionRow}>
+                  <TouchableOpacity style={styles.overpayExecBtn} onPress={() => handleOpenOverpay(item)}>
+                    <Ionicons name="cash" size={16} color="#D4AF37" />
+                    <Text style={styles.overpayExecBtnText}>Nadpłać</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={styles.markPaidBtn} onPress={() => handleMarkAsPaid(item.id, item.name)}>
+                    <Ionicons name="checkmark-done" size={16} color="#2C5F2D" />
+                    <Text style={styles.markPaidBtnText}>Spłacony</Text>
+                  </TouchableOpacity>
+                </View>
               )}
             </View>
           );
@@ -458,6 +575,114 @@ export default function Credits() {
                 })()}
               </ScrollView>
             )}
+          </View>
+        </View>
+      </Modal>
+
+      {/* Overpayment Execution Modal */}
+      <Modal visible={execModal} transparent animationType="slide">
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Nadpłać kredyt</Text>
+              <TouchableOpacity onPress={() => setExecModal(false)}>
+                <Ionicons name="close" size={24} color="#2A2520" />
+              </TouchableOpacity>
+            </View>
+            {execCredit && (
+              <ScrollView style={{ maxHeight: 400 }}>
+                <Text style={styles.execCreditName}>{execCredit.name}</Text>
+                <Text style={styles.execCreditInfo}>Do spłaty: {execCredit.remaining_amount?.toFixed(2)} PLN</Text>
+                
+                <Text style={styles.inputLabel}>Konto do obciążenia:</Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.accountPicker}>
+                  {accounts.filter(a => !((a.type === 'credit_card' || a.type === 'revolving') && a.credit_limit)).map((acc: any) => (
+                    <TouchableOpacity
+                      key={acc.id}
+                      style={[styles.accountChip, execAccountId === acc.id && styles.accountChipActive]}
+                      onPress={() => setExecAccountId(acc.id)}
+                    >
+                      <Text style={[styles.accountChipText, execAccountId === acc.id && styles.accountChipTextActive]}>
+                        {acc.name} ({acc.balance?.toFixed(0)} PLN)
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+                
+                <Text style={styles.inputLabel}>Kwota nadpłaty:</Text>
+                <TextInput
+                  style={styles.input}
+                  value={execAmount}
+                  onChangeText={setExecAmount}
+                  keyboardType="decimal-pad"
+                  placeholder="np. 5000"
+                  placeholderTextColor="#9B8B7E"
+                />
+                
+                <TouchableOpacity
+                  style={[styles.execButton, (!execAmount || !execAccountId || execLoading) && { opacity: 0.5 }]}
+                  onPress={handleExecuteOverpay}
+                  disabled={!execAmount || !execAccountId || execLoading}
+                >
+                  {execLoading ? (
+                    <ActivityIndicator color="#FFF" size="small" />
+                  ) : (
+                    <Text style={styles.execButtonText}>Wykonaj nadpłatę</Text>
+                  )}
+                </TouchableOpacity>
+              </ScrollView>
+            )}
+          </View>
+        </View>
+      </Modal>
+
+      {/* Rate Update Modal */}
+      <Modal visible={rateModal} transparent animationType="slide">
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Aktualizuj raty</Text>
+              <TouchableOpacity onPress={() => setRateModal(false)}>
+                <Ionicons name="close" size={24} color="#2A2520" />
+              </TouchableOpacity>
+            </View>
+            <ScrollView style={{ maxHeight: 400 }}>
+              <Text style={styles.rateHint}>Pola opcjonalne - puste = bez zmian</Text>
+              
+              <Text style={styles.inputLabel}>Pierwsza rata po nadpłacie:</Text>
+              <TextInput
+                style={styles.input}
+                value={firstRate}
+                onChangeText={setFirstRate}
+                keyboardType="decimal-pad"
+                placeholder="kwota (opcjonalnie)"
+                placeholderTextColor="#9B8B7E"
+              />
+              
+              <Text style={styles.inputLabel}>Kolejne raty (standardowa):</Text>
+              <TextInput
+                style={styles.input}
+                value={regularRate}
+                onChangeText={setRegularRate}
+                keyboardType="decimal-pad"
+                placeholder="kwota (opcjonalnie)"
+                placeholderTextColor="#9B8B7E"
+              />
+              
+              <Text style={styles.inputLabel}>Ostatnia rata (wyrównanie):</Text>
+              <TextInput
+                style={styles.input}
+                value={lastRate}
+                onChangeText={setLastRate}
+                keyboardType="decimal-pad"
+                placeholder="kwota (opcjonalnie)"
+                placeholderTextColor="#9B8B7E"
+              />
+              
+              <TouchableOpacity style={styles.execButton} onPress={handleSaveRate}>
+                <Text style={styles.execButtonText}>Zapisz raty</Text>
+              </TouchableOpacity>
+            </ScrollView>
           </View>
         </View>
       </Modal>
@@ -792,9 +1017,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 6,
     paddingVertical: 10,
-    marginTop: 12,
-    borderTopWidth: 1,
-    borderTopColor: '#F5F1E8',
+    flex: 1,
   },
   markPaidBtnText: {
     fontSize: 13,
@@ -815,5 +1038,85 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '600',
     color: '#D4AF37',
+  },
+  actionRow: {
+    flexDirection: 'row',
+    marginTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#F5F1E8',
+  },
+  overpayExecBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 10,
+    flex: 1,
+    borderRightWidth: 1,
+    borderRightColor: '#F5F1E8',
+  },
+  overpayExecBtnText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#D4AF37',
+  },
+  execCreditName: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#2A2520',
+    marginBottom: 4,
+  },
+  execCreditInfo: {
+    fontSize: 13,
+    color: '#6B5D52',
+    marginBottom: 16,
+  },
+  inputLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#2A2520',
+    marginBottom: 6,
+    marginTop: 12,
+  },
+  accountPicker: {
+    flexDirection: 'row',
+    marginBottom: 4,
+  },
+  accountChip: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
+    backgroundColor: '#F5F1E8',
+    marginRight: 8,
+  },
+  accountChipActive: {
+    backgroundColor: '#D4AF37',
+  },
+  accountChipText: {
+    fontSize: 13,
+    color: '#6B5D52',
+    fontWeight: '500',
+  },
+  accountChipTextActive: {
+    color: '#FFF',
+  },
+  execButton: {
+    backgroundColor: '#D4AF37',
+    borderRadius: 12,
+    paddingVertical: 14,
+    alignItems: 'center',
+    marginTop: 20,
+    marginBottom: 10,
+  },
+  execButtonText: {
+    color: '#FFF',
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  rateHint: {
+    fontSize: 12,
+    color: '#9B8B7E',
+    fontStyle: 'italic',
+    marginBottom: 8,
   },
 });

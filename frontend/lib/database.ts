@@ -252,6 +252,16 @@ export const transactionsDB = {
         await accountsDB.updateBalance(transaction.account_id, newBalance);
       }
       
+      // Restore credit remaining_amount if credit-linked
+      if (transaction.credit_id && transaction.capital_part) {
+        const credits = await getItems(STORAGE_KEYS.CREDITS);
+        const cIdx = credits.findIndex((c: any) => c.id === transaction.credit_id);
+        if (cIdx !== -1) {
+          credits[cIdx].remaining_amount = (credits[cIdx].remaining_amount || 0) + (transaction.capital_part || 0);
+          await setItems(STORAGE_KEYS.CREDITS, credits);
+        }
+      }
+      
       const filtered = transactions.filter((t: any) => t.id !== id);
       await setItems(STORAGE_KEYS.TRANSACTIONS, filtered);
     }
@@ -330,6 +340,22 @@ export const creditsDB = {
     if (index !== -1) {
       credits[index].status = 'active';
       delete credits[index].paid_date;
+      await setItems(STORAGE_KEYS.CREDITS, credits);
+    }
+  },
+  
+  overpay: async (id: string, amount: number, rateInfo?: { first_rate?: number; regular_rate?: number; last_rate?: number; monthly_payment?: number }) => {
+    const credits = await getItems(STORAGE_KEYS.CREDITS);
+    const index = credits.findIndex((c: any) => c.id === id);
+    if (index !== -1) {
+      credits[index].remaining_amount = Math.max(0, (credits[index].remaining_amount || 0) - amount);
+      if (rateInfo) {
+        if (rateInfo.monthly_payment !== undefined) credits[index].monthly_payment = rateInfo.monthly_payment;
+        if (rateInfo.first_rate !== undefined) credits[index].first_rate_after_overpay = rateInfo.first_rate;
+        if (rateInfo.last_rate !== undefined) credits[index].last_rate = rateInfo.last_rate;
+      }
+      credits[index].last_overpay_date = new Date().toISOString();
+      credits[index].last_overpay_amount = amount;
       await setItems(STORAGE_KEYS.CREDITS, credits);
     }
   }
@@ -474,6 +500,20 @@ export const recurringDB = {
     const recurrings = await getItems(STORAGE_KEYS.RECURRING);
     const filtered = recurrings.filter((r: any) => r.id !== id);
     await setItems(STORAGE_KEYS.RECURRING, filtered);
+  },
+  
+  deactivateByCreditId: async (creditId: string) => {
+    const recurrings = await getItems(STORAGE_KEYS.RECURRING);
+    let changed = false;
+    recurrings.forEach((r: any) => {
+      if (r.credit_id === creditId && r.is_active) {
+        r.is_active = false;
+        changed = true;
+      }
+    });
+    if (changed) {
+      await setItems(STORAGE_KEYS.RECURRING, recurrings);
+    }
   }
 };
 
@@ -830,5 +870,30 @@ export const plansDB = {
     const all = await plansDB.getAll();
     const filtered = all.filter((p: any) => p.id !== planId);
     await AsyncStorage.setItem(STORAGE_KEYS.PLANS, JSON.stringify(filtered));
+  },
+  
+  updateItemInFutureMonths: async (planId: string, type: 'income' | 'expense', itemName: string, newAmount: number) => {
+    const all = await plansDB.getAll();
+    const sourcePlan = all.find((p: any) => p.id === planId);
+    if (!sourcePlan) return 0;
+    
+    let count = 0;
+    all.forEach((plan: any) => {
+      // Only update future months (same or later)
+      const isLater = plan.year > sourcePlan.year || (plan.year === sourcePlan.year && plan.month > sourcePlan.month);
+      if (!isLater) return;
+      
+      const list = type === 'income' ? plan.incomes : plan.expenses;
+      const item = list.find((i: any) => i.name === itemName);
+      if (item) {
+        item.amount = newAmount;
+        count++;
+      }
+    });
+    
+    if (count > 0) {
+      await AsyncStorage.setItem(STORAGE_KEYS.PLANS, JSON.stringify(all));
+    }
+    return count;
   },
 };

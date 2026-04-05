@@ -9,10 +9,11 @@ import {
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
+  Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
-import { creditsDB } from '../lib/database';
+import { creditsDB, plansDB } from '../lib/database';
 
 export default function AddCredit() {
   const params = useLocalSearchParams();
@@ -71,10 +72,41 @@ export default function AddCredit() {
       };
       if (isEdit) {
         await creditsDB.update(editId, creditData);
+        router.back();
       } else {
         await creditsDB.create(creditData);
+        // Ask about adding to planning
+        Alert.alert(
+          'Dodać do planowania?',
+          `Czy dodać ratę "${name}" (${parseFloat(monthlyPayment).toFixed(2)} PLN) do planowania wydatków?`,
+          [
+            { text: 'Nie', onPress: () => router.back() },
+            {
+              text: 'Tak, dodaj',
+              onPress: async () => {
+                try {
+                  const now = new Date();
+                  const month = now.getMonth() + 1;
+                  const year = now.getFullYear();
+                  let plan = await plansDB.getByMonth(month, year);
+                  if (!plan) {
+                    plan = await plansDB.createForMonth(month, year);
+                  }
+                  await plansDB.addItem(plan.id, 'expense', {
+                    name: `Rata: ${name}`,
+                    amount: parseFloat(monthlyPayment),
+                    day: parseInt(startDate.split('-')[2]) || 1,
+                    is_recurring: true,
+                  });
+                } catch (e) {
+                  console.error('Error adding to planning:', e);
+                }
+                router.back();
+              },
+            },
+          ]
+        );
       }
-      router.back();
     } catch (error) {
       console.error('Error saving credit:', error);
       alert('Błąd podczas zapisywania kredytu');
