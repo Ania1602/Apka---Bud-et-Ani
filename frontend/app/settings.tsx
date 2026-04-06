@@ -41,8 +41,22 @@ export default function Settings() {
       URL.revokeObjectURL(url);
       return true;
     }
-    const dir = FileSystem.cacheDirectory;
-    if (!dir) throw new Error('No document directory');
+    const dir = FileSystem.cacheDirectory || FileSystem.documentDirectory;
+    if (!dir) {
+      const permissions = await FileSystem.StorageAccessFramework.requestDirectoryPermissionsAsync();
+      if (permissions.granted) {
+        const fileUri = await FileSystem.StorageAccessFramework.createFileAsync(
+          permissions.directoryUri,
+          fileName,
+          mimeType
+        );
+        await FileSystem.writeAsStringAsync(fileUri, content, { encoding: FileSystem.EncodingType.UTF8 });
+        Alert.alert('Sukces', 'Plik zapisany w wybranym folderze');
+        return true;
+      } else {
+        throw new Error('Brak dostępu do katalogu');
+      }
+    }
     const filePath = dir + fileName;
     await FileSystem.writeAsStringAsync(filePath, content, { encoding: FileSystem.EncodingType.UTF8 });
     const canShare = await Sharing.isAvailableAsync();
