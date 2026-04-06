@@ -1,12 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, TextInput, Alert, Switch, Platform, ScrollView, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, TextInput, Alert, Switch, Platform, ScrollView, ActivityIndicator, Share } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { pinDB, exportFullBackup, importFullBackup, exportToCSV } from '../lib/database';
 import * as FileSystem from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import * as DocumentPicker from 'expo-document-picker';
-import * as IntentLauncher from 'expo-intent-launcher';
 
 export default function Settings() {
   const [hasPin, setHasPin] = useState(false);
@@ -56,14 +55,10 @@ export default function Settings() {
       return true;
     }
 
-    // Last resort fallback: use IntentLauncher to create a viewable text
-    const { startActivityAsync, ActivityAction } = await import('expo-intent-launcher');
-    // Encode content as base64 data URI
-    const base64Content = btoa(unescape(encodeURIComponent(content)));
-    const dataUri = `data:${mimeType};base64,${base64Content}`;
-    await startActivityAsync(ActivityAction.SEND, {
-      type: mimeType,
-      extra: { 'android.intent.extra.TEXT': content },
+    // Fallback: use React Native Share API (always works)
+    await Share.share({
+      message: content,
+      title: fileName,
     });
     return true;
   };
