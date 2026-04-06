@@ -6,6 +6,7 @@ import { pinDB, exportFullBackup, importFullBackup, exportToCSV } from '../lib/d
 import * as FileSystem from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import * as DocumentPicker from 'expo-document-picker';
+import * as IntentLauncher from 'expo-intent-launcher';
 
 export default function Settings() {
   const [hasPin, setHasPin] = useState(false);
@@ -41,28 +42,29 @@ export default function Settings() {
       URL.revokeObjectURL(url);
       return true;
     }
+
+    // Try multiple directory options
     const dir = FileSystem.cacheDirectory || FileSystem.documentDirectory;
-    if (!dir) {
-      const permissions = await FileSystem.StorageAccessFramework.requestDirectoryPermissionsAsync();
-      if (permissions.granted) {
-        const fileUri = await FileSystem.StorageAccessFramework.createFileAsync(
-          permissions.directoryUri,
-          fileName,
-          mimeType
-        );
-        await FileSystem.writeAsStringAsync(fileUri, content, { encoding: FileSystem.EncodingType.UTF8 });
-        Alert.alert('Sukces', 'Plik zapisany w wybranym folderze');
-        return true;
-      } else {
-        throw new Error('Brak dostępu do katalogu');
+    
+    if (dir) {
+      const filePath = dir + fileName;
+      await FileSystem.writeAsStringAsync(filePath, content, { encoding: FileSystem.EncodingType.UTF8 });
+      const canShare = await Sharing.isAvailableAsync();
+      if (canShare) {
+        await Sharing.shareAsync(filePath, { mimeType, dialogTitle: 'Eksportuj dane' });
       }
+      return true;
     }
-    const filePath = dir + fileName;
-    await FileSystem.writeAsStringAsync(filePath, content, { encoding: FileSystem.EncodingType.UTF8 });
-    const canShare = await Sharing.isAvailableAsync();
-    if (canShare) {
-      await Sharing.shareAsync(filePath, { mimeType, dialogTitle: 'Eksportuj dane' });
-    }
+
+    // Last resort fallback: use IntentLauncher to create a viewable text
+    const { startActivityAsync, ActivityAction } = await import('expo-intent-launcher');
+    // Encode content as base64 data URI
+    const base64Content = btoa(unescape(encodeURIComponent(content)));
+    const dataUri = `data:${mimeType};base64,${base64Content}`;
+    await startActivityAsync(ActivityAction.SEND, {
+      type: mimeType,
+      extra: { 'android.intent.extra.TEXT': content },
+    });
     return true;
   };
 
