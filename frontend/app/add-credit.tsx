@@ -209,9 +209,18 @@ export default function AddCredit() {
               <TextInput
                 style={styles.input}
                 value={startDate}
-                onChangeText={setStartDate}
-                placeholder="YYYY-MM-DD"
+                onChangeText={(text: string) => {
+                  const digits = text.replace(/[^0-9]/g, '');
+                  let formatted = '';
+                  if (digits.length <= 4) { formatted = digits; }
+                  else if (digits.length <= 6) { formatted = digits.slice(0, 4) + '-' + digits.slice(4); }
+                  else { formatted = digits.slice(0, 4) + '-' + digits.slice(4, 6) + '-' + digits.slice(6, 8); }
+                  setStartDate(formatted);
+                }}
+                placeholder="RRRR-MM-DD"
                 placeholderTextColor="#9B8B7E"
+                maxLength={10}
+                keyboardType="numeric"
               />
             </View>
             <View style={[styles.field, { flex: 1, marginLeft: 12 }]}>
@@ -219,9 +228,18 @@ export default function AddCredit() {
               <TextInput
                 style={styles.input}
                 value={endDate}
-                onChangeText={setEndDate}
-                placeholder="YYYY-MM-DD"
+                onChangeText={(text: string) => {
+                  const digits = text.replace(/[^0-9]/g, '');
+                  let formatted = '';
+                  if (digits.length <= 4) { formatted = digits; }
+                  else if (digits.length <= 6) { formatted = digits.slice(0, 4) + '-' + digits.slice(4); }
+                  else { formatted = digits.slice(0, 4) + '-' + digits.slice(4, 6) + '-' + digits.slice(6, 8); }
+                  setEndDate(formatted);
+                }}
+                placeholder="RRRR-MM-DD"
                 placeholderTextColor="#9B8B7E"
+                maxLength={10}
+                keyboardType="numeric"
               />
             </View>
           </View>

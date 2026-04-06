@@ -86,12 +86,20 @@ export default function SavingsGoals() {
                 <View style={{height:6,backgroundColor:monthsCovered>=6?'#2C5F2D':monthsCovered>=3?'#FF9800':'#D32F2F',borderRadius:3,width:`${Math.min(monthsCovered/6*100,100)}%`}} />
               </View>
               <Text style={{fontSize:11,color:'#9B8B7E',marginTop:4}}>Cel: 6 miesięcy wydatków</Text>
-              {emergencyGoals.length > 0 && (
-                <TouchableOpacity style={s.emergencyDepositBtn} onPress={() => openDeposit(emergencyGoals[0].id, 'Fundusz Awaryjny')}>
-                  <Ionicons name="add-circle" size={18} color="#D4AF37" />
-                  <Text style={s.emergencyDepositText}>Wpłać</Text>
-                </TouchableOpacity>
-              )}
+              <TouchableOpacity style={s.emergencyDepositBtn} onPress={async () => {
+                if (emergencyGoals.length > 0) {
+                  openDeposit(emergencyGoals[0].id, 'Fundusz Awaryjny');
+                } else {
+                  const newGoal = await savingsGoalsDB.create({ name: 'Fundusz Awaryjny', target_amount: avgMonthlyExpense > 0 ? avgMonthlyExpense * 6 : 10000, current_amount: 0, deadline: null });
+                  await fetch_();
+                  const allGoals = await savingsGoalsDB.getAll();
+                  const created = allGoals.find((g: any) => g.name === 'Fundusz Awaryjny');
+                  if (created) openDeposit(created.id, 'Fundusz Awaryjny');
+                }
+              }}>
+                <Ionicons name="wallet" size={18} color="#D4AF37" />
+                <Text style={s.emergencyDepositText}>Wpłać</Text>
+              </TouchableOpacity>
             </View>
           );
         })()}

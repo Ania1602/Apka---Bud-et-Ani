@@ -66,7 +66,14 @@ export default function AddGoal() {
           <View style={s.field}><Text style={s.label}>Już zaoszczędzone (PLN)</Text>
             <TextInput style={s.input} value={currentAmount} onChangeText={(t) => setCurrentAmount(t.replace(',', '.'))} placeholder="0.00" placeholderTextColor="#9B8B7E" keyboardType="numeric" /></View>
           <View style={s.field}><Text style={s.label}>Termin (opcjonalnie)</Text>
-            <TextInput style={s.input} value={deadline} onChangeText={setDeadline} placeholder="RRRR-MM-DD" placeholderTextColor="#9B8B7E" /></View>
+            <TextInput style={s.input} value={deadline} onChangeText={(text: string) => {
+              const digits = text.replace(/[^0-9]/g, '');
+              let formatted = '';
+              if (digits.length <= 4) { formatted = digits; }
+              else if (digits.length <= 6) { formatted = digits.slice(0, 4) + '-' + digits.slice(4); }
+              else { formatted = digits.slice(0, 4) + '-' + digits.slice(4, 6) + '-' + digits.slice(6, 8); }
+              setDeadline(formatted);
+            }} placeholder="RRRR-MM-DD" placeholderTextColor="#9B8B7E" maxLength={10} keyboardType="numeric" /></View>
         </View>
       </ScrollView>
       <View style={s.footer}>
