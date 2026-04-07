@@ -163,7 +163,6 @@ export default function Transactions() {
                   {item.capital_part ? <Text style={s.txDesc}>Kapitał: {item.capital_part.toFixed(2)} | Odsetki: {(item.interest_part || 0).toFixed(2)}</Text> : null}
                   {item.tags && item.tags.length > 0 ? <Text style={s.txTags}>{item.tags.map((t: string) => `#${t}`).join(' ')}</Text> : null}
                   {getAccountName(item.account_id) ? <Text style={s.txAccount}>{getAccountName(item.account_id)}</Text> : null}
-                  <Text style={s.txTime}>{format(new Date(item.date), 'HH:mm')}</Text>
                 </View>
                 <View style={s.txRight}>
                   <Text style={[s.txAmount, { color: item.type === 'income' ? '#2C5F2D' : '#800020' }]}>

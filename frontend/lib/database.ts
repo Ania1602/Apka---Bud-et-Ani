@@ -656,6 +656,16 @@ export const investmentsDB = {
   },
 };
 
+// User Settings (birth year etc.)
+export const userSettingsDB = {
+  get: async (key: string) => {
+    try { const val = await AsyncStorage.getItem(`@budzetani_setting_${key}`); return val; } catch { return null; }
+  },
+  set: async (key: string, value: string) => {
+    try { await AsyncStorage.setItem(`@budzetani_setting_${key}`, value); } catch {}
+  },
+};
+
 // PIN Management
 export const pinDB = {
   exists: async () => {

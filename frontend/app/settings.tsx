@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, TextInput, Alert, Switch, Platform, ScrollView, ActivityIndicator, Share } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { pinDB, exportFullBackup, importFullBackup, exportToCSV } from '../lib/database';
+import { pinDB, exportFullBackup, importFullBackup, exportToCSV, userSettingsDB } from '../lib/database';
 import * as FileSystem from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import * as DocumentPicker from 'expo-document-picker';
@@ -14,8 +14,12 @@ export default function Settings() {
   const [confirmPin, setConfirmPin] = useState('');
   const [backupLoading, setBackupLoading] = useState(false);
   const [csvLoading, setCsvLoading] = useState(false);
+  const [birthYear, setBirthYear] = useState('');
 
-  useEffect(() => { pinDB.exists().then(setHasPin); }, []);
+  useEffect(() => {
+    pinDB.exists().then(setHasPin);
+    userSettingsDB.get('birth_year').then(v => { if (v) setBirthYear(v); });
+  }, []);
 
   const handleSetPin = async () => {
     if (pin.length < 4) { Alert.alert('Błąd', 'PIN musi mieć minimum 4 cyfry'); return; }
@@ -158,6 +162,22 @@ export default function Settings() {
             </View>
           </View>
         )}
+
+        <Text style={[s.sectionTitle, { marginTop: 24 }]}>Profil</Text>
+        <View style={s.settingCard}>
+          <View style={[s.settingRow, { paddingVertical: 12 }]}>
+            <View style={[s.settingIcon, { backgroundColor: '#1565C020' }]}>
+              <Ionicons name="calendar-outline" size={24} color="#1565C0" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={s.settingLabel}>Rok urodzenia</Text>
+              <Text style={s.settingDesc}>Do obliczenia lat do emerytury</Text>
+            </View>
+            <TextInput style={{ backgroundColor: '#FAF8F3', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 6, fontSize: 16, color: '#2A2520', width: 80, textAlign: 'center', borderWidth: 1, borderColor: '#E0D5C7' }}
+              value={birthYear} onChangeText={v => { const d = v.replace(/[^0-9]/g, '').slice(0, 4); setBirthYear(d); if (d.length === 4) userSettingsDB.set('birth_year', d); }}
+              placeholder="np. 1990" placeholderTextColor="#9B8B7E" keyboardType="numeric" maxLength={4} />
+          </View>
+        </View>
 
         <Text style={[s.sectionTitle, { marginTop: 24 }]}>Eksport danych</Text>
 
