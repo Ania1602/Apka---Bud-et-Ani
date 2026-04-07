@@ -14,6 +14,7 @@ export default function More() {
     ]},
     { title: 'Cele i Narzędzia', items: [
       { icon: 'trophy', title: 'Cele Oszczędnościowe', subtitle: 'Planuj i śledź swoje cele', color: '#2C5F2D', route: '/savings-goals' },
+      { icon: 'trending-up', title: 'Inwestycje', subtitle: 'PPK, IKE, IKZE, akcje, obligacje', color: '#1565C0', route: '/investments' },
       { icon: 'calendar', title: 'Planowanie Wydatków', subtitle: 'Nadchodzące płatności i raty', color: '#E91E63', route: '/upcoming' },
     ]},
     { title: 'Bezpieczeństwo', items: [

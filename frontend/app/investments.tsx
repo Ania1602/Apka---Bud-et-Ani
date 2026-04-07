@@ -1,0 +1,619 @@
+import React, { useState, useCallback } from 'react';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, RefreshControl, ActivityIndicator, Alert, TextInput, Modal, ScrollView, KeyboardAvoidingView, Platform } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { router, useFocusEffect } from 'expo-router';
+import { investmentsDB } from '../lib/database';
+
+const IKE_LIMIT_2026 = 26019;
+const IKZE_LIMIT_2026 = 10407;
+
+const INVESTMENT_TYPES = [
+  { value: 'ppk', label: 'PPK', icon: 'shield-checkmark', color: '#1565C0' },
+  { value: 'ike', label: 'IKE', icon: 'umbrella', color: '#2E7D32' },
+  { value: 'ikze', label: 'IKZE', icon: 'umbrella', color: '#6A1B9A' },
+  { value: 'obligacje', label: 'Obligacje skarbowe', icon: 'document-text', color: '#C62828' },
+  { value: 'akcje_etf', label: 'Akcje / ETF', icon: 'trending-up', color: '#00838F' },
+  { value: 'fundusze', label: 'Fundusze inwestycyjne', icon: 'pie-chart', color: '#EF6C00' },
+  { value: 'lokaty', label: 'Lokaty', icon: 'lock-closed', color: '#4E342E' },
+  { value: 'krypto', label: 'Kryptowaluty', icon: 'logo-bitcoin', color: '#F9A825' },
+  { value: 'inne', label: 'Inne', icon: 'ellipsis-horizontal', color: '#607D8B' },
+];
+
+const TAX_BRACKETS = [
+  { value: 12, label: '12% (pierwszy próg)' },
+  { value: 32, label: '32% (drugi próg)' },
+  { value: 19, label: '19% (liniowy)' },
+];
+
+const CURRENCIES = ['PLN', 'EUR', 'USD'];
+
+function getTypeInfo(type: string) {
+  return INVESTMENT_TYPES.find(t => t.value === type) || INVESTMENT_TYPES[INVESTMENT_TYPES.length - 1];
+}
+
+function formatDateAuto(text: string): string {
+  const digits = text.replace(/[^0-9]/g, '');
+  if (digits.length <= 4) return digits;
+  if (digits.length <= 6) return digits.slice(0, 4) + '-' + digits.slice(4);
+  return digits.slice(0, 4) + '-' + digits.slice(4, 6) + '-' + digits.slice(6, 8);
+}
+
+function xirr(cashflows: { date: Date; amount: number }[], guess = 0.1): number {
+  if (cashflows.length < 2) return 0;
+  const maxIter = 100;
+  const tolerance = 1e-7;
+  let rate = guess;
+  const npv = (r: number) => {
+    const t0 = cashflows[0].date.getTime();
+    return cashflows.reduce((sum, cf) => {
+      const years = (cf.date.getTime() - t0) / (365.25 * 24 * 60 * 60 * 1000);
+      return sum + cf.amount / Math.pow(1 + r, years);
+    }, 0);
+  };
+  const npvDeriv = (r: number) => {
+    const t0 = cashflows[0].date.getTime();
+    return cashflows.reduce((sum, cf) => {
+      const years = (cf.date.getTime() - t0) / (365.25 * 24 * 60 * 60 * 1000);
+      return sum - years * cf.amount / Math.pow(1 + r, years + 1);
+    }, 0);
+  };
+  for (let i = 0; i < maxIter; i++) {
+    const npvVal = npv(rate);
+    if (Math.abs(npvVal) < tolerance) return rate;
+    const deriv = npvDeriv(rate);
+    if (deriv === 0) break;
+    rate = rate - npvVal / deriv;
+    if (rate < -0.99) rate = -0.5;
+    if (rate > 10) rate = 5;
+  }
+  return rate;
+}
+
+function calcXIRR(payments: any[], currentValue: number): number | null {
+  if (!payments || payments.length === 0 || !currentValue || currentValue <= 0) return null;
+  const sorted = [...payments].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+  const cashflows = sorted.map(p => ({ date: new Date(p.date), amount: -p.amount }));
+  cashflows.push({ date: new Date(), amount: currentValue });
+  try {
+    const rate = xirr(cashflows);
+    if (isNaN(rate) || !isFinite(rate) || Math.abs(rate) > 10) return null;
+    return rate * 100;
+  } catch { return null; }
+}
+
+export default function Investments() {
+  const [investments, setInvestments] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+
+  // Add/Edit modal
+  const [formModal, setFormModal] = useState(false);
+  const [editId, setEditId] = useState<string | null>(null);
+  const [fName, setFName] = useState('');
+  const [fType, setFType] = useState('ppk');
+  const [fStartDate, setFStartDate] = useState(new Date().toISOString().split('T')[0]);
+  const [fCurrentValue, setFCurrentValue] = useState('');
+  const [fNotes, setFNotes] = useState('');
+  const [fCurrency, setFCurrency] = useState('PLN');
+  const [fGoal, setFGoal] = useState('');
+  const [fTaxBracket, setFTaxBracket] = useState(12);
+  const [fInitialPayments, setFInitialPayments] = useState<{ amount: string; date: string }[]>([{ amount: '', date: new Date().toISOString().split('T')[0] }]);
+  const [showGoalSuggestions, setShowGoalSuggestions] = useState(false);
+
+  // Payment modal
+  const [payModal, setPayModal] = useState(false);
+  const [payInvId, setPayInvId] = useState('');
+  const [payAmount, setPayAmount] = useState('');
+  const [payDate, setPayDate] = useState(new Date().toISOString().split('T')[0]);
+
+  // Value update modal
+  const [valueModal, setValueModal] = useState(false);
+  const [valueInvId, setValueInvId] = useState('');
+  const [valueAmount, setValueAmount] = useState('');
+
+  const fetch_ = async () => {
+    try {
+      const inv = await investmentsDB.getAll();
+      setInvestments(inv);
+    } catch (e) { console.error(e); } finally { setLoading(false); setRefreshing(false); }
+  };
+  useFocusEffect(useCallback(() => { fetch_(); }, []));
+
+  const allGoals = [...new Set(investments.map(i => i.goal).filter(Boolean))];
+
+  const openAddModal = () => {
+    setEditId(null); setFName(''); setFType('ppk'); setFStartDate(new Date().toISOString().split('T')[0]);
+    setFCurrentValue(''); setFNotes(''); setFCurrency('PLN'); setFGoal(''); setFTaxBracket(12);
+    setFInitialPayments([{ amount: '', date: new Date().toISOString().split('T')[0] }]);
+    setFormModal(true);
+  };
+
+  const openEditModal = (inv: any) => {
+    setEditId(inv.id); setFName(inv.name); setFType(inv.type); setFStartDate(inv.start_date || '');
+    setFCurrentValue(String(inv.current_value || '')); setFNotes(inv.notes || '');
+    setFCurrency(inv.currency || 'PLN'); setFGoal(inv.goal || ''); setFTaxBracket(inv.tax_bracket || 12);
+    setFInitialPayments([]);
+    setFormModal(true);
+  };
+
+  const handleSave = async () => {
+    if (!fName.trim()) { Alert.alert('Błąd', 'Podaj nazwę inwestycji'); return; }
+    const data: any = {
+      name: fName.trim(), type: fType, start_date: fStartDate, current_value: parseFloat(fCurrentValue) || 0,
+      notes: fNotes.trim(), currency: fCurrency, goal: fGoal.trim(), tax_bracket: fType === 'ikze' ? fTaxBracket : undefined,
+    };
+    if (editId) {
+      await investmentsDB.update(editId, data);
+    } else {
+      const validPayments = fInitialPayments.filter(p => parseFloat(p.amount) > 0);
+      data.payments = validPayments.map(p => ({ amount: parseFloat(p.amount), date: p.date, id: Date.now().toString() + Math.random().toString(36).slice(2) }));
+      data.total_paid = data.payments.reduce((s: number, p: any) => s + p.amount, 0);
+      await investmentsDB.create(data);
+    }
+    setFormModal(false); fetch_();
+  };
+
+  const handleAddPayment = async () => {
+    const amt = parseFloat(payAmount);
+    if (amt <= 0) { Alert.alert('Błąd', 'Podaj kwotę wpłaty'); return; }
+    await investmentsDB.addPayment(payInvId, { amount: amt, date: payDate });
+    setPayModal(false); fetch_();
+  };
+
+  const handleUpdateValue = async () => {
+    const val = parseFloat(valueAmount);
+    if (isNaN(val)) { Alert.alert('Błąd', 'Podaj aktualną wartość'); return; }
+    await investmentsDB.updateValue(valueInvId, val);
+    setValueModal(false); fetch_();
+  };
+
+  const handleDelete = (inv: any) => {
+    Alert.alert('Usuń inwestycję', `Czy na pewno chcesz usunąć "${inv.name}"?`, [
+      { text: 'Anuluj' },
+      { text: 'Usuń', style: 'destructive', onPress: async () => { await investmentsDB.delete(inv.id); fetch_(); } },
+    ]);
+  };
+
+  const handleRemovePayment = (investmentId: string, paymentId: string) => {
+    Alert.alert('Usuń wpłatę', 'Czy na pewno chcesz usunąć tę wpłatę?', [
+      { text: 'Anuluj' },
+      { text: 'Usuń', style: 'destructive', onPress: async () => { await investmentsDB.removePayment(investmentId, paymentId); fetch_(); } },
+    ]);
+  };
+
+  // Summaries
+  const totalPaid = investments.reduce((s, i) => s + (i.total_paid || 0), 0);
+  const totalValue = investments.reduce((s, i) => s + (i.current_value || 0), 0);
+  const totalPL = totalValue - totalPaid;
+  const totalPLPct = totalPaid > 0 ? (totalPL / totalPaid) * 100 : 0;
+
+  // By goal
+  const byGoal: Record<string, { paid: number; value: number }> = {};
+  investments.forEach(i => {
+    const g = (i.goal || '').trim().toLowerCase() || '(bez celu)';
+    if (!byGoal[g]) byGoal[g] = { paid: 0, value: 0 };
+    byGoal[g].paid += i.total_paid || 0;
+    byGoal[g].value += i.current_value || 0;
+  });
+
+  // IKE/IKZE yearly
+  const currentYear = new Date().getFullYear();
+  const ikePaymentsThisYear = investments.filter(i => i.type === 'ike').reduce((s, i) => {
+    return s + ((i.payments || []).filter((p: any) => new Date(p.date).getFullYear() === currentYear).reduce((ss: number, p: any) => ss + p.amount, 0));
+  }, 0);
+  const ikzePaymentsThisYear = investments.filter(i => i.type === 'ikze').reduce((s, i) => {
+    return s + ((i.payments || []).filter((p: any) => new Date(p.date).getFullYear() === currentYear).reduce((ss: number, p: any) => ss + p.amount, 0));
+  }, 0);
+  const hasIKE = investments.some(i => i.type === 'ike');
+  const hasIKZE = investments.some(i => i.type === 'ikze');
+
+  if (loading) return <View style={st.loading}><ActivityIndicator size="large" color="#D4AF37" /></View>;
+
+  const renderSummary = () => (
+    <View>
+      {/* Main summary */}
+      <View style={st.summaryCard}>
+        <Text style={st.summaryLabel}>Łącznie zainwestowano</Text>
+        <Text style={st.summaryBig}>{totalPaid.toFixed(2)} PLN</Text>
+        <View style={st.summaryRow}>
+          <View style={st.summaryCol}>
+            <Text style={st.summarySmLabel}>Aktualna wartość</Text>
+            <Text style={st.summarySmVal}>{totalValue.toFixed(2)} PLN</Text>
+          </View>
+          <View style={st.summaryCol}>
+            <Text style={st.summarySmLabel}>Zysk / Strata</Text>
+            <Text style={[st.summarySmVal, { color: totalPL >= 0 ? '#2C5F2D' : '#C62828' }]}>
+              {totalPL >= 0 ? '+' : ''}{totalPL.toFixed(2)} PLN ({totalPLPct >= 0 ? '+' : ''}{totalPLPct.toFixed(1)}%)
+            </Text>
+          </View>
+        </View>
+      </View>
+
+      {/* IKE limit */}
+      {hasIKE && (
+        <View style={st.limitCard}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+            <Ionicons name="umbrella" size={16} color="#2E7D32" />
+            <Text style={st.limitTitle}>IKE {currentYear} — limit roczny</Text>
+          </View>
+          <Text style={st.limitText}>Wpłacono w {currentYear}: {ikePaymentsThisYear.toFixed(0)} zł / {IKE_LIMIT_2026.toFixed(0)} zł ({((ikePaymentsThisYear / IKE_LIMIT_2026) * 100).toFixed(0)}%)</Text>
+          <View style={st.limitBar}>
+            <View style={[st.limitFill, { width: `${Math.min((ikePaymentsThisYear / IKE_LIMIT_2026) * 100, 100)}%`, backgroundColor: ikePaymentsThisYear >= IKE_LIMIT_2026 ? '#D4AF37' : '#2E7D32' }]} />
+          </View>
+          {ikePaymentsThisYear > IKE_LIMIT_2026 && <Text style={{ fontSize: 11, color: '#C62828', marginTop: 4 }}>Przekroczono limit roczny!</Text>}
+        </View>
+      )}
+
+      {/* IKZE limit + tax */}
+      {hasIKZE && (
+        <View style={st.limitCard}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+            <Ionicons name="umbrella" size={16} color="#6A1B9A" />
+            <Text style={st.limitTitle}>IKZE {currentYear} — limit roczny</Text>
+          </View>
+          <Text style={st.limitText}>Wpłacono w {currentYear}: {ikzePaymentsThisYear.toFixed(0)} zł / {IKZE_LIMIT_2026.toFixed(0)} zł ({((ikzePaymentsThisYear / IKZE_LIMIT_2026) * 100).toFixed(0)}%)</Text>
+          <View style={st.limitBar}>
+            <View style={[st.limitFill, { width: `${Math.min((ikzePaymentsThisYear / IKZE_LIMIT_2026) * 100, 100)}%`, backgroundColor: ikzePaymentsThisYear >= IKZE_LIMIT_2026 ? '#D4AF37' : '#6A1B9A' }]} />
+          </View>
+          {ikzePaymentsThisYear > IKZE_LIMIT_2026 && <Text style={{ fontSize: 11, color: '#C62828', marginTop: 4 }}>Przekroczono limit roczny!</Text>}
+          {(() => {
+            const avgBracket = investments.filter(i => i.type === 'ikze').reduce((s, i) => s + (i.tax_bracket || 12), 0) / Math.max(1, investments.filter(i => i.type === 'ikze').length);
+            const relief = Math.min(ikzePaymentsThisYear, IKZE_LIMIT_2026) * (avgBracket / 100);
+            return <Text style={{ fontSize: 12, color: '#6A1B9A', marginTop: 6, fontWeight: '600' }}>Szacowana ulga PIT: {relief.toFixed(0)} zł</Text>;
+          })()}
+        </View>
+      )}
+
+      {/* By goal */}
+      {Object.keys(byGoal).length > 0 && investments.some(i => i.goal) && (
+        <View style={st.goalSummary}>
+          <Text style={st.goalSummaryTitle}>Według celu</Text>
+          {Object.entries(byGoal).filter(([k]) => k !== '(bez celu)').map(([goal, data]) => (
+            <View key={goal} style={st.goalRow}>
+              <Text style={st.goalName}>{goal.charAt(0).toUpperCase() + goal.slice(1)}</Text>
+              <View style={{ alignItems: 'flex-end' }}>
+                <Text style={st.goalVal}>{data.value.toFixed(0)} PLN</Text>
+                <Text style={[st.goalPl, { color: data.value - data.paid >= 0 ? '#2C5F2D' : '#C62828' }]}>
+                  {data.value - data.paid >= 0 ? '+' : ''}{(data.value - data.paid).toFixed(0)} PLN
+                </Text>
+              </View>
+            </View>
+          ))}
+        </View>
+      )}
+    </View>
+  );
+
+  const renderItem = ({ item }: { item: any }) => {
+    const typeInfo = getTypeInfo(item.type);
+    const paid = item.total_paid || 0;
+    const value = item.current_value || 0;
+    const pl = value - paid;
+    const plPct = paid > 0 ? (pl / paid) * 100 : 0;
+    const isExpanded = expandedId === item.id;
+    const xirrVal = calcXIRR(item.payments, item.current_value);
+
+    return (
+      <View style={st.card}>
+        <TouchableOpacity style={st.cardHeader} onPress={() => setExpandedId(isExpanded ? null : item.id)} activeOpacity={0.7}>
+          <View style={[st.typeIcon, { backgroundColor: typeInfo.color + '20' }]}>
+            <Ionicons name={typeInfo.icon as any} size={22} color={typeInfo.color} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={st.invName}>{item.name}</Text>
+            <Text style={st.invType}>{typeInfo.label} {item.currency !== 'PLN' ? `• ${item.currency}` : ''}</Text>
+          </View>
+          <View style={{ alignItems: 'flex-end' }}>
+            <Text style={st.invValue}>{value.toFixed(2)} {item.currency || 'PLN'}</Text>
+            <Text style={[st.invPL, { color: pl >= 0 ? '#2C5F2D' : '#C62828' }]}>
+              {pl >= 0 ? '+' : ''}{pl.toFixed(2)} ({plPct >= 0 ? '+' : ''}{plPct.toFixed(1)}%)
+            </Text>
+          </View>
+        </TouchableOpacity>
+
+        <View style={st.statsRow}>
+          <View style={st.statItem}>
+            <Text style={st.statLabel}>Wpłacono</Text>
+            <Text style={st.statVal}>{paid.toFixed(2)}</Text>
+          </View>
+          <View style={st.statItem}>
+            <Text style={st.statLabel}>Wartość</Text>
+            <Text style={st.statVal}>{value.toFixed(2)}</Text>
+          </View>
+          <View style={st.statItem}>
+            <Text style={st.statLabel}>Zysk/Strata</Text>
+            <Text style={[st.statVal, { color: pl >= 0 ? '#2C5F2D' : '#C62828' }]}>{pl >= 0 ? '+' : ''}{pl.toFixed(0)}</Text>
+          </View>
+        </View>
+
+        {xirrVal !== null && (
+          <Text style={{ fontSize: 12, color: '#6B5D52', paddingHorizontal: 16, paddingBottom: 8 }}>
+            Roczna stopa zwrotu (XIRR): <Text style={{ fontWeight: '600', color: xirrVal >= 0 ? '#2C5F2D' : '#C62828' }}>{xirrVal.toFixed(1)}%</Text>
+          </Text>
+        )}
+
+        {/* IKZE tax info */}
+        {item.type === 'ikze' && (
+          <Text style={{ fontSize: 12, color: '#6A1B9A', paddingHorizontal: 16, paddingBottom: 8, fontWeight: '500' }}>
+            Próg podatkowy: {item.tax_bracket || 12}% • Ulga PIT: {(Math.min((item.payments || []).filter((p: any) => new Date(p.date).getFullYear() === currentYear).reduce((s: number, p: any) => s + p.amount, 0), IKZE_LIMIT_2026) * ((item.tax_bracket || 12) / 100)).toFixed(0)} zł
+          </Text>
+        )}
+
+        {item.goal ? <Text style={{ fontSize: 12, color: '#9B8B7E', paddingHorizontal: 16, paddingBottom: 8 }}>Cel: {item.goal}</Text> : null}
+
+        {/* Action buttons */}
+        <View style={st.actionRow}>
+          <TouchableOpacity style={st.actionBtn} onPress={() => { setPayInvId(item.id); setPayAmount(''); setPayDate(new Date().toISOString().split('T')[0]); setPayModal(true); }}>
+            <Ionicons name="add-circle" size={16} color="#D4AF37" />
+            <Text style={st.actionText}>Dodaj wpłatę</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={st.actionBtn} onPress={() => { setValueInvId(item.id); setValueAmount(String(item.current_value || '')); setValueModal(true); }}>
+            <Ionicons name="refresh" size={16} color="#1565C0" />
+            <Text style={[st.actionText, { color: '#1565C0' }]}>Aktualizuj</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={st.actionBtn} onPress={() => openEditModal(item)}>
+            <Ionicons name="create-outline" size={16} color="#6B5D52" />
+          </TouchableOpacity>
+          <TouchableOpacity style={st.actionBtn} onPress={() => handleDelete(item)}>
+            <Ionicons name="trash-outline" size={16} color="#800020" />
+          </TouchableOpacity>
+        </View>
+
+        {/* Payment history (expanded) */}
+        {isExpanded && (
+          <View style={st.historySection}>
+            <Text style={st.historyTitle}>Historia wpłat ({(item.payments || []).length})</Text>
+            {(item.payments || []).sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime()).map((p: any) => (
+              <View key={p.id} style={st.historyRow}>
+                <Text style={st.historyDate}>{new Date(p.date).toLocaleDateString('pl-PL')}</Text>
+                <Text style={st.historyAmt}>+{p.amount.toFixed(2)} {item.currency || 'PLN'}</Text>
+                <TouchableOpacity onPress={() => handleRemovePayment(item.id, p.id)}>
+                  <Ionicons name="close-circle" size={18} color="#C6282850" />
+                </TouchableOpacity>
+              </View>
+            ))}
+            {(!item.payments || item.payments.length === 0) && <Text style={st.historyEmpty}>Brak wpłat</Text>}
+          </View>
+        )}
+      </View>
+    );
+  };
+
+  return (
+    <View style={st.container}>
+      <View style={st.headerBar}>
+        <TouchableOpacity onPress={() => router.back()}><Ionicons name="arrow-back" size={24} color="#2A2520" /></TouchableOpacity>
+        <Text style={st.headerTitle}>Inwestycje</Text>
+        <View style={{ width: 24 }} />
+      </View>
+
+      <FlatList data={investments} keyExtractor={i => i.id}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); fetch_(); }} tintColor="#D4AF37" />}
+        ListHeaderComponent={investments.length > 0 ? renderSummary : null}
+        ListEmptyComponent={
+          <View style={st.empty}>
+            <Ionicons name="trending-up" size={64} color="#9B8B7E" />
+            <Text style={st.emptyText}>Brak inwestycji</Text>
+            <Text style={{ fontSize: 13, color: '#9B8B7E', marginBottom: 24, textAlign: 'center' }}>Dodaj swoje PPK, IKE, IKZE, akcje, obligacje i inne</Text>
+            <TouchableOpacity style={st.addEmptyBtn} onPress={openAddModal}><Text style={st.addEmptyBtnText}>Dodaj inwestycję</Text></TouchableOpacity>
+          </View>
+        }
+        renderItem={renderItem}
+        contentContainerStyle={st.list}
+      />
+      <TouchableOpacity style={st.fab} onPress={openAddModal}><Ionicons name="add" size={32} color="#FFF" /></TouchableOpacity>
+
+      {/* ===== ADD/EDIT MODAL ===== */}
+      <Modal visible={formModal} transparent animationType="slide">
+        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+          <View style={st.modalOverlay}>
+            <View style={[st.modalContent, { maxHeight: '85%' }]}>
+              <View style={st.modalHeader}>
+                <Text style={st.modalTitle}>{editId ? 'Edytuj inwestycję' : 'Nowa inwestycja'}</Text>
+                <TouchableOpacity onPress={() => setFormModal(false)}><Ionicons name="close" size={24} color="#2A2520" /></TouchableOpacity>
+              </View>
+              <ScrollView showsVerticalScrollIndicator={false}>
+                <Text style={st.inputLabel}>Nazwa *</Text>
+                <TextInput style={st.input} value={fName} onChangeText={setFName} placeholder="np. PPK - PZU, ETF SP500" placeholderTextColor="#9B8B7E" />
+
+                <Text style={st.inputLabel}>Typ inwestycji</Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }}>
+                  {INVESTMENT_TYPES.map(t => (
+                    <TouchableOpacity key={t.value} style={[st.typeChip, fType === t.value && { backgroundColor: getTypeInfo(t.value).color + '20', borderColor: getTypeInfo(t.value).color }]} onPress={() => setFType(t.value)}>
+                      <Ionicons name={t.icon as any} size={14} color={fType === t.value ? getTypeInfo(t.value).color : '#6B5D52'} />
+                      <Text style={[st.typeChipText, fType === t.value && { color: getTypeInfo(t.value).color, fontWeight: '600' }]}>{t.label}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+
+                {fType === 'ikze' && (
+                  <>
+                    <Text style={st.inputLabel}>Próg podatkowy</Text>
+                    <View style={{ flexDirection: 'row', gap: 8, marginBottom: 12 }}>
+                      {TAX_BRACKETS.map(tb => (
+                        <TouchableOpacity key={tb.value} style={[st.typeChip, fTaxBracket === tb.value && { backgroundColor: '#6A1B9A20', borderColor: '#6A1B9A' }]} onPress={() => setFTaxBracket(tb.value)}>
+                          <Text style={[st.typeChipText, fTaxBracket === tb.value && { color: '#6A1B9A', fontWeight: '600' }]}>{tb.label}</Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  </>
+                )}
+
+                <Text style={st.inputLabel}>Waluta</Text>
+                <View style={{ flexDirection: 'row', gap: 8, marginBottom: 12 }}>
+                  {CURRENCIES.map(c => (
+                    <TouchableOpacity key={c} style={[st.typeChip, fCurrency === c && { backgroundColor: '#D4AF3720', borderColor: '#D4AF37' }]} onPress={() => setFCurrency(c)}>
+                      <Text style={[st.typeChipText, fCurrency === c && { color: '#D4AF37', fontWeight: '600' }]}>{c}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+
+                <Text style={st.inputLabel}>Data rozpoczęcia</Text>
+                <TextInput style={st.input} value={fStartDate} onChangeText={t => setFStartDate(formatDateAuto(t))} placeholder="RRRR-MM-DD" placeholderTextColor="#9B8B7E" maxLength={10} keyboardType="numeric" />
+
+                <Text style={st.inputLabel}>Aktualna wartość</Text>
+                <TextInput style={st.input} value={fCurrentValue} onChangeText={v => setFCurrentValue(v.replace(',', '.'))} placeholder="0.00" placeholderTextColor="#9B8B7E" keyboardType="numeric" />
+
+                <Text style={st.inputLabel}>Cel inwestycyjny (opcjonalnie)</Text>
+                <TextInput style={st.input} value={fGoal} onChangeText={t => { setFGoal(t); setShowGoalSuggestions(t.length > 0); }} placeholder="np. Studia Wiki, Emerytura" placeholderTextColor="#9B8B7E" />
+                {showGoalSuggestions && allGoals.filter(g => g.toLowerCase().includes(fGoal.toLowerCase()) && g.toLowerCase() !== fGoal.toLowerCase()).length > 0 && (
+                  <View style={st.suggestBox}>
+                    {allGoals.filter(g => g.toLowerCase().includes(fGoal.toLowerCase()) && g.toLowerCase() !== fGoal.toLowerCase()).map(g => (
+                      <TouchableOpacity key={g} style={st.suggestItem} onPress={() => { setFGoal(g); setShowGoalSuggestions(false); }}>
+                        <Text style={st.suggestText}>{g}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                )}
+
+                <Text style={st.inputLabel}>Notatki (opcjonalnie)</Text>
+                <TextInput style={[st.input, { height: 60, textAlignVertical: 'top' }]} value={fNotes} onChangeText={setFNotes} placeholder="Dodatkowe informacje..." placeholderTextColor="#9B8B7E" multiline />
+
+                {/* Initial payments (only for new) */}
+                {!editId && (
+                  <>
+                    <Text style={[st.inputLabel, { marginTop: 8 }]}>Wpłaty</Text>
+                    {fInitialPayments.map((p, idx) => (
+                      <View key={idx} style={{ flexDirection: 'row', gap: 8, marginBottom: 8 }}>
+                        <TextInput style={[st.input, { flex: 1, marginBottom: 0 }]} value={p.amount} onChangeText={v => {
+                          const arr = [...fInitialPayments]; arr[idx].amount = v.replace(',', '.'); setFInitialPayments(arr);
+                        }} placeholder="Kwota" placeholderTextColor="#9B8B7E" keyboardType="numeric" />
+                        <TextInput style={[st.input, { flex: 1, marginBottom: 0 }]} value={p.date} onChangeText={v => {
+                          const arr = [...fInitialPayments]; arr[idx].date = formatDateAuto(v); setFInitialPayments(arr);
+                        }} placeholder="RRRR-MM-DD" placeholderTextColor="#9B8B7E" maxLength={10} keyboardType="numeric" />
+                        {fInitialPayments.length > 1 && (
+                          <TouchableOpacity onPress={() => setFInitialPayments(fInitialPayments.filter((_, i) => i !== idx))} style={{ justifyContent: 'center' }}>
+                            <Ionicons name="close-circle" size={22} color="#C62828" />
+                          </TouchableOpacity>
+                        )}
+                      </View>
+                    ))}
+                    <TouchableOpacity style={st.addPayRow} onPress={() => setFInitialPayments([...fInitialPayments, { amount: '', date: new Date().toISOString().split('T')[0] }])}>
+                      <Ionicons name="add" size={16} color="#D4AF37" />
+                      <Text style={{ color: '#D4AF37', fontWeight: '600', fontSize: 13 }}>Dodaj kolejną wpłatę</Text>
+                    </TouchableOpacity>
+                  </>
+                )}
+
+                <TouchableOpacity style={st.submitBtn} onPress={handleSave}>
+                  <Text style={st.submitBtnText}>{editId ? 'Zapisz zmiany' : 'Dodaj inwestycję'}</Text>
+                </TouchableOpacity>
+                <View style={{ height: 20 }} />
+              </ScrollView>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+
+      {/* ===== ADD PAYMENT MODAL ===== */}
+      <Modal visible={payModal} transparent animationType="slide">
+        <View style={st.modalOverlay}>
+          <View style={st.modalContent}>
+            <View style={st.modalHeader}>
+              <Text style={st.modalTitle}>Dodaj wpłatę</Text>
+              <TouchableOpacity onPress={() => setPayModal(false)}><Ionicons name="close" size={24} color="#2A2520" /></TouchableOpacity>
+            </View>
+            <Text style={st.inputLabel}>Kwota</Text>
+            <TextInput style={st.input} value={payAmount} onChangeText={v => setPayAmount(v.replace(',', '.'))} placeholder="0.00" placeholderTextColor="#9B8B7E" keyboardType="numeric" />
+            <Text style={st.inputLabel}>Data wpłaty</Text>
+            <TextInput style={st.input} value={payDate} onChangeText={t => setPayDate(formatDateAuto(t))} placeholder="RRRR-MM-DD" placeholderTextColor="#9B8B7E" maxLength={10} keyboardType="numeric" />
+            <TouchableOpacity style={st.submitBtn} onPress={handleAddPayment}>
+              <Text style={st.submitBtnText}>Dodaj wpłatę</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ===== UPDATE VALUE MODAL ===== */}
+      <Modal visible={valueModal} transparent animationType="slide">
+        <View style={st.modalOverlay}>
+          <View style={st.modalContent}>
+            <View style={st.modalHeader}>
+              <Text style={st.modalTitle}>Aktualizuj wartość</Text>
+              <TouchableOpacity onPress={() => setValueModal(false)}><Ionicons name="close" size={24} color="#2A2520" /></TouchableOpacity>
+            </View>
+            <Text style={st.inputLabel}>Aktualna wartość</Text>
+            <TextInput style={st.input} value={valueAmount} onChangeText={v => setValueAmount(v.replace(',', '.'))} placeholder="0.00" placeholderTextColor="#9B8B7E" keyboardType="numeric" />
+            <TouchableOpacity style={st.submitBtn} onPress={handleUpdateValue}>
+              <Text style={st.submitBtnText}>Zapisz</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+    </View>
+  );
+}
+
+const st = StyleSheet.create({
+  container: { flex: 1, backgroundColor: '#FAF8F3' },
+  loading: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#FAF8F3' },
+  headerBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 20, paddingTop: 60 },
+  headerTitle: { fontSize: 20, fontWeight: '600', color: '#2A2520' },
+  list: { padding: 20, paddingTop: 0, paddingBottom: 100 },
+  empty: { alignItems: 'center', paddingTop: 80 },
+  emptyText: { fontSize: 18, fontWeight: '600', color: '#2A2520', marginTop: 16, marginBottom: 8 },
+  addEmptyBtn: { backgroundColor: '#D4AF37', paddingHorizontal: 24, paddingVertical: 12, borderRadius: 12 },
+  addEmptyBtnText: { color: '#FFF', fontSize: 16, fontWeight: '600' },
+  fab: { position: 'absolute', right: 20, bottom: 100, width: 60, height: 60, borderRadius: 30, backgroundColor: '#D4AF37', alignItems: 'center', justifyContent: 'center', elevation: 5 },
+
+  summaryCard: { backgroundColor: '#FFF', padding: 20, borderRadius: 16, marginHorizontal: 0, marginBottom: 12, borderWidth: 1, borderColor: '#D4AF3730' },
+  summaryLabel: { fontSize: 13, color: '#9B8B7E', textTransform: 'uppercase', letterSpacing: 0.5 },
+  summaryBig: { fontSize: 28, fontWeight: 'bold', color: '#2A2520', marginTop: 4, marginBottom: 16 },
+  summaryRow: { flexDirection: 'row', gap: 16 },
+  summaryCol: { flex: 1 },
+  summarySmLabel: { fontSize: 12, color: '#9B8B7E', marginBottom: 2 },
+  summarySmVal: { fontSize: 15, fontWeight: '600', color: '#2A2520' },
+
+  limitCard: { backgroundColor: '#FFF', padding: 16, borderRadius: 12, marginBottom: 12 },
+  limitTitle: { fontSize: 13, fontWeight: '600', color: '#2A2520' },
+  limitText: { fontSize: 12, color: '#6B5D52', marginTop: 8 },
+  limitBar: { height: 6, backgroundColor: '#E0D5C7', borderRadius: 3, marginTop: 8 },
+  limitFill: { height: 6, borderRadius: 3 },
+
+  goalSummary: { backgroundColor: '#FFF', padding: 16, borderRadius: 12, marginBottom: 12 },
+  goalSummaryTitle: { fontSize: 13, fontWeight: '600', color: '#9B8B7E', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 12 },
+  goalRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: '#F5F1E8' },
+  goalName: { fontSize: 14, color: '#2A2520', fontWeight: '500' },
+  goalVal: { fontSize: 14, fontWeight: '600', color: '#2A2520' },
+  goalPl: { fontSize: 12 },
+
+  card: { backgroundColor: '#FFF', borderRadius: 16, marginBottom: 12, overflow: 'hidden' },
+  cardHeader: { flexDirection: 'row', alignItems: 'center', padding: 16, gap: 12 },
+  typeIcon: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
+  invName: { fontSize: 16, fontWeight: '600', color: '#2A2520', marginBottom: 2 },
+  invType: { fontSize: 12, color: '#9B8B7E' },
+  invValue: { fontSize: 15, fontWeight: '700', color: '#2A2520' },
+  invPL: { fontSize: 12, fontWeight: '600' },
+
+  statsRow: { flexDirection: 'row', paddingHorizontal: 16, paddingBottom: 12, gap: 8 },
+  statItem: { flex: 1, backgroundColor: '#FAF8F3', padding: 8, borderRadius: 8, alignItems: 'center' },
+  statLabel: { fontSize: 10, color: '#9B8B7E', marginBottom: 2 },
+  statVal: { fontSize: 13, fontWeight: '600', color: '#2A2520' },
+
+  actionRow: { flexDirection: 'row', borderTopWidth: 1, borderTopColor: '#F5F1E8', paddingHorizontal: 8 },
+  actionBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingVertical: 12, paddingHorizontal: 10 },
+  actionText: { fontSize: 12, fontWeight: '600', color: '#D4AF37' },
+
+  historySection: { padding: 16, backgroundColor: '#FAF8F320', borderTopWidth: 1, borderTopColor: '#F5F1E8' },
+  historyTitle: { fontSize: 13, fontWeight: '600', color: '#2A2520', marginBottom: 8 },
+  historyRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 6 },
+  historyDate: { fontSize: 13, color: '#6B5D52', flex: 1 },
+  historyAmt: { fontSize: 13, fontWeight: '600', color: '#2C5F2D', marginRight: 8 },
+  historyEmpty: { fontSize: 13, color: '#9B8B7E', fontStyle: 'italic' },
+
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
+  modalContent: { backgroundColor: '#FAF8F3', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24 },
+  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
+  modalTitle: { fontSize: 18, fontWeight: '600', color: '#2A2520' },
+  inputLabel: { fontSize: 13, fontWeight: '600', color: '#2A2520', marginBottom: 6 },
+  input: { backgroundColor: '#FFF', borderRadius: 12, padding: 14, fontSize: 16, color: '#2A2520', borderWidth: 1, borderColor: '#E0D5C7', marginBottom: 12 },
+  typeChip: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20, backgroundColor: '#F5F1E8', marginRight: 8, borderWidth: 1, borderColor: 'transparent' },
+  typeChipText: { fontSize: 12, color: '#6B5D52' },
+  submitBtn: { backgroundColor: '#D4AF37', borderRadius: 12, paddingVertical: 14, alignItems: 'center', marginTop: 8 },
+  submitBtnText: { color: '#FFF', fontSize: 16, fontWeight: '700' },
+  addPayRow: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 10, justifyContent: 'center' },
+  suggestBox: { backgroundColor: '#FFF', borderRadius: 8, borderWidth: 1, borderColor: '#E0D5C7', marginTop: -8, marginBottom: 12 },
+  suggestItem: { paddingVertical: 10, paddingHorizontal: 14, borderBottomWidth: 1, borderBottomColor: '#F5F1E8' },
+  suggestText: { fontSize: 14, color: '#2A2520' },
+});

@@ -14,6 +14,7 @@ const STORAGE_KEYS = {
   DARK_MODE: '@budget_ani_dark_mode',
   INITIALIZED: '@budget_ani_initialized',
   PLANS: '@budget_ani_plans',
+  INVESTMENTS: '@budzetani_investments',
 };
 
 // Helper function to generate UUID
@@ -603,6 +604,55 @@ export const savingsGoalsDB = {
   delete: async (id: string) => {
     const goals = await getItems(STORAGE_KEYS.SAVINGS_GOALS);
     await setItems(STORAGE_KEYS.SAVINGS_GOALS, goals.filter((g: any) => g.id !== id));
+  },
+};
+
+// Investments
+export const investmentsDB = {
+  getAll: async () => {
+    return await getItems(STORAGE_KEYS.INVESTMENTS);
+  },
+  create: async (investment: any) => {
+    const items = await getItems(STORAGE_KEYS.INVESTMENTS);
+    const id = await generateId();
+    items.push({ ...investment, id, payments: investment.payments || [], created_at: new Date().toISOString() });
+    await setItems(STORAGE_KEYS.INVESTMENTS, items);
+    return id;
+  },
+  update: async (id: string, data: any) => {
+    const items = await getItems(STORAGE_KEYS.INVESTMENTS);
+    const index = items.findIndex((i: any) => i.id === id);
+    if (index !== -1) { items[index] = { ...items[index], ...data }; await setItems(STORAGE_KEYS.INVESTMENTS, items); }
+  },
+  delete: async (id: string) => {
+    const items = await getItems(STORAGE_KEYS.INVESTMENTS);
+    await setItems(STORAGE_KEYS.INVESTMENTS, items.filter((i: any) => i.id !== id));
+  },
+  addPayment: async (id: string, payment: any) => {
+    const items = await getItems(STORAGE_KEYS.INVESTMENTS);
+    const index = items.findIndex((i: any) => i.id === id);
+    if (index !== -1) {
+      if (!items[index].payments) items[index].payments = [];
+      const paymentId = await generateId();
+      items[index].payments.push({ ...payment, id: paymentId });
+      items[index].total_paid = (items[index].payments || []).reduce((s: number, p: any) => s + (p.amount || 0), 0);
+      await setItems(STORAGE_KEYS.INVESTMENTS, items);
+      return paymentId;
+    }
+  },
+  removePayment: async (investmentId: string, paymentId: string) => {
+    const items = await getItems(STORAGE_KEYS.INVESTMENTS);
+    const index = items.findIndex((i: any) => i.id === investmentId);
+    if (index !== -1 && items[index].payments) {
+      items[index].payments = items[index].payments.filter((p: any) => p.id !== paymentId);
+      items[index].total_paid = items[index].payments.reduce((s: number, p: any) => s + (p.amount || 0), 0);
+      await setItems(STORAGE_KEYS.INVESTMENTS, items);
+    }
+  },
+  updateValue: async (id: string, currentValue: number) => {
+    const items = await getItems(STORAGE_KEYS.INVESTMENTS);
+    const index = items.findIndex((i: any) => i.id === id);
+    if (index !== -1) { items[index].current_value = currentValue; items[index].value_updated_at = new Date().toISOString(); await setItems(STORAGE_KEYS.INVESTMENTS, items); }
   },
 };
 
