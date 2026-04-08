@@ -20,6 +20,7 @@ const INVESTMENT_TYPES = [
 ];
 const PPK_SOURCES = [
   { value: 'own', label: 'Wpłata własna (pracownika)' },
+  { value: 'own_additional', label: 'Wpłata dodatkowa (pracownika)' },
   { value: 'employer', label: 'Wpłata pracodawcy' },
   { value: 'state_annual', label: 'Dopłata roczna od państwa' },
   { value: 'state_welcome', label: 'Wpłata powitalna od państwa' },
@@ -89,6 +90,11 @@ export default function Investments() {
   const [payAmount, setPayAmount] = useState('');
   const [payDate, setPayDate] = useState(today());
   const [paySource, setPaySource] = useState('own');
+  // PPK multi-field
+  const [ppkOwn, setPpkOwn] = useState('');
+  const [ppkOwnAdd, setPpkOwnAdd] = useState('');
+  const [ppkEmployer, setPpkEmployer] = useState('');
+  const [ppkState, setPpkState] = useState('');
 
   const [valueModal, setValueModal] = useState(false);
   const [valueInvId, setValueInvId] = useState('');
@@ -132,9 +138,20 @@ export default function Investments() {
     setFormModal(false); fetch_();
   };
   const handleAddPayment = async () => {
-    const amt = parseFloat(payAmount);
-    if (amt <= 0) { Alert.alert('Błąd', 'Podaj kwotę wpłaty'); return; }
-    await investmentsDB.addPayment(payInvId, { amount: amt, date: payDate, source: payInvType === 'ppk' ? paySource : 'own' });
+    if (payInvType === 'ppk') {
+      const entries = [
+        { amount: parseFloat(ppkOwn) || 0, source: 'own' },
+        { amount: parseFloat(ppkOwnAdd) || 0, source: 'own_additional' },
+        { amount: parseFloat(ppkEmployer) || 0, source: 'employer' },
+        { amount: parseFloat(ppkState) || 0, source: 'state_annual' },
+      ].filter(e => e.amount > 0);
+      if (entries.length === 0) { Alert.alert('Błąd', 'Podaj kwotę przynajmniej jednej wpłaty'); return; }
+      for (const e of entries) { await investmentsDB.addPayment(payInvId, { amount: e.amount, date: payDate, source: e.source }); }
+    } else {
+      const amt = parseFloat(payAmount);
+      if (amt <= 0) { Alert.alert('Błąd', 'Podaj kwotę wpłaty'); return; }
+      await investmentsDB.addPayment(payInvId, { amount: amt, date: payDate, source: 'own' });
+    }
     setPayModal(false); fetch_();
   };
   const handleUpdateValue = async () => {
@@ -152,8 +169,8 @@ export default function Investments() {
   const totalPL = totalValue - totalPaid;
   const totalPLPct = totalPaid > 0 ? (totalPL / totalPaid) * 100 : 0;
 
-  // From others (employer + state)
-  const totalFromOthers = investments.reduce((s, i) => s + ((i.payments || []).filter((p: any) => p.source && p.source !== 'own').reduce((ss: number, p: any) => ss + p.amount, 0)), 0);
+  // From others (employer + state) — own_additional is still "yours"
+  const totalFromOthers = investments.reduce((s, i) => s + ((i.payments || []).filter((p: any) => p.source && p.source !== 'own' && p.source !== 'own_additional').reduce((ss: number, p: any) => ss + p.amount, 0)), 0);
 
   // By goal
   const byGoal: Record<string, { paid: number; value: number }> = {};
@@ -268,9 +285,11 @@ export default function Investments() {
 
     // PPK breakdown
     const ownPaid = payments.filter((p: any) => !p.source || p.source === 'own').reduce((s: number, p: any) => s + p.amount, 0);
+    const ownAddPaid = payments.filter((p: any) => p.source === 'own_additional').reduce((s: number, p: any) => s + p.amount, 0);
     const employerPaid = payments.filter((p: any) => p.source === 'employer').reduce((s: number, p: any) => s + p.amount, 0);
     const statePaid = payments.filter((p: any) => p.source === 'state_annual' || p.source === 'state_welcome').reduce((s: number, p: any) => s + p.amount, 0);
-    const ownReturnPct = ownPaid > 0 ? ((val - ownPaid) / ownPaid) * 100 : 0;
+    const totalOwnPaid = ownPaid + ownAddPaid;
+    const ownReturnPct = totalOwnPaid > 0 ? ((val - totalOwnPaid) / totalOwnPaid) * 100 : 0;
 
     return (
       <View style={st.card}>
@@ -291,10 +310,12 @@ export default function Investments() {
         {/* PPK breakdown */}
         {item.type === 'ppk' && paid > 0 && (
           <View style={{ paddingHorizontal: 16, paddingBottom: 8 }}>
-            <View style={st.ppkRow}><Text style={st.ppkLabel}>Twoje wpłaty:</Text><Text style={st.ppkVal}>{ownPaid.toFixed(0)} zł</Text></View>
+            <View style={st.ppkRow}><Text style={st.ppkLabel}>Twoje wpłaty (podstawowe):</Text><Text style={st.ppkVal}>{ownPaid.toFixed(0)} zł</Text></View>
+            {ownAddPaid > 0 && <View style={st.ppkRow}><Text style={st.ppkLabel}>Twoje wpłaty (dodatkowe):</Text><Text style={st.ppkVal}>{ownAddPaid.toFixed(0)} zł</Text></View>}
             {employerPaid > 0 && <View style={st.ppkRow}><Text style={st.ppkLabel}>Pracodawca:</Text><Text style={st.ppkVal}>{employerPaid.toFixed(0)} zł</Text></View>}
             {statePaid > 0 && <View style={st.ppkRow}><Text style={st.ppkLabel}>Państwo:</Text><Text style={st.ppkVal}>{statePaid.toFixed(0)} zł</Text></View>}
-            {ownPaid > 0 && <Text style={{ fontSize: 12, color: ownReturnPct >= 0 ? '#2C5F2D' : '#C62828', fontWeight: '600', marginTop: 4 }}>Zwrot z Twojej wpłaty: {ownReturnPct >= 0 ? '+' : ''}{ownReturnPct.toFixed(1)}%</Text>}
+            <View style={[st.ppkRow, { borderTopWidth: 1, borderTopColor: '#F5F1E8', marginTop: 4, paddingTop: 4 }]}><Text style={[st.ppkLabel, { fontWeight: '600' }]}>ŁĄCZNIE:</Text><Text style={[st.ppkVal, { fontWeight: '700' }]}>{paid.toFixed(0)} zł</Text></View>
+            {totalOwnPaid > 0 && <Text style={{ fontSize: 12, color: ownReturnPct >= 0 ? '#2C5F2D' : '#C62828', fontWeight: '600', marginTop: 4 }}>Zwrot z Twojej wpłaty: {ownReturnPct >= 0 ? '+' : ''}{ownReturnPct.toFixed(1)}%</Text>}
           </View>
         )}
 
@@ -325,7 +346,7 @@ export default function Investments() {
         {item.goal ? <Text style={{ fontSize: 12, color: '#9B8B7E', paddingHorizontal: 16, paddingBottom: 8 }}>Cel: {item.goal}</Text> : null}
 
         <View style={st.actionRow}>
-          <TouchableOpacity style={st.actionBtn} onPress={() => { setPayInvId(item.id); setPayInvType(item.type); setPayAmount(''); setPayDate(today()); setPaySource('own'); setPayModal(true); }}>
+          <TouchableOpacity style={st.actionBtn} onPress={() => { setPayInvId(item.id); setPayInvType(item.type); setPayAmount(''); setPayDate(today()); setPaySource('own'); setPpkOwn(''); setPpkOwnAdd(''); setPpkEmployer(''); setPpkState(''); setPayModal(true); }}>
             <Ionicons name="add-circle" size={16} color="#D4AF37" /><Text style={st.actionText}>Wpłata</Text>
           </TouchableOpacity>
           <TouchableOpacity style={st.actionBtn} onPress={() => { setValueInvId(item.id); setValueAmount(String(item.current_value || '')); setValueModal(true); }}>
@@ -443,20 +464,27 @@ export default function Investments() {
 
       {/* === ADD PAYMENT MODAL === */}
       <Modal visible={payModal} transparent animationType="slide">
+        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
         <View style={st.modalOverlay}><View style={st.modalContent}>
           <View style={st.modalHeader}><Text style={st.modalTitle}>Dodaj wpłatę</Text><TouchableOpacity onPress={() => setPayModal(false)}><Ionicons name="close" size={24} color="#2A2520" /></TouchableOpacity></View>
-          <Text style={st.inputLabel}>Kwota</Text>
-          <TextInput style={st.input} value={payAmount} onChangeText={v => setPayAmount(v.replace(',', '.'))} placeholder="0.00" placeholderTextColor="#9B8B7E" keyboardType="numeric" />
           <Text style={st.inputLabel}>Data wpłaty</Text>
           <TextInput style={st.input} value={payDate} onChangeText={t => setPayDate(fmtDate(t))} placeholder="RRRR-MM-DD" placeholderTextColor="#9B8B7E" maxLength={10} keyboardType="numeric" />
-          {payInvType === 'ppk' && (<>
-            <Text style={st.inputLabel}>Źródło wpłaty</Text>
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 12 }}>
-              {PPK_SOURCES.map(s => (<TouchableOpacity key={s.value} style={[st.chip, paySource === s.value && { backgroundColor: '#1565C020', borderColor: '#1565C0' }]} onPress={() => setPaySource(s.value)}><Text style={[st.chipText, paySource === s.value && { color: '#1565C0', fontWeight: '600' }]}>{s.label}</Text></TouchableOpacity>))}
-            </View>
+          {payInvType === 'ppk' ? (<>
+            <Text style={st.inputLabel}>Wpłata pracownika (podstawowa)</Text>
+            <TextInput style={st.input} value={ppkOwn} onChangeText={v => setPpkOwn(v.replace(',', '.'))} placeholder="0.00" placeholderTextColor="#9B8B7E" keyboardType="numeric" />
+            <Text style={st.inputLabel}>Wpłata dodatkowa pracownika</Text>
+            <TextInput style={st.input} value={ppkOwnAdd} onChangeText={v => setPpkOwnAdd(v.replace(',', '.'))} placeholder="0.00" placeholderTextColor="#9B8B7E" keyboardType="numeric" />
+            <Text style={st.inputLabel}>Wpłata pracodawcy</Text>
+            <TextInput style={st.input} value={ppkEmployer} onChangeText={v => setPpkEmployer(v.replace(',', '.'))} placeholder="0.00" placeholderTextColor="#9B8B7E" keyboardType="numeric" />
+            <Text style={st.inputLabel}>Dopłata od państwa</Text>
+            <TextInput style={st.input} value={ppkState} onChangeText={v => setPpkState(v.replace(',', '.'))} placeholder="0.00" placeholderTextColor="#9B8B7E" keyboardType="numeric" />
+          </>) : (<>
+            <Text style={st.inputLabel}>Kwota</Text>
+            <TextInput style={st.input} value={payAmount} onChangeText={v => setPayAmount(v.replace(',', '.'))} placeholder="0.00" placeholderTextColor="#9B8B7E" keyboardType="numeric" />
           </>)}
           <TouchableOpacity style={st.submitBtn} onPress={handleAddPayment}><Text style={st.submitBtnText}>Dodaj wpłatę</Text></TouchableOpacity>
         </View></View>
+        </KeyboardAvoidingView>
       </Modal>
 
       {/* === UPDATE VALUE MODAL === */}
