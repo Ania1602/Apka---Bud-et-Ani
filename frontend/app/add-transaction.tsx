@@ -9,6 +9,8 @@ import {
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
+  Alert,
+  Modal,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -41,6 +43,13 @@ export default function AddTransaction() {
   const [lastAddedId, setLastAddedId] = useState<string | null>(null);
   const [manualAccountSelected, setManualAccountSelected] = useState(!!params.account_id);
   const [budgets, setBudgets] = useState<any[]>([]);
+  // Category/subcategory creation modals (change 2)
+  const [catModalVisible, setCatModalVisible] = useState(false);
+  const [newCatName, setNewCatName] = useState('');
+  const [newCatColor, setNewCatColor] = useState('#D4AF37');
+  const [subModalVisible, setSubModalVisible] = useState(false);
+  const [newSubName, setNewSubName] = useState('');
+  const CAT_COLORS = ['#D4AF37', '#800020', '#2C5F2D', '#1E5F8B', '#C2410C', '#7C3AED', '#9B8B7E', '#2A2520'];
 
   useEffect(() => {
     fetchData();
@@ -316,14 +325,17 @@ export default function AddTransaction() {
                   </Text>
                 </TouchableOpacity>
               ))}
+              <TouchableOpacity style={[styles.categoryChip, { borderWidth: 1, borderColor: '#D4AF37', borderStyle: 'dashed' }]} onPress={() => { setNewCatName(''); setNewCatColor('#D4AF37'); setCatModalVisible(true); }}>
+                <Text style={{ color: '#D4AF37', fontSize: 13, fontWeight: '600' }}>+ Nowa</Text>
+              </TouchableOpacity>
             </ScrollView>
           </View>
 
           {/* Subcategory picker */}
           {(() => {
             const selectedCat = categories.find(c => c.name === category);
+            if (!selectedCat) return null;
             const subs = selectedCat?.subcategories || [];
-            if (subs.length === 0) return null;
             return (
               <View style={styles.field}>
                 <Text style={styles.label}>Podkategoria (opcjonalnie)</Text>
@@ -343,6 +355,9 @@ export default function AddTransaction() {
                       <Text style={[styles.subChipText, subcategory === sub.name && styles.subChipTextActive]}>{sub.name}</Text>
                     </TouchableOpacity>
                   ))}
+                  <TouchableOpacity style={[styles.subChip, { borderWidth: 1, borderColor: '#2C5F2D', borderStyle: 'dashed' }]} onPress={() => { setNewSubName(''); setSubModalVisible(true); }}>
+                    <Text style={{ color: '#2C5F2D', fontSize: 12, fontWeight: '600' }}>+ Nowa</Text>
+                  </TouchableOpacity>
                 </ScrollView>
               </View>
             );
