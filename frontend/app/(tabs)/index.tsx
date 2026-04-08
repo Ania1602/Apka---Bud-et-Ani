@@ -15,13 +15,16 @@ import { PieChart } from 'react-native-gifted-charts';
 import { format } from 'date-fns';
 import { pl } from 'date-fns/locale';
 import * as Notifications from 'expo-notifications';
-import { initDatabase, getDashboardStats, transactionsDB, creditsDB, accountsDB, budgetsDB } from '../../lib/database';
+import { initDatabase, getDashboardStats, transactionsDB, creditsDB, accountsDB, budgetsDB, plansDB } from '../../lib/database';
 
 export default function Dashboard() {
   const [stats, setStats] = useState<any>(null);
   const [transactions, setTransactions] = useState<any[]>([]);
   const [credits, setCredits] = useState<any[]>([]);
   const [accounts, setAccounts] = useState<any[]>([]);
+  const [allTx, setAllTx] = useState<any[]>([]);
+  const [budgets, setBudgets] = useState<any[]>([]);
+  const [plans, setPlans] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
@@ -52,17 +55,22 @@ export default function Dashboard() {
       const now = new Date();
       const currentMonth = now.getMonth() + 1;
       const currentYear = now.getFullYear();
-      const [statsData, transactionsData, creditsData, accountsData, budgetsData] = await Promise.all([
+      const [statsData, transactionsData, creditsData, accountsData, budgetsData, allTxData, plansData] = await Promise.all([
         getDashboardStats(selectedMonth, selectedYear),
         transactionsDB.getAll(5),
         creditsDB.getAll(),
         accountsDB.getAll(),
         budgetsDB.getAll(currentMonth, currentYear),
+        transactionsDB.getAll(),
+        plansDB.getByMonth(currentMonth, currentYear),
       ]);
       setStats(statsData);
       setTransactions(transactionsData);
       setCredits(creditsData);
       setAccounts(accountsData);
+      setAllTx(allTxData);
+      setBudgets(budgetsData);
+      setPlans(plansData ? [plansData] : []);
 
       // Update badge with current month data
       const currentStats = (selectedMonth === currentMonth && selectedYear === currentYear) 
@@ -175,6 +183,71 @@ export default function Dashboard() {
           </View>
         </View>
       )}
+
+      {/* Three key numbers (change 6) */}
+      {(() => {
+        const now = new Date();
+        const curMonth = now.getMonth() + 1;
+        const curYear = now.getFullYear();
+        // This week (from Monday)
+        const monday = new Date(now); monday.setDate(now.getDate() - ((now.getDay() + 6) % 7)); monday.setHours(0,0,0,0);
+        const weekExp = allTx.filter((t: any) => t.type === 'expense' && !t.is_transfer && !t.is_limit_refund && new Date(t.date) >= monday).reduce((s: number, t: any) => s + t.amount, 0);
+        // This month
+        const monthStart = new Date(curYear, curMonth - 1, 1);
+        const monthExp = allTx.filter((t: any) => t.type === 'expense' && !t.is_transfer && !t.is_limit_refund && new Date(t.date) >= monthStart && new Date(t.date).getMonth() + 1 === curMonth).reduce((s: number, t: any) => s + t.amount, 0);
+        // Remaining budget
+        const totalBudget = budgets.reduce((s: number, b: any) => s + (b.amount || b.limit || 0), 0);
+        const budgetCats = budgets.flatMap((b: any) => b.categories || [b.category]);
+        const budgetExp = allTx.filter((t: any) => t.type === 'expense' && !t.is_transfer && !t.is_limit_refund && budgetCats.includes(t.category) && new Date(t.date) >= monthStart && new Date(t.date).getMonth() + 1 === curMonth).reduce((s: number, t: any) => s + t.amount, 0);
+        const remaining = totalBudget > 0 ? totalBudget - budgetExp : null;
+        return (
+          <View style={{ flexDirection: 'row', marginHorizontal: 20, marginBottom: 12, gap: 8 }}>
+            <TouchableOpacity style={{ flex: 1, backgroundColor: '#FFF', borderRadius: 12, padding: 12, alignItems: 'center' }} onPress={() => router.push('/(tabs)/transactions')}>
+              <Text style={{ fontSize: 11, color: '#9B8B7E', textTransform: 'uppercase' }}>Ten tydzień</Text>
+              <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#800020', marginTop: 4 }}>-{weekExp.toFixed(0)} zł</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={{ flex: 1, backgroundColor: '#FFF', borderRadius: 12, padding: 12, alignItems: 'center' }} onPress={() => router.push('/(tabs)/stats')}>
+              <Text style={{ fontSize: 11, color: '#9B8B7E', textTransform: 'uppercase' }}>Ten miesiąc</Text>
+              <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#800020', marginTop: 4 }}>-{monthExp.toFixed(0)} zł</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={{ flex: 1, backgroundColor: '#FFF', borderRadius: 12, padding: 12, alignItems: 'center' }} onPress={() => router.push('/(tabs)/budgets')}>
+              <Text style={{ fontSize: 11, color: '#9B8B7E', textTransform: 'uppercase' }}>Zostało</Text>
+              <Text style={{ fontSize: 18, fontWeight: 'bold', color: remaining === null ? '#9B8B7E' : remaining >= 0 ? '#2C5F2D' : '#800020', marginTop: 4 }}>{remaining === null ? '—' : `${remaining >= 0 ? '' : ''}${remaining.toFixed(0)} zł`}</Text>
+            </TouchableOpacity>
+          </View>
+        );
+      })()}
+
+      {/* Payday counter (change 7) */}
+      {(() => {
+        const now = new Date();
+        const curMonth = now.getMonth() + 1;
+        const curYear = now.getFullYear();
+        const plan = plans[0];
+        if (!plan || !plan.incomes || plan.incomes.length === 0) return null;
+        const topIncome = plan.incomes.reduce((max: any, inc: any) => (inc.amount || 0) > (max.amount || 0) ? inc : max, plan.incomes[0]);
+        const payDay = topIncome.day || 30;
+        const today = now.getDate();
+        let daysToPayday = 0;
+        if (today <= payDay) { daysToPayday = payDay - today; }
+        else { const nextMonth = new Date(curYear, curMonth, 0); daysToPayday = nextMonth.getDate() - today + payDay; }
+        // Daily budget
+        const ownAccounts = accounts.filter((a: any) => a.type !== 'credit_card' && a.type !== 'revolving');
+        const freeBalance = ownAccounts.reduce((s: number, a: any) => s + (a.balance || 0), 0);
+        const unpaidExpenses = plan.expenses ? plan.expenses.filter((e: any) => !e.paid).reduce((s: number, e: any) => s + (e.amount || 0), 0) : 0;
+        const available = freeBalance - unpaidExpenses;
+        const dailyBudget = daysToPayday > 0 ? available / daysToPayday : available;
+        const budgetColor = dailyBudget < 0 ? '#800020' : dailyBudget < 30 ? '#800020' : dailyBudget < 100 ? '#D4AF37' : '#2C5F2D';
+        return (
+          <View style={{ marginHorizontal: 20, marginBottom: 12, backgroundColor: '#FFF', borderRadius: 12, padding: 14, flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+            <Ionicons name="wallet" size={24} color="#D4AF37" />
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontSize: 14, color: '#2A2520' }}>Do wypłaty: <Text style={{ fontWeight: '700' }}>{daysToPayday} dni</Text></Text>
+              <Text style={{ fontSize: 13, color: budgetColor, fontWeight: '600', marginTop: 2 }}>Dzienny budżet: {dailyBudget < 0 ? 'Uważaj — przekroczono' : `${dailyBudget.toFixed(0)} zł`}</Text>
+            </View>
+          </View>
+        );
+      })()}
 
       <View style={styles.balanceCard}>
         <View style={styles.balanceHeader}>

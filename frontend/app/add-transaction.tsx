@@ -12,7 +12,8 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
-import { transactionsDB, transactionUpdate, accountsDB, categoriesDB, creditsDB } from '../lib/database';
+import { transactionsDB, transactionUpdate, accountsDB, categoriesDB, creditsDB, budgetsDB, getLastAccountForCategory } from '../lib/database';
+import Snackbar from '../components/Snackbar';
 
 export default function AddTransaction() {
   const params = useLocalSearchParams();
@@ -34,21 +35,51 @@ export default function AddTransaction() {
   const [categories, setCategories] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [subcategory, setSubcategory] = useState(params.subcategory ? decodeURIComponent(params.subcategory as string) : '');
+  const [recentTx, setRecentTx] = useState<any[]>([]);
+  const [snackVisible, setSnackVisible] = useState(false);
+  const [snackMsg, setSnackMsg] = useState('');
+  const [lastAddedId, setLastAddedId] = useState<string | null>(null);
+  const [manualAccountSelected, setManualAccountSelected] = useState(!!params.account_id);
+  const [budgets, setBudgets] = useState<any[]>([]);
 
   useEffect(() => {
     fetchData();
+    // Load recent expense transactions for quick-add chips
+    if (!params.edit) {
+      transactionsDB.getAll().then(all => {
+        const expenses = all.filter((t: any) => t.type === 'expense' && !t.is_transfer && !t.is_limit_refund).sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime()).slice(0, 20);
+        const seen = new Set<string>();
+        const unique: any[] = [];
+        expenses.forEach((t: any) => {
+          const key = `${t.category}|${t.subcategory || ''}|${t.description || ''}`.toLowerCase();
+          if (!seen.has(key)) { seen.add(key); unique.push(t); }
+        });
+        setRecentTx(unique.slice(0, 8));
+      });
+    }
   }, [type]);
+
+  // Auto-set account when category changes (change 4)
+  useEffect(() => {
+    if (category && !manualAccountSelected && !params.edit) {
+      getLastAccountForCategory(category).then(accId => {
+        if (accId) setAccountId(accId);
+      });
+    }
+  }, [category]);
 
   const fetchData = async () => {
     try {
-      const [accountsData, categoriesData, creditsData] = await Promise.all([
+      const [accountsData, categoriesData, creditsData, budgetsData] = await Promise.all([
         accountsDB.getAll(),
         categoriesDB.getAll(type),
         creditsDB.getAll(),
+        budgetsDB.getAll(new Date().getMonth() + 1, new Date().getFullYear()),
       ]);
       setAccounts(accountsData);
       setCategories(categoriesData);
       setCredits(creditsData);
+      setBudgets(budgetsData);
       if (accountsData.length > 0 && !accountId) {
         setAccountId(accountsData[0].id);
       }
@@ -106,8 +137,9 @@ export default function AddTransaction() {
 
       if (isEdit) {
         await transactionUpdate(editId, txData);
+        router.back();
       } else {
-        await transactionsDB.create(txData);
+        const newId = await transactionsDB.create(txData);
         // If credit installment with capital part, reduce remaining_amount
         if (creditId && capitalPart) {
           const credit = credits.find(c => c.id === creditId);
@@ -116,8 +148,21 @@ export default function AddTransaction() {
             await creditsDB.update(creditId, { ...credit, remaining_amount: Math.max(0, newRemaining) });
           }
         }
+        // Snackbar with undo (change 5)
+        setLastAddedId(newId);
+        Alert.alert(
+          `Dodano: ${type === 'expense' ? '-' : '+'}${parseFloat(amount).toFixed(2)} zł`,
+          category,
+          [
+            { text: 'OK' },
+            { text: 'COFNIJ', style: 'destructive', onPress: async () => {
+              if (newId) { await transactionsDB.delete(newId); }
+            }},
+          ],
+          { cancelable: true }
+        );
+        router.back();
       }
-      router.back();
     } catch (error) {
       console.error('Error saving transaction:', error);
       alert('Błąd podczas zapisywania transakcji');
@@ -161,6 +206,27 @@ export default function AddTransaction() {
           </TouchableOpacity>
         </View>
 
+        {/* Quick-add from recent (change 3) */}
+        {!isEdit && type === 'expense' && recentTx.length > 0 && (
+          <View style={{ marginBottom: 12 }}>
+            <Text style={{ fontSize: 12, color: '#9B8B7E', marginBottom: 6, marginLeft: 4 }}>Ostatnio dodane</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+              {recentTx.map((t, idx) => (
+                <TouchableOpacity key={idx} style={{ backgroundColor: '#FFF', borderRadius: 12, padding: 10, marginRight: 8, flexDirection: 'row', alignItems: 'center', gap: 6, borderWidth: 1, borderColor: '#E0D5C7', minWidth: 100 }}
+                  onPress={() => { setCategory(t.category); setSubcategory(t.subcategory || ''); setDescription(t.description || ''); if (t.account_id) { setAccountId(t.account_id); setManualAccountSelected(true); } }}>
+                  <View style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: '#D4AF3720', alignItems: 'center', justifyContent: 'center' }}>
+                    <Ionicons name="repeat" size={14} color="#D4AF37" />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontSize: 12, color: '#2A2520', fontWeight: '600' }} numberOfLines={1}>{t.subcategory || t.description || t.category}</Text>
+                    <Text style={{ fontSize: 10, color: '#9B8B7E' }}>{t.amount.toFixed(0)} zł</Text>
+                  </View>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        )}
+
         <View style={styles.amountContainer}>
           <Text style={styles.currencySymbol}>PLN</Text>
           <TextInput
@@ -172,6 +238,21 @@ export default function AddTransaction() {
             keyboardType="numeric"
           />
         </View>
+
+        {/* Budget warning (change 8) */}
+        {type === 'expense' && parseFloat(amount) > 200 && (() => {
+          const bgt = budgets.find((b: any) => (b.categories || [b.category]).some((c: string) => c === category));
+          if (!bgt) return null;
+          const pct = (parseFloat(amount) / bgt.amount) * 100;
+          if (pct <= 5) return null;
+          const isHigh = pct > 25;
+          return (
+            <View style={{ backgroundColor: isHigh ? '#F8D7DA' : '#FFF3CD', padding: 10, borderRadius: 8, marginBottom: 12, flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <Ionicons name="warning" size={16} color={isHigh ? '#721C24' : '#856404'} />
+              <Text style={{ fontSize: 12, color: isHigh ? '#721C24' : '#856404', flex: 1 }}>{isHigh ? 'UWAGA' : ''} To {pct.toFixed(0)}% budżetu na ten miesiąc ({bgt.amount.toFixed(0)} zł)</Text>
+            </View>
+          );
+        })()}
 
         <View style={styles.form}>
           <View style={styles.field}>

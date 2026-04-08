@@ -657,6 +657,14 @@ export const investmentsDB = {
 };
 
 // User Settings (birth year etc.)
+export const getLastAccountForCategory = async (category: string): Promise<string | null> => {
+  try {
+    const all = await getItems(STORAGE_KEYS.TRANSACTIONS);
+    const matching = all.filter((t: any) => t.category === category && t.account_id).sort((a: any, b: any) => new Date(b.created_at || b.date).getTime() - new Date(a.created_at || a.date).getTime());
+    return matching.length > 0 ? matching[0].account_id : null;
+  } catch { return null; }
+};
+
 export const userSettingsDB = {
   get: async (key: string) => {
     try { const val = await AsyncStorage.getItem(`@budzetani_setting_${key}`); return val; } catch { return null; }

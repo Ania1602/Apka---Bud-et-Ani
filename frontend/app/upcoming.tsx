@@ -241,6 +241,33 @@ export default function Upcoming() {
           </View>
         </View>
 
+        {/* Najbliższe terminy (change 9) */}
+        {(() => {
+          const todayDay = new Date().getDate();
+          const isCurrentMonth = selectedMonth === new Date().getMonth() + 1 && selectedYear === new Date().getFullYear();
+          if (!isCurrentMonth || !plan?.expenses) return null;
+          const upcoming = plan.expenses.filter((e: any) => !e.paid && (e.day || 0) >= todayDay).sort((a: any, b: any) => (a.day || 0) - (b.day || 0)).slice(0, 5);
+          if (upcoming.length === 0) return null;
+          return (
+            <View style={{ marginHorizontal: 20, marginBottom: 12, backgroundColor: '#FFF', borderRadius: 12, padding: 16 }}>
+              <Text style={{ fontSize: 13, fontWeight: '600', color: '#9B8B7E', marginBottom: 10, textTransform: 'uppercase', letterSpacing: 0.5 }}>Najbliższe terminy</Text>
+              {upcoming.map((e: any) => {
+                const isToday = e.day === todayDay;
+                const isTomorrow = e.day === todayDay + 1;
+                return (
+                  <View key={e.id} style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 6, gap: 8 }}>
+                    <Text style={{ fontSize: 13, fontWeight: '600', color: isToday ? '#800020' : isTomorrow ? '#D4AF37' : '#6B5D52', width: 50 }}>
+                      {isToday ? 'DZIŚ' : isTomorrow ? 'JUTRO' : `${String(e.day).padStart(2, '0')}.${String(selectedMonth).padStart(2, '0')}`}
+                    </Text>
+                    <Text style={{ fontSize: 14, color: '#2A2520', flex: 1 }}>{e.name}</Text>
+                    <Text style={{ fontSize: 14, fontWeight: '600', color: '#800020' }}>{(e.amount || 0).toFixed(0)} zł</Text>
+                  </View>
+                );
+              })}
+            </View>
+          );
+        })()}
+
         {/* Incomes */}
         <View style={s.section}>
           <View style={s.sectionHeader}>

@@ -150,6 +150,17 @@ export default function Transactions() {
         renderItem={({ item: section }) => (
           <View style={s.section}>
             <Text style={s.sectionDate}>{format(new Date(section.date), 'EEEE, dd LLLL', { locale: pl })}</Text>
+            {(() => {
+              const dayExp = section.items.filter((t: any) => t.type === 'expense' && !t.is_transfer && !t.is_limit_refund).reduce((s: number, t: any) => s + t.amount, 0);
+              const dayInc = section.items.filter((t: any) => t.type === 'income' && !t.is_transfer && !t.is_limit_refund).reduce((s: number, t: any) => s + t.amount, 0);
+              return (dayExp > 0 || dayInc > 0) ? (
+                <Text style={s.daySummary}>
+                  {dayExp > 0 ? <Text style={{ color: '#800020' }}>Wydatki: -{dayExp.toFixed(2)} zł</Text> : null}
+                  {dayExp > 0 && dayInc > 0 ? '  •  ' : ''}
+                  {dayInc > 0 ? <Text style={{ color: '#2C5F2D' }}>Przychody: +{dayInc.toFixed(2)} zł</Text> : null}
+                </Text>
+              ) : null;
+            })()}
             {section.items.map(item => (
               <TouchableOpacity key={item.id} style={s.txItem}
                 onPress={() => router.push(`/add-transaction?edit=${item.id}&type=${item.type}&amount=${item.amount}&category=${encodeURIComponent(item.category)}&description=${encodeURIComponent(item.description || '')}&account_id=${item.account_id || ''}&credit_id=${item.credit_id || ''}&date=${item.date}`)}
@@ -160,7 +171,7 @@ export default function Transactions() {
                 <View style={s.txDetails}>
                   <Text style={s.txCategory}>{item.category}{item.subcategory ? ` → ${item.subcategory}` : ''}</Text>
                   {item.description ? <Text style={s.txDesc} numberOfLines={1}>{item.description}</Text> : null}
-                  {item.capital_part ? <Text style={s.txDesc}>Kapitał: {item.capital_part.toFixed(2)} | Odsetki: {(item.interest_part || 0).toFixed(2)}</Text> : null}
+                  {item.capital_part && (item.interest_part || 0) > 0 ? <Text style={s.txDesc}>Kapitał: {item.capital_part.toFixed(2)} | Odsetki: {item.interest_part.toFixed(2)}</Text> : null}
                   {item.tags && item.tags.length > 0 ? <Text style={s.txTags}>{item.tags.map((t: string) => `#${t}`).join(' ')}</Text> : null}
                   {getAccountName(item.account_id) ? <Text style={s.txAccount}>{getAccountName(item.account_id)}</Text> : null}
                 </View>
@@ -212,7 +223,8 @@ const s = StyleSheet.create({
   txTags: { fontSize: 11, color: '#9C27B0', marginBottom: 2 },
   list: { padding: 20, paddingTop: 0, paddingBottom: 100 },
   section: { marginBottom: 16 },
-  sectionDate: { fontSize: 13, fontWeight: '600', color: '#9B8B7E', marginBottom: 8, textTransform: 'capitalize' },
+  sectionDate: { fontSize: 13, fontWeight: '600', color: '#9B8B7E', marginBottom: 4, textTransform: 'capitalize' },
+  daySummary: { fontSize: 12, color: '#6B5D52', marginBottom: 8 },
   txItem: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFF', padding: 14, borderRadius: 12, marginBottom: 6 },
   txIcon: { width: 42, height: 42, borderRadius: 21, alignItems: 'center', justifyContent: 'center', marginRight: 12 },
   txDetails: { flex: 1 },
