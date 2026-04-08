@@ -477,6 +477,87 @@ export default function AddTransaction() {
           )}
         </TouchableOpacity>
       </View>
+
+      {/* Modal: Nowa Kategoria */}
+      <Modal visible={catModalVisible} transparent animationType="fade" onRequestClose={() => setCatModalVisible(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>Nowa Kategoria</Text>
+            <TextInput
+              style={styles.modalInput}
+              value={newCatName}
+              onChangeText={setNewCatName}
+              placeholder="Nazwa kategorii"
+              placeholderTextColor="#9B8B7E"
+              autoFocus
+            />
+            <Text style={styles.modalLabel}>Kolor</Text>
+            <View style={styles.colorRow}>
+              {CAT_COLORS.map((c) => (
+                <TouchableOpacity key={c} onPress={() => setNewCatColor(c)}
+                  style={[styles.colorOption, { backgroundColor: c }, newCatColor === c && styles.colorOptionActive]}>
+                  {newCatColor === c && <Ionicons name="checkmark" size={16} color="#FFF" />}
+                </TouchableOpacity>
+              ))}
+            </View>
+            <View style={styles.modalBtnRow}>
+              <TouchableOpacity style={styles.modalBtnCancel} onPress={() => setCatModalVisible(false)}>
+                <Text style={styles.modalBtnCancelText}>Anuluj</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.modalBtnSave} onPress={async () => {
+                const name = newCatName.trim();
+                if (!name) { Alert.alert('Błąd', 'Wpisz nazwę kategorii'); return; }
+                try {
+                  await categoriesDB.create({ name, type, color: newCatColor, icon: 'pricetag' });
+                  setCatModalVisible(false);
+                  await fetchData();
+                  setCategory(name);
+                  setSubcategory('');
+                } catch (e) { Alert.alert('Błąd', 'Nie udało się utworzyć kategorii'); }
+              }}>
+                <Text style={styles.modalBtnSaveText}>Dodaj</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Modal: Nowa Podkategoria */}
+      <Modal visible={subModalVisible} transparent animationType="fade" onRequestClose={() => setSubModalVisible(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>Nowa Podkategoria</Text>
+            <Text style={styles.modalSubtitle}>dla: {category}</Text>
+            <TextInput
+              style={styles.modalInput}
+              value={newSubName}
+              onChangeText={setNewSubName}
+              placeholder="Nazwa podkategorii"
+              placeholderTextColor="#9B8B7E"
+              autoFocus
+            />
+            <View style={styles.modalBtnRow}>
+              <TouchableOpacity style={styles.modalBtnCancel} onPress={() => setSubModalVisible(false)}>
+                <Text style={styles.modalBtnCancelText}>Anuluj</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.modalBtnSave} onPress={async () => {
+                const name = newSubName.trim();
+                if (!name) { Alert.alert('Błąd', 'Wpisz nazwę podkategorii'); return; }
+                const selectedCat = categories.find((c: any) => c.name === category);
+                if (!selectedCat) { Alert.alert('Błąd', 'Nie znaleziono kategorii'); return; }
+                try {
+                  await categoriesDB.addSubcategory(selectedCat.id, name);
+                  setSubModalVisible(false);
+                  await fetchData();
+                  setSubcategory(name);
+                } catch (e) { Alert.alert('Błąd', 'Nie udało się utworzyć podkategorii'); }
+              }}>
+                <Text style={styles.modalBtnSaveText}>Dodaj</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </KeyboardAvoidingView>
   );
 }
@@ -676,4 +757,18 @@ const styles = StyleSheet.create({
   subChipActive: { backgroundColor: '#2C5F2D', borderColor: '#2C5F2D' },
   subChipText: { fontSize: 13, fontWeight: '500', color: '#6B5D52' },
   subChipTextActive: { color: '#FFFFFF' },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(42,37,32,0.5)', justifyContent: 'center', alignItems: 'center', padding: 24 },
+  modalCard: { backgroundColor: '#FAF8F3', borderRadius: 16, padding: 24, width: '100%', maxWidth: 380 },
+  modalTitle: { fontSize: 20, fontWeight: '700', color: '#2A2520', marginBottom: 4 },
+  modalSubtitle: { fontSize: 13, color: '#9B8B7E', marginBottom: 16 },
+  modalInput: { backgroundColor: '#FFFFFF', borderRadius: 12, padding: 14, fontSize: 16, color: '#2A2520', borderWidth: 1, borderColor: '#E0D5C7', marginTop: 12, marginBottom: 16 },
+  modalLabel: { fontSize: 13, fontWeight: '500', color: '#6B5D52', marginBottom: 8 },
+  colorRow: { flexDirection: 'row', gap: 10, flexWrap: 'wrap', marginBottom: 20 },
+  colorOption: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
+  colorOptionActive: { borderWidth: 3, borderColor: '#2A2520' },
+  modalBtnRow: { flexDirection: 'row', gap: 12, marginTop: 4 },
+  modalBtnCancel: { flex: 1, padding: 14, borderRadius: 10, backgroundColor: '#FFFFFF', alignItems: 'center', borderWidth: 1, borderColor: '#E0D5C7' },
+  modalBtnCancelText: { fontSize: 15, fontWeight: '600', color: '#6B5D52' },
+  modalBtnSave: { flex: 1, padding: 14, borderRadius: 10, backgroundColor: '#D4AF37', alignItems: 'center' },
+  modalBtnSaveText: { fontSize: 15, fontWeight: '600', color: '#FFFFFF' },
 });

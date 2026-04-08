@@ -10,18 +10,31 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useFocusEffect } from 'expo-router';
-import { budgetsDB } from '../../lib/database';
+import { budgetsDB, transactionsDB, accountsDB, plansDB } from '../../lib/database';
 
 export default function Budgets() {
   const [budgets, setBudgets] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [allTx, setAllTx] = useState<any[]>([]);
+  const [accounts, setAccounts] = useState<any[]>([]);
+  const [plans, setPlans] = useState<any[]>([]);
 
   const fetchBudgets = async () => {
     try {
       const now = new Date();
-      const data = await budgetsDB.getAll(now.getMonth() + 1, now.getFullYear());
+      const curMonth = now.getMonth() + 1;
+      const curYear = now.getFullYear();
+      const [data, allTxData, accountsData, plansData] = await Promise.all([
+        budgetsDB.getAll(curMonth, curYear),
+        transactionsDB.getAll(),
+        accountsDB.getAll(),
+        plansDB.getByMonth(curMonth, curYear),
+      ]);
       setBudgets(data);
+      setAllTx(allTxData);
+      setAccounts(accountsData);
+      setPlans(plansData ? [plansData] : []);
     } catch (error) {
       console.error('Error fetching budgets:', error);
     } finally {
@@ -90,6 +103,67 @@ export default function Budgets() {
             {new Date().toLocaleDateString('pl-PL', { month: 'long', year: 'numeric' })}
           </Text>
         </View>
+
+        {/* Quick metric widgets */}
+        {(() => {
+          const now = new Date();
+          const curMonth = now.getMonth() + 1;
+          const curYear = now.getFullYear();
+          const monday = new Date(now); monday.setDate(now.getDate() - ((now.getDay() + 6) % 7)); monday.setHours(0,0,0,0);
+          const weekExp = allTx.filter((t: any) => t.type === 'expense' && !t.is_transfer && !t.is_limit_refund && new Date(t.date) >= monday).reduce((s: number, t: any) => s + t.amount, 0);
+          const monthStart = new Date(curYear, curMonth - 1, 1);
+          const monthExp = allTx.filter((t: any) => t.type === 'expense' && !t.is_transfer && !t.is_limit_refund && new Date(t.date) >= monthStart && new Date(t.date).getMonth() + 1 === curMonth).reduce((s: number, t: any) => s + t.amount, 0);
+          const totalBudgetAmt = budgets.reduce((s: number, b: any) => s + (b.limit_amount || b.amount || b.limit || 0), 0);
+          const budgetCats = budgets.flatMap((b: any) => b.categories || [b.category]);
+          const budgetExp = allTx.filter((t: any) => t.type === 'expense' && !t.is_transfer && !t.is_limit_refund && budgetCats.includes(t.category) && new Date(t.date) >= monthStart && new Date(t.date).getMonth() + 1 === curMonth).reduce((s: number, t: any) => s + t.amount, 0);
+          const remaining = totalBudgetAmt > 0 ? totalBudgetAmt - budgetExp : null;
+          return (
+            <View style={{ flexDirection: 'row', marginHorizontal: 20, marginBottom: 12, gap: 8 }}>
+              <View style={{ flex: 1, backgroundColor: '#FFF', borderRadius: 12, padding: 12, alignItems: 'center' }}>
+                <Text style={{ fontSize: 11, color: '#9B8B7E', textTransform: 'uppercase' }}>Ten tydzień</Text>
+                <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#800020', marginTop: 4 }}>-{weekExp.toFixed(0)} zł</Text>
+              </View>
+              <View style={{ flex: 1, backgroundColor: '#FFF', borderRadius: 12, padding: 12, alignItems: 'center' }}>
+                <Text style={{ fontSize: 11, color: '#9B8B7E', textTransform: 'uppercase' }}>Ten miesiąc</Text>
+                <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#800020', marginTop: 4 }}>-{monthExp.toFixed(0)} zł</Text>
+              </View>
+              <View style={{ flex: 1, backgroundColor: '#FFF', borderRadius: 12, padding: 12, alignItems: 'center' }}>
+                <Text style={{ fontSize: 11, color: '#9B8B7E', textTransform: 'uppercase' }}>Zostało</Text>
+                <Text style={{ fontSize: 18, fontWeight: 'bold', color: remaining === null ? '#9B8B7E' : remaining >= 0 ? '#2C5F2D' : '#800020', marginTop: 4 }}>{remaining === null ? '—' : `${remaining.toFixed(0)} zł`}</Text>
+              </View>
+            </View>
+          );
+        })()}
+
+        {/* Payday counter */}
+        {(() => {
+          const now = new Date();
+          const curMonth = now.getMonth() + 1;
+          const curYear = now.getFullYear();
+          const plan = plans[0];
+          if (!plan || !plan.incomes || plan.incomes.length === 0) return null;
+          const topIncome = plan.incomes.reduce((max: any, inc: any) => (inc.amount || 0) > (max.amount || 0) ? inc : max, plan.incomes[0]);
+          const payDay = topIncome.day || 30;
+          const today = now.getDate();
+          let daysToPayday = 0;
+          if (today <= payDay) { daysToPayday = payDay - today; }
+          else { const nextMonth = new Date(curYear, curMonth, 0); daysToPayday = nextMonth.getDate() - today + payDay; }
+          const ownAccounts = accounts.filter((a: any) => a.type !== 'credit_card' && a.type !== 'revolving');
+          const freeBalance = ownAccounts.reduce((s: number, a: any) => s + (a.balance || 0), 0);
+          const unpaidExpenses = plan.expenses ? plan.expenses.filter((e: any) => !e.paid).reduce((s: number, e: any) => s + (e.amount || 0), 0) : 0;
+          const available = freeBalance - unpaidExpenses;
+          const dailyBudget = daysToPayday > 0 ? available / daysToPayday : available;
+          const budgetColor = dailyBudget < 0 ? '#800020' : dailyBudget < 30 ? '#800020' : dailyBudget < 100 ? '#D4AF37' : '#2C5F2D';
+          return (
+            <View style={{ marginHorizontal: 20, marginBottom: 12, backgroundColor: '#FFF', borderRadius: 12, padding: 14, flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+              <Ionicons name="wallet" size={24} color="#D4AF37" />
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 14, color: '#2A2520' }}>Do wypłaty: <Text style={{ fontWeight: '700' }}>{daysToPayday} dni</Text></Text>
+                <Text style={{ fontSize: 13, color: budgetColor, fontWeight: '600', marginTop: 2 }}>Dzienny budżet: {dailyBudget < 0 ? 'Uważaj — przekroczono' : `${dailyBudget.toFixed(0)} zł`}</Text>
+              </View>
+            </View>
+          );
+        })()}
 
         {budgets.length > 0 && (
           <View style={styles.summaryCard}>

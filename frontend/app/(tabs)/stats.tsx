@@ -12,57 +12,104 @@ export default function Statistics() {
   const [prevStats, setPrevStats] = useState<any>(null);
   const [weekData, setWeekData] = useState<any[]>([]);
   const [weekTotal, setWeekTotal] = useState(0);
+  const [weekIncome, setWeekIncome] = useState(0);
   const [prevWeekTotal, setPrevWeekTotal] = useState(0);
+  const [prevWeekIncome, setPrevWeekIncome] = useState(0);
+  const [weekCategoryData, setWeekCategoryData] = useState<any[]>([]);
+  const [weekSubBreakdown, setWeekSubBreakdown] = useState<Record<string, any[]>>({});
+  const [weekTopSubs, setWeekTopSubs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [view, setView] = useState<'monthly' | 'weekly'>('monthly');
   const [expandedCat, setExpandedCat] = useState<string | null>(null);
   const [subBreakdown, setSubBreakdown] = useState<Record<string, any[]>>({});
+  const [weekOffset, setWeekOffset] = useState(0);
   const now = new Date();
+
+  const getWeekBounds = (offset: number) => {
+    const today = new Date();
+    const dayOfWeek = today.getDay() || 7;
+    const weekStart = new Date(today);
+    weekStart.setDate(today.getDate() - dayOfWeek + 1 + (offset * 7));
+    weekStart.setHours(0, 0, 0, 0);
+    const weekEnd = new Date(weekStart);
+    weekEnd.setDate(weekStart.getDate() + 6);
+    weekEnd.setHours(23, 59, 59, 999);
+    return { weekStart, weekEnd };
+  };
 
   const fetchStats = async () => {
     try {
       const data = await getStatistics(now.getMonth() + 1, now.getFullYear());
       setStats(data);
 
-      // Previous month for comparison
       const prevMonth = now.getMonth() === 0 ? 12 : now.getMonth();
       const prevYear = now.getMonth() === 0 ? now.getFullYear() - 1 : now.getFullYear();
       const prevData = await getStatistics(prevMonth, prevYear);
       setPrevStats(prevData);
 
-      // Weekly data
-      const today = new Date();
-      const dayOfWeek = today.getDay() || 7;
-      const weekStart = new Date(today);
-      weekStart.setDate(today.getDate() - dayOfWeek + 1);
-      weekStart.setHours(0, 0, 0, 0);
-
-      const prevWeekStart = new Date(weekStart);
-      prevWeekStart.setDate(prevWeekStart.getDate() - 7);
-
       const allTx = await transactionsDB.getAll(9999);
+
+      // Weekly data with offset
+      const { weekStart, weekEnd } = getWeekBounds(weekOffset);
+      const prevWeekBounds = getWeekBounds(weekOffset - 1);
+
       const days = ['Pon', 'Wt', 'Śr', 'Czw', 'Pt', 'Sob', 'Ndz'];
       const dailyData = days.map((label, i) => {
         const date = new Date(weekStart);
         date.setDate(weekStart.getDate() + i);
         const dateStr = date.toISOString().split('T')[0];
-        const dayExpenses = allTx.filter((t: any) => !t.is_transfer && t.type === 'expense' && t.date.split('T')[0] === dateStr)
+        const dayExpenses = allTx.filter((t: any) => !t.is_transfer && !t.is_limit_refund && t.type === 'expense' && t.date.split('T')[0] === dateStr)
           .reduce((s: number, t: any) => s + t.amount, 0);
-        return { value: dayExpenses, label, frontColor: '#800020' };
+        return { value: dayExpenses, label, frontColor: '#800020', topLabelComponent: dayExpenses > 0 ? () => <Text style={{ color: '#6B5D52', fontSize: 10, marginBottom: 2 }}>{dayExpenses.toFixed(0)}</Text> : undefined };
       });
       setWeekData(dailyData);
-      setWeekTotal(dailyData.reduce((s, d) => s + d.value, 0));
+      const wTotal = dailyData.reduce((s, d) => s + d.value, 0);
+      setWeekTotal(wTotal);
 
-      // Previous week total
-      const pwTotal = allTx.filter((t: any) => {
-        if (t.is_transfer || t.type !== 'expense') return false;
+      // Week income
+      const wIncome = allTx.filter((t: any) => t.type === 'income' && !t.is_transfer && !t.is_limit_refund && new Date(t.date) >= weekStart && new Date(t.date) <= weekEnd).reduce((s: number, t: any) => s + t.amount, 0);
+      setWeekIncome(wIncome);
+
+      // Previous week totals
+      const pwExpTotal = allTx.filter((t: any) => {
+        if (t.is_transfer || t.is_limit_refund || t.type !== 'expense') return false;
         const td = new Date(t.date);
-        return td >= prevWeekStart && td < weekStart;
+        return td >= prevWeekBounds.weekStart && td <= prevWeekBounds.weekEnd;
       }).reduce((s: number, t: any) => s + t.amount, 0);
-      setPrevWeekTotal(pwTotal);
-      
-      // Compute subcategory breakdown from transactions
+      setPrevWeekTotal(pwExpTotal);
+      const pwIncTotal = allTx.filter((t: any) => {
+        if (t.type !== 'income' || t.is_transfer || t.is_limit_refund) return false;
+        const td = new Date(t.date);
+        return td >= prevWeekBounds.weekStart && td <= prevWeekBounds.weekEnd;
+      }).reduce((s: number, t: any) => s + t.amount, 0);
+      setPrevWeekIncome(pwIncTotal);
+
+      // Week category breakdown
+      const weekExpTx = allTx.filter((t: any) => !t.is_transfer && !t.is_limit_refund && t.type === 'expense' && new Date(t.date) >= weekStart && new Date(t.date) <= weekEnd);
+      const catMap: Record<string, number> = {};
+      const subMap: Record<string, any[]> = {};
+      const subTotals: any[] = [];
+      weekExpTx.forEach((t: any) => {
+        catMap[t.category] = (catMap[t.category] || 0) + t.amount;
+        if (t.subcategory) {
+          if (!subMap[t.category]) subMap[t.category] = [];
+          const existing = subMap[t.category].find((s: any) => s.name === t.subcategory);
+          if (existing) existing.amount += t.amount;
+          else subMap[t.category].push({ name: t.subcategory, amount: t.amount });
+          const existingSub = subTotals.find((s: any) => s.name === t.subcategory && s.category === t.category);
+          if (existingSub) existingSub.amount += t.amount;
+          else subTotals.push({ name: t.subcategory, category: t.category, amount: t.amount });
+        }
+      });
+      const wCatData = Object.entries(catMap)
+        .sort(([, a], [, b]) => (b as number) - (a as number))
+        .map(([name, amount], i) => ({ value: amount as number, text: name, color: COLORS[i % COLORS.length], label: name }));
+      setWeekCategoryData(wCatData);
+      setWeekSubBreakdown(subMap);
+      setWeekTopSubs(subTotals.sort((a, b) => b.amount - a.amount).slice(0, 5));
+
+      // Monthly subcategory breakdown
       const monthTx = allTx.filter((t: any) => {
         if (t.is_transfer || t.type !== 'expense') return false;
         const d = new Date(t.date);
@@ -82,7 +129,7 @@ export default function Statistics() {
     finally { setLoading(false); setRefreshing(false); }
   };
 
-  useFocusEffect(useCallback(() => { fetchStats(); }, []));
+  useFocusEffect(useCallback(() => { fetchStats(); }, [weekOffset]));
 
   if (loading) return <View style={s.loading}><ActivityIndicator size="large" color="#D4AF37" /></View>;
 
@@ -91,7 +138,7 @@ export default function Statistics() {
     .sort((a: any, b: any) => b[1].amount - a[1].amount)
     .map(([name, v]: any, i) => ({ value: v.amount, text: name, color: COLORS[i % COLORS.length], label: name })) : [];
 
-  const trendData = stats?.trends?.map((t: any) => ({ value: t.expenses, label: t.label, frontColor: '#800020' })) || [];
+  const trendData = stats?.trends?.map((t: any) => ({ value: t.expenses, label: t.label, frontColor: '#800020', topLabelComponent: t.expenses > 0 ? () => <Text style={{ color: '#6B5D52', fontSize: 10, marginBottom: 2 }}>{t.expenses.toFixed(0)}</Text> : undefined })) || [];
 
   // Month comparison
   const comparison = categoryData.map(item => {
@@ -130,25 +177,161 @@ export default function Statistics() {
 
         {view === 'weekly' ? (
           <>
+            {/* Week navigation */}
+            <View style={s.weekNav}>
+              <TouchableOpacity onPress={() => setWeekOffset(weekOffset - 1)} style={s.weekNavBtn}>
+                <Ionicons name="chevron-back" size={22} color="#D4AF37" />
+              </TouchableOpacity>
+              <Text style={s.weekNavLabel}>
+                {(() => {
+                  const { weekStart, weekEnd } = getWeekBounds(weekOffset);
+                  return `${weekStart.getDate()}.${String(weekStart.getMonth()+1).padStart(2,'0')} — ${weekEnd.getDate()}.${String(weekEnd.getMonth()+1).padStart(2,'0')}.${weekEnd.getFullYear()}`;
+                })()}
+              </Text>
+              <TouchableOpacity onPress={() => { if (weekOffset < 0) setWeekOffset(weekOffset + 1); }} style={[s.weekNavBtn, weekOffset >= 0 && { opacity: 0.3 }]}>
+                <Ionicons name="chevron-forward" size={22} color="#D4AF37" />
+              </TouchableOpacity>
+              {weekOffset !== 0 && (
+                <TouchableOpacity onPress={() => setWeekOffset(0)} style={s.weekNavToday}>
+                  <Text style={{ fontSize: 12, fontWeight: '600', color: '#D4AF37' }}>Dziś</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+
+            {/* Week summary cards */}
+            <View style={s.summaryRow}>
+              <View style={[s.summaryCard, { borderLeftColor: '#2C5F2D' }]}>
+                <Text style={s.summaryLabel}>Przychody</Text>
+                <Text style={[s.summaryValue, { color: '#2C5F2D' }]}>{weekIncome.toFixed(2)}</Text>
+              </View>
+              <View style={[s.summaryCard, { borderLeftColor: '#800020' }]}>
+                <Text style={s.summaryLabel}>Wydatki</Text>
+                <Text style={[s.summaryValue, { color: '#800020' }]}>{weekTotal.toFixed(2)}</Text>
+              </View>
+            </View>
+            <View style={{ paddingHorizontal: 20, marginBottom: 16 }}>
+              <View style={[s.summaryCard, { borderLeftColor: '#D4AF37' }]}>
+                <Text style={s.summaryLabel}>Bilans tygodnia</Text>
+                <Text style={[s.summaryValue, { color: (weekIncome - weekTotal) >= 0 ? '#2C5F2D' : '#800020' }]}>
+                  {(weekIncome - weekTotal) >= 0 ? '+' : ''}{(weekIncome - weekTotal).toFixed(2)}
+                </Text>
+              </View>
+            </View>
+
+            {/* Bar chart */}
             <View style={s.card}>
-              <Text style={s.cardTitle}>Wydatki w tym tygodniu</Text>
-              <Text style={s.weekTotal}>{weekTotal.toFixed(2)} PLN</Text>
+              <Text style={s.cardTitle}>Wydatki dziennie</Text>
               <View style={s.weekCompare}>
                 <Ionicons name={weekTotal <= prevWeekTotal ? 'trending-down' : 'trending-up'} size={16}
                   color={weekTotal <= prevWeekTotal ? '#2C5F2D' : '#800020'} />
                 <Text style={[s.weekCompareText, { color: weekTotal <= prevWeekTotal ? '#2C5F2D' : '#800020' }]}>
-                  {weekTotal <= prevWeekTotal ? 'Mniej' : 'Więcej'} o {Math.abs(weekTotal - prevWeekTotal).toFixed(2)} PLN vs poprzedni tydzień
+                  {weekTotal <= prevWeekTotal ? 'Mniej' : 'Więcej'} o {Math.abs(weekTotal - prevWeekTotal).toFixed(0)} zł vs poprzedni tydzień
                 </Text>
               </View>
+              <Text style={{ fontSize: 12, color: '#9B8B7E', marginBottom: 12 }}>
+                Średnia dzienna: {(weekTotal / 7).toFixed(0)} zł
+              </Text>
               {weekData.length > 0 && (
                 <View style={s.chartCenter}>
                   <BarChart data={weekData} barWidth={30} spacing={14} roundedTop
                     xAxisThickness={0} yAxisThickness={0}
                     yAxisTextStyle={{ color: '#6B5D52', fontSize: 10 }}
                     xAxisLabelTextStyle={{ color: '#6B5D52', fontSize: 10 }}
-                    noOfSections={4} maxValue={Math.max(...weekData.map(d => d.value), 1) * 1.2} />
+                    noOfSections={4} maxValue={Math.max(...weekData.map(d => d.value), 1) * 1.3} />
                 </View>
               )}
+            </View>
+
+            {/* Weekly category pie chart */}
+            {weekCategoryData.length > 0 && (
+              <View style={s.card}>
+                <Text style={s.cardTitle}>Wydatki wg Kategorii</Text>
+                <View style={s.chartCenter}>
+                  <PieChart data={weekCategoryData} donut radius={80} innerRadius={50}
+                    centerLabelComponent={() => <Text style={s.pieCenter}>{weekCategoryData.length}</Text>} />
+                </View>
+                <View style={s.legendGrid}>
+                  {weekCategoryData.map((item, i) => {
+                    const subs = weekSubBreakdown[item.label] || [];
+                    const isExp = expandedCat === item.label;
+                    return (
+                      <View key={i}>
+                        <TouchableOpacity style={s.legendItem} onPress={() => setExpandedCat(isExp ? null : item.label)} activeOpacity={0.7}>
+                          <View style={[s.legendDot, { backgroundColor: item.color }]} />
+                          <View style={{ flex: 1 }}>
+                            <Text style={s.legendName} numberOfLines={1}>{item.label}</Text>
+                            <Text style={s.legendAmount}>{item.value.toFixed(2)} PLN</Text>
+                          </View>
+                          {subs.length > 0 && <Ionicons name={isExp ? 'chevron-up' : 'chevron-down'} size={14} color="#9B8B7E" />}
+                        </TouchableOpacity>
+                        {isExp && subs.length > 0 && (
+                          <View style={s.subBreakdown}>
+                            {subs.sort((a: any, b: any) => b.amount - a.amount).map((sub: any, j: number) => (
+                              <View key={j} style={s.subBreakdownItem}>
+                                <View style={s.subBreakdownDot} />
+                                <Text style={s.subBreakdownName}>{sub.name}</Text>
+                                <Text style={s.subBreakdownAmount}>{sub.amount.toFixed(2)} PLN</Text>
+                              </View>
+                            ))}
+                          </View>
+                        )}
+                      </View>
+                    );
+                  })}
+                </View>
+              </View>
+            )}
+
+            {/* Top subcategories of the week */}
+            {weekTopSubs.length > 0 && (
+              <View style={s.card}>
+                <Text style={s.cardTitle}>Top Podkategorie</Text>
+                {weekTopSubs.map((sub, i) => (
+                  <View key={i} style={s.compareRow}>
+                    <View style={[s.compareDot, { backgroundColor: COLORS[i % COLORS.length] }]} />
+                    <View style={{ flex: 1 }}>
+                      <Text style={s.compareName} numberOfLines={1}>{sub.name}</Text>
+                      <Text style={{ fontSize: 11, color: '#9B8B7E' }}>{sub.category}</Text>
+                    </View>
+                    <Text style={s.compareAmount}>{sub.amount.toFixed(0)} zł</Text>
+                  </View>
+                ))}
+              </View>
+            )}
+
+            {/* Comparison with previous week */}
+            <View style={s.card}>
+              <Text style={s.cardTitle}>Porównanie z poprzednim tygodniem</Text>
+              <View style={{ gap: 12 }}>
+                <View style={s.compareRow}>
+                  <Ionicons name="trending-down" size={16} color="#800020" />
+                  <Text style={[s.compareName, { marginLeft: 4 }]}>Wydatki</Text>
+                  <View style={s.compareRight}>
+                    <Text style={s.compareAmount}>{weekTotal.toFixed(0)} zł</Text>
+                    <View style={[s.compareBadge, { backgroundColor: (weekTotal - prevWeekTotal) > 0 ? '#80002015' : '#2C5F2D15' }]}>
+                      <Ionicons name={(weekTotal - prevWeekTotal) > 0 ? 'arrow-up' : 'arrow-down'} size={12}
+                        color={(weekTotal - prevWeekTotal) > 0 ? '#800020' : '#2C5F2D'} />
+                      <Text style={{ fontSize: 11, color: (weekTotal - prevWeekTotal) > 0 ? '#800020' : '#2C5F2D', fontWeight: '600' }}>
+                        {(weekTotal - prevWeekTotal) > 0 ? '+' : ''}{(weekTotal - prevWeekTotal).toFixed(0)}
+                      </Text>
+                    </View>
+                  </View>
+                </View>
+                <View style={s.compareRow}>
+                  <Ionicons name="trending-up" size={16} color="#2C5F2D" />
+                  <Text style={[s.compareName, { marginLeft: 4 }]}>Przychody</Text>
+                  <View style={s.compareRight}>
+                    <Text style={s.compareAmount}>{weekIncome.toFixed(0)} zł</Text>
+                    <View style={[s.compareBadge, { backgroundColor: (weekIncome - prevWeekIncome) >= 0 ? '#2C5F2D15' : '#80002015' }]}>
+                      <Ionicons name={(weekIncome - prevWeekIncome) >= 0 ? 'arrow-up' : 'arrow-down'} size={12}
+                        color={(weekIncome - prevWeekIncome) >= 0 ? '#2C5F2D' : '#800020'} />
+                      <Text style={{ fontSize: 11, color: (weekIncome - prevWeekIncome) >= 0 ? '#2C5F2D' : '#800020', fontWeight: '600' }}>
+                        {(weekIncome - prevWeekIncome) >= 0 ? '+' : ''}{(weekIncome - prevWeekIncome).toFixed(0)}
+                      </Text>
+                    </View>
+                  </View>
+                </View>
+              </View>
             </View>
           </>
         ) : (
@@ -318,4 +501,8 @@ const s = StyleSheet.create({
   trendLegendItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   trendLegendLine: { width: 16, height: 3, borderRadius: 2 },
   trendLegendText: { fontSize: 12, color: '#6B5D52' },
+  weekNav: { flexDirection: 'row', alignItems: 'center', marginHorizontal: 20, marginBottom: 16, backgroundColor: '#FFF', borderRadius: 12, padding: 8 },
+  weekNavBtn: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
+  weekNavLabel: { flex: 1, textAlign: 'center', fontSize: 15, fontWeight: '600', color: '#2A2520' },
+  weekNavToday: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, backgroundColor: '#D4AF3720' },
 });

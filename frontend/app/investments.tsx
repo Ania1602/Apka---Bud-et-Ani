@@ -6,6 +6,44 @@ import { investmentsDB, creditsDB, userSettingsDB } from '../lib/database';
 
 const IKE_LIMIT_2026 = 26019;
 const IKZE_LIMIT_2026 = 10407;
+const IKZE_LIMIT_DG_2026 = 15610; // Działalność gospodarcza = 1.5x
+
+const IKE_IKZE_LIMITS: Record<number, { ike: number; ikze_etat: number; ikze_dg: number }> = {
+  2024: { ike: 23472, ikze_etat: 9388, ikze_dg: 14083 },
+  2025: { ike: 25000, ikze_etat: 10000, ikze_dg: 15000 },
+  2026: { ike: 26019, ikze_etat: 10407, ikze_dg: 15610 },
+};
+
+function getLimits(year: number) {
+  return IKE_IKZE_LIMITS[year] || IKE_IKZE_LIMITS[2026];
+}
+
+function splitPaymentToBuckets(
+  amount: number,
+  year: number,
+  existingPayments: any[],
+  employmentStatus: 'etat' | 'dg'
+): { ikze: number; ike: number; wpi: number } {
+  const limits = getLimits(year);
+  const ikzeLimit = employmentStatus === 'dg' ? limits.ikze_dg : limits.ikze_etat;
+  const ikeLimit = limits.ike;
+
+  // Sum already paid this year per bucket
+  const yearPayments = existingPayments.filter((p: any) => new Date(p.date).getFullYear() === year);
+  const paidIKZE = yearPayments.filter((p: any) => p.bucket === 'ikze').reduce((s: number, p: any) => s + p.amount, 0);
+  const paidIKE = yearPayments.filter((p: any) => p.bucket === 'ike').reduce((s: number, p: any) => s + p.amount, 0);
+
+  let remaining = amount;
+  const ikzeSpace = Math.max(0, ikzeLimit - paidIKZE);
+  const toIKZE = Math.min(remaining, ikzeSpace);
+  remaining -= toIKZE;
+
+  const ikeSpace = Math.max(0, ikeLimit - paidIKE);
+  const toIKE = Math.min(remaining, ikeSpace);
+  remaining -= toIKE;
+
+  return { ikze: toIKZE, ike: toIKE, wpi: remaining };
+}
 
 const INVESTMENT_TYPES = [
   { value: 'ppk', label: 'PPK', icon: 'shield-checkmark', color: '#1565C0' },
@@ -16,6 +54,7 @@ const INVESTMENT_TYPES = [
   { value: 'fundusze', label: 'Fundusze inwestycyjne', icon: 'pie-chart', color: '#EF6C00' },
   { value: 'lokaty', label: 'Lokaty', icon: 'lock-closed', color: '#4E342E' },
   { value: 'krypto', label: 'Kryptowaluty', icon: 'logo-bitcoin', color: '#F9A825' },
+  { value: 'pko_pakiet', label: 'PKO Pakiet Emerytalny', icon: 'business', color: '#0D47A1' },
   { value: 'inne', label: 'Inne', icon: 'ellipsis-horizontal', color: '#607D8B' },
 ];
 const PPK_SOURCES = [
@@ -83,6 +122,7 @@ export default function Investments() {
   const [fInterestRates, setFInterestRates] = useState<{ period: string; rate: string }[]>([]);
   const [fInitialPayments, setFInitialPayments] = useState<{ amount: string; date: string; source: string }[]>([{ amount: '', date: today(), source: 'own' }]);
   const [showGoalSuggestions, setShowGoalSuggestions] = useState(false);
+  const [fEmployStatus, setFEmployStatus] = useState<'etat' | 'dg'>('etat');
 
   const [payModal, setPayModal] = useState(false);
   const [payInvId, setPayInvId] = useState('');
@@ -116,6 +156,7 @@ export default function Investments() {
     setEditId(null); setFName(''); setFType('ppk'); setFStartDate(today());
     setFCurrentValue(''); setFNotes(''); setFCurrency('PLN'); setFGoal(''); setFTaxBracket(12);
     setFInterestRates([]); setFInitialPayments([{ amount: '', date: today(), source: 'own' }]);
+    setFEmployStatus('etat');
     setFormModal(true);
   };
   const openEditModal = (inv: any) => {
@@ -123,11 +164,12 @@ export default function Investments() {
     setFCurrentValue(String(inv.current_value || '')); setFNotes(inv.notes || '');
     setFCurrency(inv.currency || 'PLN'); setFGoal(inv.goal || ''); setFTaxBracket(inv.tax_bracket || 12);
     setFInterestRates(inv.interest_rates || []); setFInitialPayments([]);
+    setFEmployStatus(inv.employment_status || 'etat');
     setFormModal(true);
   };
   const handleSave = async () => {
     if (!fName.trim()) { Alert.alert('Błąd', 'Podaj nazwę inwestycji'); return; }
-    const data: any = { name: fName.trim(), type: fType, start_date: fStartDate, current_value: parseFloat(fCurrentValue) || 0, notes: fNotes.trim(), currency: fCurrency, goal: fGoal.trim(), tax_bracket: fType === 'ikze' ? fTaxBracket : undefined, interest_rates: fType === 'obligacje' ? fInterestRates : undefined };
+    const data: any = { name: fName.trim(), type: fType, start_date: fStartDate, current_value: parseFloat(fCurrentValue) || 0, notes: fNotes.trim(), currency: fCurrency, goal: fGoal.trim(), tax_bracket: fType === 'ikze' ? fTaxBracket : undefined, interest_rates: fType === 'obligacje' ? fInterestRates : undefined, employment_status: fType === 'pko_pakiet' ? fEmployStatus : undefined };
     if (editId) { await investmentsDB.update(editId, data); }
     else {
       const vp = fInitialPayments.filter(p => parseFloat(p.amount) > 0);
@@ -147,6 +189,24 @@ export default function Investments() {
       ].filter(e => e.amount > 0);
       if (entries.length === 0) { Alert.alert('Błąd', 'Podaj kwotę przynajmniej jednej wpłaty'); return; }
       for (const e of entries) { await investmentsDB.addPayment(payInvId, { amount: e.amount, date: payDate, source: e.source }); }
+    } else if (payInvType === 'pko_pakiet') {
+      const amt = parseFloat(payAmount);
+      if (amt <= 0 || isNaN(amt)) { Alert.alert('Błąd', 'Podaj kwotę wpłaty'); return; }
+      const inv = investments.find(i => i.id === payInvId);
+      const existingPayments = inv?.payments || [];
+      const status = inv?.employment_status || 'etat';
+      const year = new Date(payDate).getFullYear();
+      const split = splitPaymentToBuckets(amt, year, existingPayments, status);
+      const buckets: { amount: number; bucket: string }[] = [];
+      if (split.ikze > 0) buckets.push({ amount: split.ikze, bucket: 'ikze' });
+      if (split.ike > 0) buckets.push({ amount: split.ike, bucket: 'ike' });
+      if (split.wpi > 0) buckets.push({ amount: split.wpi, bucket: 'wpi' });
+      if (buckets.length === 0) { Alert.alert('Błąd', 'Kwota jest zerowa'); return; }
+      for (const b of buckets) {
+        await investmentsDB.addPayment(payInvId, { amount: b.amount, date: payDate, source: 'own', bucket: b.bucket });
+      }
+      const msg = `IKZE: ${split.ikze.toFixed(0)} zł | IKE: ${split.ike.toFixed(0)} zł | WPI: ${split.wpi.toFixed(0)} zł`;
+      Alert.alert('Podział wpłaty', msg);
     } else {
       const amt = parseFloat(payAmount);
       if (amt <= 0) { Alert.alert('Błąd', 'Podaj kwotę wpłaty'); return; }
@@ -319,6 +379,58 @@ export default function Investments() {
           </View>
         )}
 
+        {/* PKO Pakiet Emerytalny — 3 bucket progress bars */}
+        {item.type === 'pko_pakiet' && (() => {
+          const empStatus = item.employment_status || 'etat';
+          const limits = getLimits(currentYear);
+          const ikzeLimit = empStatus === 'dg' ? limits.ikze_dg : limits.ikze_etat;
+          const ikeLimit = limits.ike;
+          const yearPays = payments.filter((p: any) => new Date(p.date).getFullYear() === currentYear);
+          const paidIKZE = yearPays.filter((p: any) => p.bucket === 'ikze').reduce((s: number, p: any) => s + p.amount, 0);
+          const paidIKE = yearPays.filter((p: any) => p.bucket === 'ike').reduce((s: number, p: any) => s + p.amount, 0);
+          const paidWPI = yearPays.filter((p: any) => p.bucket === 'wpi').reduce((s: number, p: any) => s + p.amount, 0);
+          const ikzePct = Math.min((paidIKZE / ikzeLimit) * 100, 100);
+          const ikePct = Math.min((paidIKE / ikeLimit) * 100, 100);
+          const limitsExhausted = paidIKZE >= ikzeLimit && paidIKE >= ikeLimit;
+          return (
+            <View style={{ paddingHorizontal: 16, paddingBottom: 12 }}>
+              <Text style={{ fontSize: 12, color: '#9B8B7E', marginBottom: 8, fontWeight: '500' }}>
+                Status: {empStatus === 'dg' ? 'Działalność gospodarcza' : 'Etat / inne'} • {currentYear}
+              </Text>
+              {/* IKZE bar */}
+              <View style={{ marginBottom: 8 }}>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 3 }}>
+                  <Text style={{ fontSize: 12, color: '#6A1B9A', fontWeight: '600' }}>IKZE</Text>
+                  <Text style={{ fontSize: 11, color: '#6B5D52' }}>{paidIKZE.toFixed(0)} / {ikzeLimit} zł</Text>
+                </View>
+                <View style={st.limitBar}><View style={[st.limitFill, { width: `${ikzePct}%`, backgroundColor: ikzePct >= 100 ? '#D4AF37' : '#6A1B9A' }]} /></View>
+              </View>
+              {/* IKE bar */}
+              <View style={{ marginBottom: 8 }}>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 3 }}>
+                  <Text style={{ fontSize: 12, color: '#2E7D32', fontWeight: '600' }}>IKE</Text>
+                  <Text style={{ fontSize: 11, color: '#6B5D52' }}>{paidIKE.toFixed(0)} / {ikeLimit} zł</Text>
+                </View>
+                <View style={st.limitBar}><View style={[st.limitFill, { width: `${ikePct}%`, backgroundColor: ikePct >= 100 ? '#D4AF37' : '#2E7D32' }]} /></View>
+              </View>
+              {/* WPI bar (no limit) */}
+              <View style={{ marginBottom: 4 }}>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 3 }}>
+                  <Text style={{ fontSize: 12, color: '#0D47A1', fontWeight: '600' }}>WPI (nadwyżka)</Text>
+                  <Text style={{ fontSize: 11, color: '#6B5D52' }}>{paidWPI.toFixed(0)} zł</Text>
+                </View>
+                {paidWPI > 0 && <View style={st.limitBar}><View style={[st.limitFill, { width: '100%', backgroundColor: '#0D47A1' }]} /></View>}
+              </View>
+              {limitsExhausted && (
+                <View style={{ backgroundColor: '#FFF3CD', padding: 8, borderRadius: 8, marginTop: 6, flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  <Ionicons name="warning" size={14} color="#856404" />
+                  <Text style={{ fontSize: 11, color: '#856404', flex: 1 }}>Limity IKZE i IKE wyczerpane — nadwyżka trafia do WPI</Text>
+                </View>
+              )}
+            </View>
+          );
+        })()}
+
         <View style={st.statsRow}>
           <View style={st.statItem}><Text style={st.statLabel}>Wpłacono</Text><Text style={st.statVal}>{paid.toFixed(0)}</Text></View>
           <View style={st.statItem}><Text style={st.statLabel}>Wartość</Text><Text style={st.statVal}>{val.toFixed(0)}</Text></View>
@@ -405,6 +517,8 @@ export default function Investments() {
 
               {fType === 'ikze' && (<><Text style={st.inputLabel}>Próg podatkowy</Text><View style={{ flexDirection: 'row', gap: 8, marginBottom: 12 }}>{TAX_BRACKETS.map(tb => (<TouchableOpacity key={tb.value} style={[st.chip, fTaxBracket === tb.value && { backgroundColor: '#6A1B9A20', borderColor: '#6A1B9A' }]} onPress={() => setFTaxBracket(tb.value)}><Text style={[st.chipText, fTaxBracket === tb.value && { color: '#6A1B9A', fontWeight: '600' }]}>{tb.label}</Text></TouchableOpacity>))}</View></>)}
 
+              {fType === 'pko_pakiet' && (<><Text style={st.inputLabel}>Status zatrudnienia</Text><View style={{ flexDirection: 'row', gap: 8, marginBottom: 12 }}><TouchableOpacity style={[st.chip, fEmployStatus === 'etat' && { backgroundColor: '#0D47A120', borderColor: '#0D47A1' }]} onPress={() => setFEmployStatus('etat')}><Text style={[st.chipText, fEmployStatus === 'etat' && { color: '#0D47A1', fontWeight: '600' }]}>Etat / inne</Text></TouchableOpacity><TouchableOpacity style={[st.chip, fEmployStatus === 'dg' && { backgroundColor: '#0D47A120', borderColor: '#0D47A1' }]} onPress={() => setFEmployStatus('dg')}><Text style={[st.chipText, fEmployStatus === 'dg' && { color: '#0D47A1', fontWeight: '600' }]}>Działalność gospodarcza</Text></TouchableOpacity></View><Text style={{ fontSize: 12, color: '#9B8B7E', marginBottom: 12, marginTop: -4 }}>Wpływa na limit IKZE ({fEmployStatus === 'dg' ? getLimits(currentYear).ikze_dg : getLimits(currentYear).ikze_etat} zł)</Text></>)}
+
               <Text style={st.inputLabel}>Waluta</Text>
               <View style={{ flexDirection: 'row', gap: 8, marginBottom: 12 }}>{CURRENCIES.map(c => (<TouchableOpacity key={c} style={[st.chip, fCurrency === c && { backgroundColor: '#D4AF3720', borderColor: '#D4AF37' }]} onPress={() => setFCurrency(c)}><Text style={[st.chipText, fCurrency === c && { color: '#D4AF37', fontWeight: '600' }]}>{c}</Text></TouchableOpacity>))}</View>
 
@@ -481,6 +595,19 @@ export default function Investments() {
           </>) : (<>
             <Text style={st.inputLabel}>Kwota</Text>
             <TextInput style={st.input} value={payAmount} onChangeText={v => setPayAmount(v.replace(',', '.'))} placeholder="0.00" placeholderTextColor="#9B8B7E" keyboardType="numeric" />
+            {payInvType === 'pko_pakiet' && parseFloat(payAmount) > 0 && (() => {
+              const inv = investments.find(i => i.id === payInvId);
+              const existingPayments = inv?.payments || [];
+              const status = inv?.employment_status || 'etat';
+              const year = new Date(payDate).getFullYear();
+              const preview = splitPaymentToBuckets(parseFloat(payAmount), year, existingPayments, status);
+              return (
+                <View style={{ backgroundColor: '#0D47A110', padding: 10, borderRadius: 8, marginTop: -4, marginBottom: 12 }}>
+                  <Text style={{ fontSize: 12, fontWeight: '600', color: '#0D47A1', marginBottom: 4 }}>Podgląd podziału:</Text>
+                  <Text style={{ fontSize: 12, color: '#6B5D52' }}>IKZE: {preview.ikze.toFixed(0)} zł  •  IKE: {preview.ike.toFixed(0)} zł  •  WPI: {preview.wpi.toFixed(0)} zł</Text>
+                </View>
+              );
+            })()}
           </>)}
           <TouchableOpacity style={st.submitBtn} onPress={handleAddPayment}><Text style={st.submitBtnText}>Dodaj wpłatę</Text></TouchableOpacity>
         </View></View>
