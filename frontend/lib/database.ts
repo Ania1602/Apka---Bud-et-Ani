@@ -672,6 +672,12 @@ export const userSettingsDB = {
   set: async (key: string, value: string) => {
     try { await AsyncStorage.setItem(`@budzetani_setting_${key}`, value); } catch {}
   },
+  getCustomLimits: async (year: number): Promise<{ike: number; ikze_etat: number; ikze_dg: number} | null> => {
+    try { const val = await AsyncStorage.getItem(`@budzetani_ike_ikze_limits_${year}`); return val ? JSON.parse(val) : null; } catch { return null; }
+  },
+  setCustomLimits: async (year: number, limits: {ike: number; ikze_etat: number; ikze_dg: number}): Promise<void> => {
+    try { await AsyncStorage.setItem(`@budzetani_ike_ikze_limits_${year}`, JSON.stringify(limits)); } catch {}
+  },
 };
 
 // PIN Management

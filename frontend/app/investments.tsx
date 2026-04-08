@@ -4,27 +4,25 @@ import { Ionicons } from '@expo/vector-icons';
 import { router, useFocusEffect } from 'expo-router';
 import { investmentsDB, creditsDB, userSettingsDB } from '../lib/database';
 
-const IKE_LIMIT_2026 = 26019;
-const IKZE_LIMIT_2026 = 10407;
-const IKZE_LIMIT_DG_2026 = 15610; // Działalność gospodarcza = 1.5x
-
 const IKE_IKZE_LIMITS: Record<number, { ike: number; ikze_etat: number; ikze_dg: number }> = {
-  2024: { ike: 23472, ikze_etat: 9388, ikze_dg: 14083 },
-  2025: { ike: 25000, ikze_etat: 10000, ikze_dg: 15000 },
-  2026: { ike: 26019, ikze_etat: 10407, ikze_dg: 15610 },
+  2024: { ike: 20805, ikze_etat: 9388.80, ikze_dg: 14083.20 },
+  2025: { ike: 26019, ikze_etat: 10407.60, ikze_dg: 15611.40 },
+  2026: { ike: 28260, ikze_etat: 11304, ikze_dg: 16956 },
 };
 
-function getLimits(year: number) {
-  return IKE_IKZE_LIMITS[year] || IKE_IKZE_LIMITS[2026];
+async function getLimits(year: number): Promise<{ike: number; ikze_etat: number; ikze_dg: number} | null> {
+  const custom = await userSettingsDB.getCustomLimits(year);
+  if (custom) return custom;
+  return IKE_IKZE_LIMITS[year] || null;
 }
 
 function splitPaymentToBuckets(
   amount: number,
   year: number,
   existingPayments: any[],
-  employmentStatus: 'etat' | 'dg'
+  employmentStatus: 'etat' | 'dg',
+  limits: {ike: number; ikze_etat: number; ikze_dg: number}
 ): { ikze: number; ike: number; wpi: number } {
-  const limits = getLimits(year);
   const ikzeLimit = employmentStatus === 'dg' ? limits.ikze_dg : limits.ikze_etat;
   const ikeLimit = limits.ike;
 
@@ -140,11 +138,23 @@ export default function Investments() {
   const [valueInvId, setValueInvId] = useState('');
   const [valueAmount, setValueAmount] = useState('');
 
+  const [currentYearLimits, setCurrentYearLimits] = useState<{ike: number; ikze_etat: number; ikze_dg: number} | null>(null);
+  const [limitsModal, setLimitsModal] = useState(false);
+  const [limIKE, setLimIKE] = useState('');
+  const [limIKZEEtat, setLimIKZEEtat] = useState('');
+  const [limIKZEDG, setLimIKZEDG] = useState('');
+
   const fetch_ = async () => {
     try {
-      const [inv, cred, by] = await Promise.all([investmentsDB.getAll(), creditsDB.getAll(), userSettingsDB.get('birth_year')]);
+      const year = new Date().getFullYear();
+      const [inv, cred, by, limits] = await Promise.all([
+        investmentsDB.getAll(), creditsDB.getAll(),
+        userSettingsDB.get('birth_year'), getLimits(year),
+      ]);
       setInvestments(inv); setCredits(cred);
       if (by) setBirthYear(parseInt(by));
+      setCurrentYearLimits(limits);
+      if (!limits) setLimitsModal(true);
     } catch (e) { console.error(e); } finally { setLoading(false); setRefreshing(false); }
   };
   useFocusEffect(useCallback(() => { fetch_(); }, []));
@@ -196,7 +206,9 @@ export default function Investments() {
       const existingPayments = inv?.payments || [];
       const status = inv?.employment_status || 'etat';
       const year = new Date(payDate).getFullYear();
-      const split = splitPaymentToBuckets(amt, year, existingPayments, status);
+      const limitsForYear = await getLimits(year);
+      if (!limitsForYear) { Alert.alert('Błąd', `Brak limitów IKE/IKZE dla roku ${year}. Ustaw je najpierw w ekranie inwestycji.`); return; }
+      const split = splitPaymentToBuckets(amt, year, existingPayments, status, limitsForYear);
       const buckets: { amount: number; bucket: string }[] = [];
       if (split.ikze > 0) buckets.push({ amount: split.ikze, bucket: 'ikze' });
       if (split.ike > 0) buckets.push({ amount: split.ike, bucket: 'ike' });
@@ -222,6 +234,19 @@ export default function Investments() {
   };
   const handleDelete = (inv: any) => Alert.alert('Usuń inwestycję', `Usunąć "${inv.name}"?`, [{ text: 'Anuluj' }, { text: 'Usuń', style: 'destructive', onPress: async () => { await investmentsDB.delete(inv.id); fetch_(); } }]);
   const handleRemovePayment = (iid: string, pid: string) => Alert.alert('Usuń wpłatę', 'Usunąć tę wpłatę?', [{ text: 'Anuluj' }, { text: 'Usuń', style: 'destructive', onPress: async () => { await investmentsDB.removePayment(iid, pid); fetch_(); } }]);
+  const handleSaveLimits = async () => {
+    const ike = parseFloat(limIKE.replace(',', '.'));
+    const ikze_etat = parseFloat(limIKZEEtat.replace(',', '.'));
+    const ikze_dg = parseFloat(limIKZEDG.replace(',', '.'));
+    if (isNaN(ike) || isNaN(ikze_etat) || isNaN(ikze_dg) || ike <= 0 || ikze_etat <= 0 || ikze_dg <= 0) {
+      Alert.alert('Błąd', 'Wszystkie pola muszą być wypełnione i zawierać liczby dodatnie');
+      return;
+    }
+    await userSettingsDB.setCustomLimits(currentYear, { ike, ikze_etat, ikze_dg });
+    setCurrentYearLimits({ ike, ikze_etat, ikze_dg });
+    setLimitsModal(false);
+    fetch_();
+  };
 
   // === CALCULATIONS ===
   const totalPaid = investments.reduce((s, i) => s + (i.total_paid || 0), 0);
@@ -291,28 +316,28 @@ export default function Investments() {
       )}
 
       {/* IKE limit */}
-      {hasIKE && (
+      {hasIKE && currentYearLimits && (
         <View style={st.limitCard}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
             <Ionicons name="umbrella" size={16} color="#2E7D32" />
             <Text style={st.limitTitle}>IKE {currentYear} — limit roczny</Text>
           </View>
-          <Text style={st.limitText}>Wpłacono: {ikeYearly.toFixed(0)} zł / {IKE_LIMIT_2026} zł ({((ikeYearly / IKE_LIMIT_2026) * 100).toFixed(0)}%)</Text>
-          <View style={st.limitBar}><View style={[st.limitFill, { width: `${Math.min((ikeYearly / IKE_LIMIT_2026) * 100, 100)}%`, backgroundColor: ikeYearly >= IKE_LIMIT_2026 ? '#D4AF37' : '#2E7D32' }]} /></View>
-          {ikeYearly > IKE_LIMIT_2026 && <Text style={{ fontSize: 11, color: '#C62828', marginTop: 4 }}>Przekroczono limit!</Text>}
+          <Text style={st.limitText}>Wpłacono: {ikeYearly.toFixed(0)} zł / {currentYearLimits.ike} zł ({((ikeYearly / currentYearLimits.ike) * 100).toFixed(0)}%)</Text>
+          <View style={st.limitBar}><View style={[st.limitFill, { width: `${Math.min((ikeYearly / currentYearLimits.ike) * 100, 100)}%`, backgroundColor: ikeYearly >= currentYearLimits.ike ? '#D4AF37' : '#2E7D32' }]} /></View>
+          {ikeYearly > currentYearLimits.ike && <Text style={{ fontSize: 11, color: '#C62828', marginTop: 4 }}>Przekroczono limit!</Text>}
         </View>
       )}
       {/* IKZE limit + tax */}
-      {hasIKZE && (
+      {hasIKZE && currentYearLimits && (
         <View style={st.limitCard}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
             <Ionicons name="umbrella" size={16} color="#6A1B9A" />
             <Text style={st.limitTitle}>IKZE {currentYear} — limit roczny</Text>
           </View>
-          <Text style={st.limitText}>Wpłacono: {ikzeYearly.toFixed(0)} zł / {IKZE_LIMIT_2026} zł ({((ikzeYearly / IKZE_LIMIT_2026) * 100).toFixed(0)}%)</Text>
-          <View style={st.limitBar}><View style={[st.limitFill, { width: `${Math.min((ikzeYearly / IKZE_LIMIT_2026) * 100, 100)}%`, backgroundColor: ikzeYearly >= IKZE_LIMIT_2026 ? '#D4AF37' : '#6A1B9A' }]} /></View>
-          {ikzeYearly > IKZE_LIMIT_2026 && <Text style={{ fontSize: 11, color: '#C62828', marginTop: 4 }}>Przekroczono limit!</Text>}
-          {(() => { const avg = investments.filter(i => i.type === 'ikze').reduce((s, i) => s + (i.tax_bracket || 12), 0) / Math.max(1, investments.filter(i => i.type === 'ikze').length); return <Text style={{ fontSize: 12, color: '#6A1B9A', marginTop: 6, fontWeight: '600' }}>Szacowana ulga PIT: {(Math.min(ikzeYearly, IKZE_LIMIT_2026) * (avg / 100)).toFixed(0)} zł</Text>; })()}
+          <Text style={st.limitText}>Wpłacono: {ikzeYearly.toFixed(0)} zł / {currentYearLimits.ikze_etat} zł ({((ikzeYearly / currentYearLimits.ikze_etat) * 100).toFixed(0)}%)</Text>
+          <View style={st.limitBar}><View style={[st.limitFill, { width: `${Math.min((ikzeYearly / currentYearLimits.ikze_etat) * 100, 100)}%`, backgroundColor: ikzeYearly >= currentYearLimits.ikze_etat ? '#D4AF37' : '#6A1B9A' }]} /></View>
+          {ikzeYearly > currentYearLimits.ikze_etat && <Text style={{ fontSize: 11, color: '#C62828', marginTop: 4 }}>Przekroczono limit!</Text>}
+          {(() => { const avg = investments.filter(i => i.type === 'ikze').reduce((s, i) => s + (i.tax_bracket || 12), 0) / Math.max(1, investments.filter(i => i.type === 'ikze').length); return <Text style={{ fontSize: 12, color: '#6A1B9A', marginTop: 6, fontWeight: '600' }}>Szacowana ulga PIT: {(Math.min(ikzeYearly, currentYearLimits.ikze_etat) * (avg / 100)).toFixed(0)} zł</Text>; })()}
         </View>
       )}
       {/* By goal */}
@@ -380,9 +405,9 @@ export default function Investments() {
         )}
 
         {/* PKO Pakiet Emerytalny — 3 bucket progress bars */}
-        {item.type === 'pko_pakiet' && (() => {
+        {item.type === 'pko_pakiet' && currentYearLimits && (() => {
           const empStatus = item.employment_status || 'etat';
-          const limits = getLimits(currentYear);
+          const limits = currentYearLimits;
           const ikzeLimit = empStatus === 'dg' ? limits.ikze_dg : limits.ikze_etat;
           const ikeLimit = limits.ike;
           const yearPays = payments.filter((p: any) => new Date(p.date).getFullYear() === currentYear);
@@ -439,7 +464,7 @@ export default function Investments() {
 
         {xirrVal !== null && <Text style={{ fontSize: 12, color: '#6B5D52', paddingHorizontal: 16, paddingBottom: 8 }}>Roczna stopa zwrotu (XIRR): <Text style={{ fontWeight: '600', color: xirrVal >= 0 ? '#2C5F2D' : '#C62828' }}>{xirrVal.toFixed(1)}%</Text></Text>}
 
-        {item.type === 'ikze' && <Text style={{ fontSize: 12, color: '#6A1B9A', paddingHorizontal: 16, paddingBottom: 8, fontWeight: '500' }}>Próg: {item.tax_bracket || 12}% • Ulga PIT: {(Math.min(payments.filter((p: any) => new Date(p.date).getFullYear() === currentYear).reduce((s: number, p: any) => s + p.amount, 0), IKZE_LIMIT_2026) * ((item.tax_bracket || 12) / 100)).toFixed(0)} zł</Text>}
+        {item.type === 'ikze' && currentYearLimits && <Text style={{ fontSize: 12, color: '#6A1B9A', paddingHorizontal: 16, paddingBottom: 8, fontWeight: '500' }}>Próg: {item.tax_bracket || 12}% • Ulga PIT: {(Math.min(payments.filter((p: any) => new Date(p.date).getFullYear() === currentYear).reduce((s: number, p: any) => s + p.amount, 0), currentYearLimits.ikze_etat) * ((item.tax_bracket || 12) / 100)).toFixed(0)} zł</Text>}
 
         {/* Obligacje - interest rates */}
         {item.type === 'obligacje' && item.interest_rates?.length > 0 && (
@@ -517,7 +542,7 @@ export default function Investments() {
 
               {fType === 'ikze' && (<><Text style={st.inputLabel}>Próg podatkowy</Text><View style={{ flexDirection: 'row', gap: 8, marginBottom: 12 }}>{TAX_BRACKETS.map(tb => (<TouchableOpacity key={tb.value} style={[st.chip, fTaxBracket === tb.value && { backgroundColor: '#6A1B9A20', borderColor: '#6A1B9A' }]} onPress={() => setFTaxBracket(tb.value)}><Text style={[st.chipText, fTaxBracket === tb.value && { color: '#6A1B9A', fontWeight: '600' }]}>{tb.label}</Text></TouchableOpacity>))}</View></>)}
 
-              {fType === 'pko_pakiet' && (<><Text style={st.inputLabel}>Status zatrudnienia</Text><View style={{ flexDirection: 'row', gap: 8, marginBottom: 12 }}><TouchableOpacity style={[st.chip, fEmployStatus === 'etat' && { backgroundColor: '#0D47A120', borderColor: '#0D47A1' }]} onPress={() => setFEmployStatus('etat')}><Text style={[st.chipText, fEmployStatus === 'etat' && { color: '#0D47A1', fontWeight: '600' }]}>Etat / inne</Text></TouchableOpacity><TouchableOpacity style={[st.chip, fEmployStatus === 'dg' && { backgroundColor: '#0D47A120', borderColor: '#0D47A1' }]} onPress={() => setFEmployStatus('dg')}><Text style={[st.chipText, fEmployStatus === 'dg' && { color: '#0D47A1', fontWeight: '600' }]}>Działalność gospodarcza</Text></TouchableOpacity></View><Text style={{ fontSize: 12, color: '#9B8B7E', marginBottom: 12, marginTop: -4 }}>Wpływa na limit IKZE ({fEmployStatus === 'dg' ? getLimits(currentYear).ikze_dg : getLimits(currentYear).ikze_etat} zł)</Text></>)}
+              {fType === 'pko_pakiet' && (<><Text style={st.inputLabel}>Status zatrudnienia</Text><View style={{ flexDirection: 'row', gap: 8, marginBottom: 12 }}><TouchableOpacity style={[st.chip, fEmployStatus === 'etat' && { backgroundColor: '#0D47A120', borderColor: '#0D47A1' }]} onPress={() => setFEmployStatus('etat')}><Text style={[st.chipText, fEmployStatus === 'etat' && { color: '#0D47A1', fontWeight: '600' }]}>Etat / inne</Text></TouchableOpacity><TouchableOpacity style={[st.chip, fEmployStatus === 'dg' && { backgroundColor: '#0D47A120', borderColor: '#0D47A1' }]} onPress={() => setFEmployStatus('dg')}><Text style={[st.chipText, fEmployStatus === 'dg' && { color: '#0D47A1', fontWeight: '600' }]}>Działalność gospodarcza</Text></TouchableOpacity></View><Text style={{ fontSize: 12, color: '#9B8B7E', marginBottom: 12, marginTop: -4 }}>Wpływa na limit IKZE ({currentYearLimits ? (fEmployStatus === 'dg' ? currentYearLimits.ikze_dg : currentYearLimits.ikze_etat) : '?'} zł)</Text></>)}
 
               <Text style={st.inputLabel}>Waluta</Text>
               <View style={{ flexDirection: 'row', gap: 8, marginBottom: 12 }}>{CURRENCIES.map(c => (<TouchableOpacity key={c} style={[st.chip, fCurrency === c && { backgroundColor: '#D4AF3720', borderColor: '#D4AF37' }]} onPress={() => setFCurrency(c)}><Text style={[st.chipText, fCurrency === c && { color: '#D4AF37', fontWeight: '600' }]}>{c}</Text></TouchableOpacity>))}</View>
@@ -595,12 +620,12 @@ export default function Investments() {
           </>) : (<>
             <Text style={st.inputLabel}>Kwota</Text>
             <TextInput style={st.input} value={payAmount} onChangeText={v => setPayAmount(v.replace(',', '.'))} placeholder="0.00" placeholderTextColor="#9B8B7E" keyboardType="numeric" />
-            {payInvType === 'pko_pakiet' && parseFloat(payAmount) > 0 && (() => {
+            {payInvType === 'pko_pakiet' && parseFloat(payAmount) > 0 && currentYearLimits && (() => {
               const inv = investments.find(i => i.id === payInvId);
               const existingPayments = inv?.payments || [];
               const status = inv?.employment_status || 'etat';
               const year = new Date(payDate).getFullYear();
-              const preview = splitPaymentToBuckets(parseFloat(payAmount), year, existingPayments, status);
+              const preview = splitPaymentToBuckets(parseFloat(payAmount), year, existingPayments, status, currentYearLimits);
               return (
                 <View style={{ backgroundColor: '#0D47A110', padding: 10, borderRadius: 8, marginTop: -4, marginBottom: 12 }}>
                   <Text style={{ fontSize: 12, fontWeight: '600', color: '#0D47A1', marginBottom: 4 }}>Podgląd podziału:</Text>
@@ -622,6 +647,31 @@ export default function Investments() {
           <TextInput style={st.input} value={valueAmount} onChangeText={v => setValueAmount(v.replace(',', '.'))} placeholder="0.00" placeholderTextColor="#9B8B7E" keyboardType="numeric" />
           <TouchableOpacity style={st.submitBtn} onPress={handleUpdateValue}><Text style={st.submitBtnText}>Zapisz</Text></TouchableOpacity>
         </View></View>
+      </Modal>
+
+      {/* === LIMITY IKE/IKZE MODAL === */}
+      <Modal visible={limitsModal} transparent animationType="slide">
+        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+          <View style={st.modalOverlay}><View style={st.modalContent}>
+            <View style={st.modalHeader}>
+              <Text style={st.modalTitle}>Limity IKE i IKZE na rok {currentYear}</Text>
+              <TouchableOpacity onPress={() => setLimitsModal(false)}><Ionicons name="close" size={24} color="#2A2520" /></TouchableOpacity>
+            </View>
+            <Text style={{ fontSize: 13, color: '#6B5D52', marginBottom: 16, lineHeight: 19 }}>
+              Limity IKE i IKZE są ustalane corocznie przez Ministra Rodziny, Pracy i Polityki Społecznej. Sprawdź aktualne kwoty na stronie pkobp.pl, gov.pl/web/rodzina lub w Monitorze Polskim, i wpisz je poniżej.
+            </Text>
+            <Text style={st.inputLabel}>Limit IKE (zł)</Text>
+            <TextInput style={st.input} value={limIKE} onChangeText={v => setLimIKE(v.replace(',', '.'))} placeholder="np. 28260" placeholderTextColor="#9B8B7E" keyboardType="numeric" />
+            <Text style={st.inputLabel}>Limit IKZE — etat / inne (zł)</Text>
+            <TextInput style={st.input} value={limIKZEEtat} onChangeText={v => setLimIKZEEtat(v.replace(',', '.'))} placeholder="np. 11304" placeholderTextColor="#9B8B7E" keyboardType="numeric" />
+            <Text style={st.inputLabel}>Limit IKZE — działalność gospodarcza (zł)</Text>
+            <TextInput style={st.input} value={limIKZEDG} onChangeText={v => setLimIKZEDG(v.replace(',', '.'))} placeholder="np. 16956" placeholderTextColor="#9B8B7E" keyboardType="numeric" />
+            <TouchableOpacity style={st.submitBtn} onPress={handleSaveLimits}><Text style={st.submitBtnText}>Zapisz</Text></TouchableOpacity>
+            <TouchableOpacity style={{ alignItems: 'center', paddingVertical: 14 }} onPress={() => { setLimitsModal(false); Alert.alert('Informacja', 'Bez limitów funkcja PKO Pakiet Emerytalny nie będzie poprawnie obliczać podziału wpłat. Możesz wprowadzić limity później w ustawieniach inwestycji.'); }}>
+              <Text style={{ fontSize: 14, color: '#800020', fontWeight: '500' }}>Anuluj</Text>
+            </TouchableOpacity>
+          </View></View>
+        </KeyboardAvoidingView>
       </Modal>
     </View>
   );

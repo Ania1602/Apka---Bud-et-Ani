@@ -163,14 +163,14 @@ export default function AddTransaction() {
           `Dodano: ${type === 'expense' ? '-' : '+'}${parseFloat(amount).toFixed(2)} zł`,
           category,
           [
-            { text: 'OK' },
             { text: 'COFNIJ', style: 'destructive', onPress: async () => {
               if (newId) { await transactionsDB.delete(newId); }
+              router.back();
             }},
+            { text: 'OK', onPress: () => router.back() },
           ],
-          { cancelable: true }
+          { cancelable: false }
         );
-        router.back();
       }
     } catch (error) {
       console.error('Error saving transaction:', error);

@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, RefreshControl, ActivityIndicator, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from 'expo-router';
@@ -129,7 +129,11 @@ export default function Statistics() {
     finally { setLoading(false); setRefreshing(false); }
   };
 
-  useFocusEffect(useCallback(() => { fetchStats(); }, [weekOffset]));
+  useFocusEffect(useCallback(() => { fetchStats(); }, []));
+
+  useEffect(() => {
+    fetchStats();
+  }, [weekOffset]);
 
   if (loading) return <View style={s.loading}><ActivityIndicator size="large" color="#D4AF37" /></View>;
 
@@ -162,17 +166,6 @@ export default function Statistics() {
           <TouchableOpacity style={[s.viewBtn, view === 'weekly' && s.viewBtnActive]} onPress={() => setView('weekly')}>
             <Text style={[s.viewBtnText, view === 'weekly' && s.viewBtnTextActive]}>Tygodniowe</Text>
           </TouchableOpacity>
-        </View>
-
-        <View style={s.summaryRow}>
-          <View style={[s.summaryCard, { borderLeftColor: '#2C5F2D' }]}>
-            <Text style={s.summaryLabel}>Przychody</Text>
-            <Text style={[s.summaryValue, { color: '#2C5F2D' }]}>{(stats?.totalIncome || 0).toFixed(2)}</Text>
-          </View>
-          <View style={[s.summaryCard, { borderLeftColor: '#800020' }]}>
-            <Text style={s.summaryLabel}>Wydatki</Text>
-            <Text style={[s.summaryValue, { color: '#800020' }]}>{(stats?.totalExpenses || 0).toFixed(2)}</Text>
-          </View>
         </View>
 
         {view === 'weekly' ? (
@@ -336,6 +329,16 @@ export default function Statistics() {
           </>
         ) : (
           <>
+            <View style={s.summaryRow}>
+              <View style={[s.summaryCard, { borderLeftColor: '#2C5F2D' }]}>
+                <Text style={s.summaryLabel}>Przychody</Text>
+                <Text style={[s.summaryValue, { color: '#2C5F2D' }]}>{(stats?.totalIncome || 0).toFixed(2)}</Text>
+              </View>
+              <View style={[s.summaryCard, { borderLeftColor: '#800020' }]}>
+                <Text style={s.summaryLabel}>Wydatki</Text>
+                <Text style={[s.summaryValue, { color: '#800020' }]}>{(stats?.totalExpenses || 0).toFixed(2)}</Text>
+              </View>
+            </View>
             {categoryData.length > 0 && (
               <View style={s.card}>
                 <Text style={s.cardTitle}>Wydatki wg Kategorii</Text>
