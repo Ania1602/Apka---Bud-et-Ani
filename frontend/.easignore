@@ -14,6 +14,7 @@ web-build/
 # Logi i cache
 *.log
 .DS_Store
+.metro-cache/
 .env.local
 .env.*.local
 
