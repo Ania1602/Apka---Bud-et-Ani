@@ -335,7 +335,7 @@ const styles = StyleSheet.create({
     borderTopColor: '#E0D5C7',
   },
   submitButton: {
-    backgroundColor: '#D4AF37',
+    backgroundColor: '#A8862B',
     padding: 18,
     borderRadius: 12,
     alignItems: 'center',
@@ -350,7 +350,7 @@ const styles = StyleSheet.create({
   },
   currencyGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   currencyBtn: { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 10, backgroundColor: '#FFF', borderWidth: 1.5, borderColor: '#E0D5C7' },
-  currencyBtnActive: { backgroundColor: '#D4AF37', borderColor: '#D4AF37' },
+  currencyBtnActive: { backgroundColor: '#A8862B', borderColor: '#D4AF37' },
   currencyBtnText: { fontSize: 14, fontWeight: '600', color: '#6B5D52' },
   currencyBtnTextActive: { color: '#FFF' },
   limitHint: { fontSize: 11, color: '#9B8B7E', marginTop: 8, lineHeight: 16 },

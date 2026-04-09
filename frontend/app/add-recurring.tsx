@@ -165,11 +165,11 @@ const styles = StyleSheet.create({
   typeButtonTextActive: { color: '#FFFFFF' },
   frequencyButtons: { flexDirection: 'row', gap: 8 },
   freqButton: { flex: 1, padding: 12, borderRadius: 8, backgroundColor: '#FFFFFF', alignItems: 'center' },
-  freqButtonActive: { backgroundColor: '#D4AF37' },
+  freqButtonActive: { backgroundColor: '#A8862B' },
   freqButtonText: { fontSize: 13, color: '#6B5D52' },
   freqButtonTextActive: { color: '#FFFFFF' },
   footer: { padding: 20, borderTopWidth: 1, borderTopColor: '#E0D5C7' },
-  submitButton: { backgroundColor: '#D4AF37', padding: 18, borderRadius: 12, alignItems: 'center' },
+  submitButton: { backgroundColor: '#A8862B', padding: 18, borderRadius: 12, alignItems: 'center' },
   submitButtonDisabled: { opacity: 0.5 },
   submitButtonText: { fontSize: 16, fontWeight: '600', color: '#FFFFFF' },
 });

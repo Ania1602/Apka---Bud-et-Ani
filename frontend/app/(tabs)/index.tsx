@@ -496,7 +496,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   monthButtonActive: {
-    backgroundColor: '#D4AF37',
+    backgroundColor: '#A8862B',
   },
   monthButtonText: {
     fontSize: 13,
@@ -600,7 +600,7 @@ const styles = StyleSheet.create({
     letterSpacing: -0.5,
   },
   actionButton: {
-    backgroundColor: '#D4AF37',
+    backgroundColor: '#A8862B',
     marginHorizontal: 20,
     marginBottom: 16,
     flexDirection: 'row',

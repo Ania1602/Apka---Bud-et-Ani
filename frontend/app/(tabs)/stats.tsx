@@ -467,7 +467,7 @@ const s = StyleSheet.create({
   subtitle: { fontSize: 14, color: '#6B5D52', marginTop: 4, textTransform: 'capitalize' },
   viewToggle: { flexDirection: 'row', marginHorizontal: 20, marginBottom: 16, backgroundColor: '#FFF', borderRadius: 12, padding: 4 },
   viewBtn: { flex: 1, padding: 10, borderRadius: 8, alignItems: 'center' },
-  viewBtnActive: { backgroundColor: '#D4AF37' },
+  viewBtnActive: { backgroundColor: '#A8862B' },
   viewBtnText: { fontSize: 14, fontWeight: '500', color: '#6B5D52' },
   viewBtnTextActive: { color: '#FFF' },
   summaryRow: { flexDirection: 'row', paddingHorizontal: 20, gap: 12, marginBottom: 16 },

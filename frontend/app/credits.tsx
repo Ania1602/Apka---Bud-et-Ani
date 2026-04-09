@@ -918,7 +918,7 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   addButton: {
-    backgroundColor: '#D4AF37',
+    backgroundColor: '#A8862B',
     paddingHorizontal: 24,
     paddingVertical: 12,
     borderRadius: 8,
@@ -935,7 +935,7 @@ const styles = StyleSheet.create({
     width: 60,
     height: 60,
     borderRadius: 30,
-    backgroundColor: '#D4AF37',
+    backgroundColor: '#A8862B',
     alignItems: 'center',
     justifyContent: 'center',
     shadowColor: '#000',
@@ -1103,7 +1103,7 @@ const styles = StyleSheet.create({
     marginRight: 8,
   },
   accountChipActive: {
-    backgroundColor: '#D4AF37',
+    backgroundColor: '#A8862B',
   },
   accountChipText: {
     fontSize: 13,
@@ -1114,7 +1114,7 @@ const styles = StyleSheet.create({
     color: '#FFF',
   },
   execButton: {
-    backgroundColor: '#D4AF37',
+    backgroundColor: '#A8862B',
     borderRadius: 12,
     paddingVertical: 14,
     alignItems: 'center',

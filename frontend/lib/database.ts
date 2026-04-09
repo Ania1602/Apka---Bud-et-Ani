@@ -991,13 +991,13 @@ export const plansDB = {
     const all = await plansDB.getAll();
     const sourcePlan = all.find((p: any) => p.id === planId);
     if (!sourcePlan) return 0;
-    
+
     let count = 0;
     all.forEach((plan: any) => {
       // Only update future months (same or later)
       const isLater = plan.year > sourcePlan.year || (plan.year === sourcePlan.year && plan.month > sourcePlan.month);
       if (!isLater) return;
-      
+
       const list = type === 'income' ? plan.incomes : plan.expenses;
       const item = list.find((i: any) => i.name === itemName);
       if (item) {
@@ -1005,7 +1005,60 @@ export const plansDB = {
         count++;
       }
     });
-    
+
+    if (count > 0) {
+      await AsyncStorage.setItem(STORAGE_KEYS.PLANS, JSON.stringify(all));
+    }
+    return count;
+  },
+
+  updateItemInFutureMonthsFull: async (planId: string, type: 'income' | 'expense', originalName: string, updates: { name?: string; amount?: number; day?: number | null; is_recurring?: boolean; frequency?: number }) => {
+    const all = await plansDB.getAll();
+    const sourcePlan = all.find((p: any) => p.id === planId);
+    if (!sourcePlan) return 0;
+
+    let count = 0;
+    all.forEach((plan: any) => {
+      const isLater = plan.year > sourcePlan.year || (plan.year === sourcePlan.year && plan.month > sourcePlan.month);
+      if (!isLater) return;
+
+      const list = type === 'income' ? plan.incomes : plan.expenses;
+      const item = list.find((i: any) => i.name === originalName);
+      if (item) {
+        if (updates.name !== undefined) item.name = updates.name;
+        if (updates.amount !== undefined) item.amount = updates.amount;
+        if (updates.day !== undefined) item.day = updates.day;
+        if (updates.is_recurring !== undefined) item.is_recurring = updates.is_recurring;
+        if (updates.frequency !== undefined) item.frequency = updates.frequency;
+        count++;
+      }
+    });
+
+    if (count > 0) {
+      await AsyncStorage.setItem(STORAGE_KEYS.PLANS, JSON.stringify(all));
+    }
+    return count;
+  },
+
+  deleteItemInFutureMonths: async (planId: string, type: 'income' | 'expense', itemName: string) => {
+    const all = await plansDB.getAll();
+    const sourcePlan = all.find((p: any) => p.id === planId);
+    if (!sourcePlan) return 0;
+
+    let count = 0;
+    all.forEach((plan: any) => {
+      const isLater = plan.year > sourcePlan.year || (plan.year === sourcePlan.year && plan.month > sourcePlan.month);
+      if (!isLater) return;
+
+      const list = type === 'income' ? plan.incomes : plan.expenses;
+      const filtered = list.filter((i: any) => i.name !== itemName);
+      if (filtered.length < list.length) {
+        if (type === 'income') plan.incomes = filtered;
+        else plan.expenses = filtered;
+        count++;
+      }
+    });
+
     if (count > 0) {
       await AsyncStorage.setItem(STORAGE_KEYS.PLANS, JSON.stringify(all));
     }

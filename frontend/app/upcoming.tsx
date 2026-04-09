@@ -106,17 +106,22 @@ export default function Upcoming() {
     if (editingItem) {
       await plansDB.updateItem(plan.id, addType, editingItem.id, data);
       
-      // If amount changed, ask about future months
-      if (editingItem.amount !== data.amount) {
+      // If anything changed, ask about future months
+      const hasChanges = editingItem.amount !== data.amount ||
+        editingItem.day !== data.day ||
+        editingItem.is_recurring !== data.is_recurring ||
+        (editingItem.frequency || 1) !== (data.frequency || 1) ||
+        editingItem.name !== data.name;
+      if (hasChanges) {
         Alert.alert(
           'Aktualizuj kolejne miesiące?',
-          `Czy zaktualizować kwotę "${itemName}" (${data.amount.toFixed(2)} PLN) również w kolejnych miesiącach?`,
+          `Czy zastosować zmiany wprowadzone dla "${editingItem.name}" również w kolejnych miesiącach?`,
           [
             { text: 'Nie, tylko ten miesiąc', style: 'cancel' },
             {
               text: 'Tak, wszystkie',
               onPress: async () => {
-                const count = await plansDB.updateItemInFutureMonths(plan.id, addType, itemName, data.amount);
+                const count = await plansDB.updateItemInFutureMonthsFull(plan.id, addType, editingItem.name, data);
                 if (count > 0) {
                   Alert.alert('Gotowe', `Zaktualizowano w ${count} kolejnych miesiącach`);
                 }
@@ -138,6 +143,23 @@ export default function Upcoming() {
       { text: 'Usuń', style: 'destructive', onPress: async () => {
         await plansDB.deleteItem(plan.id, type, itemId);
         fetchData();
+        Alert.alert(
+          'Usuń z kolejnych miesięcy?',
+          `Czy usunąć "${name}" również z kolejnych miesięcy?`,
+          [
+            { text: 'Nie, tylko ten miesiąc', style: 'cancel' },
+            {
+              text: 'Tak, usuń ze wszystkich przyszłych',
+              style: 'destructive',
+              onPress: async () => {
+                const count = await plansDB.deleteItemInFutureMonths(plan.id, type, name);
+                if (count > 0) {
+                  Alert.alert('Gotowe', `Usunięto z ${count} kolejnych miesięcy`);
+                }
+              },
+            },
+          ]
+        );
       }},
     ]);
   };

@@ -95,6 +95,6 @@ const s = StyleSheet.create({
   label: { fontSize: 14, fontWeight: '500', color: '#6B5D52', marginBottom: 12 },
   input: { backgroundColor: '#FFF', borderRadius: 12, padding: 16, fontSize: 16, color: '#2A2520' },
   footer: { padding: 20, borderTopWidth: 1, borderTopColor: '#E0D5C7' },
-  submitBtn: { backgroundColor: '#D4AF37', padding: 18, borderRadius: 12, alignItems: 'center' },
+  submitBtn: { backgroundColor: '#A8862B', padding: 18, borderRadius: 12, alignItems: 'center' },
   submitText: { fontSize: 16, fontWeight: '600', color: '#FFF' },
 });

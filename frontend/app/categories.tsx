@@ -246,5 +246,5 @@ const styles = StyleSheet.create({
   subAddInput: { flex: 1, backgroundColor: '#FAF8F3', borderRadius: 8, padding: 8, fontSize: 14, color: '#2A2520', borderWidth: 1, borderColor: '#E0D5C7' },
   addSubBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 8, paddingHorizontal: 8, marginTop: 4 },
   addSubBtnText: { fontSize: 13, color: '#D4AF37', fontWeight: '500' },
-  fab: { position: 'absolute', right: 20, bottom: 100, width: 60, height: 60, borderRadius: 30, backgroundColor: '#D4AF37', alignItems: 'center', justifyContent: 'center', shadowColor: '#D4AF37', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 8 },
+  fab: { position: 'absolute', right: 20, bottom: 100, width: 60, height: 60, borderRadius: 30, backgroundColor: '#A8862B', alignItems: 'center', justifyContent: 'center', shadowColor: '#D4AF37', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 8 },
 });

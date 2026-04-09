@@ -306,7 +306,7 @@ const styles = StyleSheet.create({
   },
   warningText: { fontSize: 16, color: '#6B5D52', textAlign: 'center' },
   addAccountButton: {
-    backgroundColor: '#D4AF37', paddingVertical: 12, paddingHorizontal: 24,
+    backgroundColor: '#A8862B', paddingVertical: 12, paddingHorizontal: 24,
     borderRadius: 10, marginTop: 8,
   },
   addAccountButtonText: { fontSize: 15, fontWeight: '600', color: '#FFFFFF' },
@@ -315,7 +315,7 @@ const styles = StyleSheet.create({
     borderTopWidth: 1, borderTopColor: '#E0D5C7',
   },
   submitButton: {
-    backgroundColor: '#D4AF37', padding: 18, borderRadius: 12,
+    backgroundColor: '#A8862B', padding: 18, borderRadius: 12,
     alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 10,
   },
   submitButtonDisabled: { opacity: 0.5 },

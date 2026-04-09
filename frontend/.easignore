@@ -1,0 +1,35 @@
+# Node modules - EAS instaluje je sam w chmurze
+node_modules/
+
+# Foldery deweloperskie Expo
+.expo/
+.expo-shared/
+
+# Build artifacts
+android/
+ios/
+dist/
+web-build/
+
+# Logi i cache
+*.log
+.DS_Store
+.env.local
+.env.*.local
+
+# Git i edytory
+.git/
+.gitignore
+.vscode/
+.idea/
+
+# Testy i raporty
+coverage/
+__tests__/
+*.test.tsx
+*.test.ts
+
+# Pliki tymczasowe
+*.tmp
+*.bak
+instrukcja.txt

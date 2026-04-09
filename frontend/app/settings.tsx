@@ -248,7 +248,7 @@ const s = StyleSheet.create({
   pinButtons: { flexDirection: 'row', gap: 12 },
   cancelBtn: { flex: 1, padding: 14, borderRadius: 10, backgroundColor: '#F5F1E8', alignItems: 'center' },
   cancelBtnText: { fontSize: 14, fontWeight: '500', color: '#6B5D52' },
-  saveBtn: { flex: 1, padding: 14, borderRadius: 10, backgroundColor: '#D4AF37', alignItems: 'center' },
+  saveBtn: { flex: 1, padding: 14, borderRadius: 10, backgroundColor: '#A8862B', alignItems: 'center' },
   saveBtnText: { fontSize: 14, fontWeight: '600', color: '#FFF' },
   infoCard: { flexDirection: 'row', backgroundColor: '#2196F320', padding: 16, borderRadius: 12, gap: 12, marginTop: 8 },
   infoText: { fontSize: 13, color: '#2196F3', flex: 1, lineHeight: 18 },

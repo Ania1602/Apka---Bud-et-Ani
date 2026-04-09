@@ -684,7 +684,7 @@ const styles = StyleSheet.create({
     color: '#2A2520',
   },
   todayButton: {
-    backgroundColor: '#D4AF37',
+    backgroundColor: '#A8862B',
     paddingHorizontal: 14,
     paddingVertical: 10,
     borderRadius: 10,
@@ -717,7 +717,7 @@ const styles = StyleSheet.create({
     marginRight: 8,
   },
   accountChipActive: {
-    backgroundColor: '#D4AF37',
+    backgroundColor: '#A8862B',
   },
   accountChipText: {
     fontSize: 14,
@@ -733,7 +733,7 @@ const styles = StyleSheet.create({
     borderTopColor: '#E0D5C7',
   },
   submitButton: {
-    backgroundColor: '#D4AF37',
+    backgroundColor: '#A8862B',
     padding: 18,
     borderRadius: 12,
     alignItems: 'center',
@@ -769,6 +769,6 @@ const styles = StyleSheet.create({
   modalBtnRow: { flexDirection: 'row', gap: 12, marginTop: 4 },
   modalBtnCancel: { flex: 1, padding: 14, borderRadius: 10, backgroundColor: '#FFFFFF', alignItems: 'center', borderWidth: 1, borderColor: '#E0D5C7' },
   modalBtnCancelText: { fontSize: 15, fontWeight: '600', color: '#6B5D52' },
-  modalBtnSave: { flex: 1, padding: 14, borderRadius: 10, backgroundColor: '#D4AF37', alignItems: 'center' },
+  modalBtnSave: { flex: 1, padding: 14, borderRadius: 10, backgroundColor: '#A8862B', alignItems: 'center' },
   modalBtnSaveText: { fontSize: 15, fontWeight: '600', color: '#FFFFFF' },
 });
