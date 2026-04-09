@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, FlatList, TouchableOpacity, RefreshControl, Act
 import { Ionicons } from '@expo/vector-icons';
 import { router, useFocusEffect } from 'expo-router';
 import { investmentsDB, creditsDB, userSettingsDB } from '../lib/database';
+import { parseAmount } from '../lib/utils';
 
 const IKE_IKZE_LIMITS: Record<number, { ike: number; ikze_etat: number; ikze_dg: number }> = {
   2024: { ike: 20805, ikze_etat: 9388.80, ikze_dg: 14083.20 },
@@ -179,11 +180,11 @@ export default function Investments() {
   };
   const handleSave = async () => {
     if (!fName.trim()) { Alert.alert('Błąd', 'Podaj nazwę inwestycji'); return; }
-    const data: any = { name: fName.trim(), type: fType, start_date: fStartDate, current_value: parseFloat(fCurrentValue) || 0, notes: fNotes.trim(), currency: fCurrency, goal: fGoal.trim(), tax_bracket: fType === 'ikze' ? fTaxBracket : undefined, interest_rates: fType === 'obligacje' ? fInterestRates : undefined, employment_status: fType === 'pko_pakiet' ? fEmployStatus : undefined };
+    const data: any = { name: fName.trim(), type: fType, start_date: fStartDate, current_value: parseAmount(fCurrentValue) || 0, notes: fNotes.trim(), currency: fCurrency, goal: fGoal.trim(), tax_bracket: fType === 'ikze' ? fTaxBracket : undefined, interest_rates: fType === 'obligacje' ? fInterestRates : undefined, employment_status: fType === 'pko_pakiet' ? fEmployStatus : undefined };
     if (editId) { await investmentsDB.update(editId, data); }
     else {
-      const vp = fInitialPayments.filter(p => parseFloat(p.amount) > 0);
-      data.payments = vp.map(p => ({ amount: parseFloat(p.amount), date: p.date, source: fType === 'ppk' ? p.source : 'own', id: Date.now().toString() + Math.random().toString(36).slice(2) }));
+      const vp = fInitialPayments.filter(p => (parseAmount(p.amount) || 0) > 0);
+      data.payments = vp.map(p => ({ amount: parseAmount(p.amount) || 0, date: p.date, source: fType === 'ppk' ? p.source : 'own', id: Date.now().toString() + Math.random().toString(36).slice(2) }));
       data.total_paid = data.payments.reduce((s: number, p: any) => s + p.amount, 0);
       await investmentsDB.create(data);
     }
@@ -192,15 +193,15 @@ export default function Investments() {
   const handleAddPayment = async () => {
     if (payInvType === 'ppk') {
       const entries = [
-        { amount: parseFloat(ppkOwn) || 0, source: 'own' },
-        { amount: parseFloat(ppkOwnAdd) || 0, source: 'own_additional' },
-        { amount: parseFloat(ppkEmployer) || 0, source: 'employer' },
-        { amount: parseFloat(ppkState) || 0, source: 'state_annual' },
+        { amount: parseAmount(ppkOwn) || 0, source: 'own' },
+        { amount: parseAmount(ppkOwnAdd) || 0, source: 'own_additional' },
+        { amount: parseAmount(ppkEmployer) || 0, source: 'employer' },
+        { amount: parseAmount(ppkState) || 0, source: 'state_annual' },
       ].filter(e => e.amount > 0);
       if (entries.length === 0) { Alert.alert('Błąd', 'Podaj kwotę przynajmniej jednej wpłaty'); return; }
       for (const e of entries) { await investmentsDB.addPayment(payInvId, { amount: e.amount, date: payDate, source: e.source }); }
     } else if (payInvType === 'pko_pakiet') {
-      const amt = parseFloat(payAmount);
+      const amt = parseAmount(payAmount);
       if (amt <= 0 || isNaN(amt)) { Alert.alert('Błąd', 'Podaj kwotę wpłaty'); return; }
       const inv = investments.find(i => i.id === payInvId);
       const existingPayments = inv?.payments || [];
@@ -220,14 +221,14 @@ export default function Investments() {
       const msg = `IKZE: ${split.ikze.toFixed(0)} zł | IKE: ${split.ike.toFixed(0)} zł | WPI: ${split.wpi.toFixed(0)} zł`;
       Alert.alert('Podział wpłaty', msg);
     } else {
-      const amt = parseFloat(payAmount);
-      if (amt <= 0) { Alert.alert('Błąd', 'Podaj kwotę wpłaty'); return; }
+      const amt = parseAmount(payAmount);
+      if (!amt || amt <= 0) { Alert.alert('Błąd', 'Podaj kwotę wpłaty'); return; }
       await investmentsDB.addPayment(payInvId, { amount: amt, date: payDate, source: 'own' });
     }
     setPayModal(false); fetch_();
   };
   const handleUpdateValue = async () => {
-    const val = parseFloat(valueAmount);
+    const val = parseAmount(valueAmount);
     if (isNaN(val)) { Alert.alert('Błąd', 'Podaj aktualną wartość'); return; }
     await investmentsDB.updateValue(valueInvId, val);
     setValueModal(false); fetch_();
@@ -235,9 +236,9 @@ export default function Investments() {
   const handleDelete = (inv: any) => Alert.alert('Usuń inwestycję', `Usunąć "${inv.name}"?`, [{ text: 'Anuluj' }, { text: 'Usuń', style: 'destructive', onPress: async () => { await investmentsDB.delete(inv.id); fetch_(); } }]);
   const handleRemovePayment = (iid: string, pid: string) => Alert.alert('Usuń wpłatę', 'Usunąć tę wpłatę?', [{ text: 'Anuluj' }, { text: 'Usuń', style: 'destructive', onPress: async () => { await investmentsDB.removePayment(iid, pid); fetch_(); } }]);
   const handleSaveLimits = async () => {
-    const ike = parseFloat(limIKE.replace(',', '.'));
-    const ikze_etat = parseFloat(limIKZEEtat.replace(',', '.'));
-    const ikze_dg = parseFloat(limIKZEDG.replace(',', '.'));
+    const ike = parseAmount(limIKE);
+    const ikze_etat = parseAmount(limIKZEEtat);
+    const ikze_dg = parseAmount(limIKZEDG);
     if (isNaN(ike) || isNaN(ikze_etat) || isNaN(ikze_dg) || ike <= 0 || ikze_etat <= 0 || ikze_dg <= 0) {
       Alert.alert('Błąd', 'Wszystkie pola muszą być wypełnione i zawierać liczby dodatnie');
       return;
@@ -620,12 +621,12 @@ export default function Investments() {
           </>) : (<>
             <Text style={st.inputLabel}>Kwota</Text>
             <TextInput style={st.input} value={payAmount} onChangeText={v => setPayAmount(v.replace(',', '.'))} placeholder="0.00" placeholderTextColor="#9B8B7E" keyboardType="numeric" />
-            {payInvType === 'pko_pakiet' && parseFloat(payAmount) > 0 && currentYearLimits && (() => {
+            {payInvType === 'pko_pakiet' && (parseAmount(payAmount) || 0) > 0 && currentYearLimits && (() => {
               const inv = investments.find(i => i.id === payInvId);
               const existingPayments = inv?.payments || [];
               const status = inv?.employment_status || 'etat';
               const year = new Date(payDate).getFullYear();
-              const preview = splitPaymentToBuckets(parseFloat(payAmount), year, existingPayments, status, currentYearLimits);
+              const preview = splitPaymentToBuckets(parseAmount(payAmount) || 0, year, existingPayments, status, currentYearLimits);
               return (
                 <View style={{ backgroundColor: '#0D47A110', padding: 10, borderRadius: 8, marginTop: -4, marginBottom: 12 }}>
                   <Text style={{ fontSize: 12, fontWeight: '600', color: '#0D47A1', marginBottom: 4 }}>Podgląd podziału:</Text>

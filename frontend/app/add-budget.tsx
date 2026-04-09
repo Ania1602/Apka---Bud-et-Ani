@@ -13,6 +13,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
 import { budgetsDB, categoriesDB } from '../lib/database';
+import { parseAmount } from '../lib/utils';
 
 export default function AddBudget() {
   const params = useLocalSearchParams();
@@ -70,7 +71,7 @@ export default function AddBudget() {
         category: selectedCategories[0],
         categories: selectedCategories,
         month, year,
-        limit_amount: parseFloat(limitAmount),
+        limit_amount: parseAmount(limitAmount),
       };
       if (isEdit) { await budgetsDB.update(editId, budgetData); }
       else { await budgetsDB.create(budgetData); }

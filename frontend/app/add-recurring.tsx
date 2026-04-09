@@ -6,6 +6,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
 import { recurringDB, accountsDB, categoriesDB } from '../lib/database';
+import { parseAmount } from '../lib/utils';
 
 export default function AddRecurring() {
   const params = useLocalSearchParams();
@@ -75,7 +76,7 @@ export default function AddRecurring() {
     setLoading(true);
     try {
       const recurringData = {
-        name, type, amount: parseFloat(amount), category, account_id: accountId,
+        name, type, amount: parseAmount(amount), category, account_id: accountId,
         frequency, day_of_month: parseInt(dayOfMonth), start_date: new Date().toISOString(),
         is_active: true,
       };

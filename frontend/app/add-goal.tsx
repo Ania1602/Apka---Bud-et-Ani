@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, Keyboa
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
 import { savingsGoalsDB } from '../lib/database';
+import { parseAmount } from '../lib/utils';
 
 export default function AddGoal() {
   const params = useLocalSearchParams();
@@ -40,7 +41,7 @@ export default function AddGoal() {
     if (!name || !targetAmount) { alert('Proszę wypełnić nazwę i kwotę docelową'); return; }
     setLoading(true);
     try {
-      const goalData = { name, target_amount: parseFloat(targetAmount), current_amount: parseFloat(currentAmount) || 0, deadline: deadline || null };
+      const goalData = { name, target_amount: parseAmount(targetAmount), current_amount: parseAmount(currentAmount) || 0, deadline: deadline || null };
       if (isEdit) {
         await savingsGoalsDB.update(editId, goalData);
       } else {

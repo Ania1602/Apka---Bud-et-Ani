@@ -14,7 +14,9 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import { transactionsDB, transactionUpdate, accountsDB, categoriesDB, creditsDB, budgetsDB, getLastAccountForCategory } from '../lib/database';
+import { parseAmount } from '../lib/utils';
 import Snackbar from '../components/Snackbar';
 
 export default function AddTransaction() {
@@ -29,6 +31,7 @@ export default function AddTransaction() {
   const [accountId, setAccountId] = useState(params.account_id ? String(params.account_id) : '');
   const [creditId, setCreditId] = useState(params.credit_id ? String(params.credit_id) : '');
   const [selectedDate, setSelectedDate] = useState(params.date ? String(params.date).split('T')[0] : new Date().toISOString().split('T')[0]);
+  const [showDatePicker, setShowDatePicker] = useState(false);
   const [capitalPart, setCapitalPart] = useState('');
   const [interestPart, setInterestPart] = useState('');
   const [tags, setTags] = useState('');
@@ -108,9 +111,9 @@ export default function AddTransaction() {
 
     // Validate credit split
     if (creditId && capitalPart && interestPart) {
-      const cap = parseFloat(capitalPart) || 0;
-      const interest = parseFloat(interestPart) || 0;
-      const total = parseFloat(amount);
+      const cap = parseAmount(capitalPart) || 0;
+      const interest = parseAmount(interestPart) || 0;
+      const total = parseAmount(amount);
       if (Math.abs((cap + interest) - total) > 0.01) {
         alert(`Suma kapitału (${cap.toFixed(2)}) i odsetek (${interest.toFixed(2)}) musi równać się kwocie transakcji (${total.toFixed(2)})`);
         return;
@@ -127,7 +130,7 @@ export default function AddTransaction() {
       
       const txData: any = {
         type,
-        amount: parseFloat(amount),
+        amount: parseAmount(amount),
         category,
         account_id: accountId,
         description,
@@ -135,8 +138,8 @@ export default function AddTransaction() {
         date: new Date(selectedDate + 'T12:00:00').toISOString(),
         tags: tagsList,
         subcategory: subcategory || null,
-        capital_part: creditId && capitalPart ? parseFloat(capitalPart) : null,
-        interest_part: creditId && interestPart ? parseFloat(interestPart) : null,
+        capital_part: creditId && capitalPart ? parseAmount(capitalPart) : null,
+        interest_part: creditId && interestPart ? parseAmount(interestPart) : null,
       };
       
       // Income on limit accounts is a refund, not real income
@@ -153,14 +156,14 @@ export default function AddTransaction() {
         if (creditId && capitalPart) {
           const credit = credits.find(c => c.id === creditId);
           if (credit) {
-            const newRemaining = (credit.remaining_amount || 0) - (parseFloat(capitalPart) || 0);
+            const newRemaining = (credit.remaining_amount || 0) - (parseAmount(capitalPart) || 0);
             await creditsDB.update(creditId, { ...credit, remaining_amount: Math.max(0, newRemaining) });
           }
         }
         // Snackbar with undo (change 5)
         setLastAddedId(newId);
         Alert.alert(
-          `Dodano: ${type === 'expense' ? '-' : '+'}${parseFloat(amount).toFixed(2)} zł`,
+          `Dodano: ${type === 'expense' ? '-' : '+'}${(parseAmount(amount) || 0).toFixed(2)} zł`,
           category,
           [
             { text: 'COFNIJ', style: 'destructive', onPress: async () => {
@@ -249,10 +252,10 @@ export default function AddTransaction() {
         </View>
 
         {/* Budget warning (change 8) */}
-        {type === 'expense' && parseFloat(amount) > 200 && (() => {
+        {type === 'expense' && (parseAmount(amount) || 0) > 200 && (() => {
           const bgt = budgets.find((b: any) => (b.categories || [b.category]).some((c: string) => c === category));
           if (!bgt) return null;
-          const pct = (parseFloat(amount) / bgt.amount) * 100;
+          const pct = ((parseAmount(amount) || 0) / bgt.amount) * 100;
           if (pct <= 5) return null;
           const isHigh = pct > 25;
           return (
@@ -300,7 +303,24 @@ export default function AddTransaction() {
               <TouchableOpacity style={styles.todayButton} onPress={() => setSelectedDate(new Date().toISOString().split('T')[0])}>
                 <Text style={styles.todayButtonText}>Dziś</Text>
               </TouchableOpacity>
+              <TouchableOpacity style={styles.todayButton} onPress={() => setShowDatePicker(true)}>
+                <Ionicons name="calendar-outline" size={18} color="#D4AF37" />
+              </TouchableOpacity>
             </View>
+            {showDatePicker && (
+              <DateTimePicker
+                value={new Date(selectedDate)}
+                mode="date"
+                display="default"
+                onChange={(event, date) => {
+                  setShowDatePicker(false);
+                  if (event.type === 'set' && date) {
+                    setSelectedDate(date.toISOString().split('T')[0]);
+                  }
+                }}
+                locale="pl-PL"
+              />
+            )}
           </View>
 
           <View style={styles.field}>
@@ -433,7 +453,7 @@ export default function AddTransaction() {
                     onChangeText={(t) => {
                       const val = t.replace(',', '.');
                       setCapitalPart(val);
-                      if (amount && val) setInterestPart((parseFloat(amount) - (parseFloat(val) || 0)).toFixed(2));
+                      if (amount && val) setInterestPart(((parseAmount(amount) || 0) - (parseAmount(val) || 0)).toFixed(2));
                     }}
                     placeholder="0.00" placeholderTextColor="#9B8B7E" keyboardType="numeric" />
                 </View>
@@ -443,14 +463,14 @@ export default function AddTransaction() {
                     onChangeText={(t) => {
                       const val = t.replace(',', '.');
                       setInterestPart(val);
-                      if (amount && val) setCapitalPart((parseFloat(amount) - (parseFloat(val) || 0)).toFixed(2));
+                      if (amount && val) setCapitalPart(((parseAmount(amount) || 0) - (parseAmount(val) || 0)).toFixed(2));
                     }}
                     placeholder="0.00" placeholderTextColor="#9B8B7E" keyboardType="numeric" />
                 </View>
               </View>
               {capitalPart && interestPart && amount && (
-                <Text style={[styles.creditSplitInfo, Math.abs((parseFloat(capitalPart) + parseFloat(interestPart)) - parseFloat(amount)) > 0.01 ? { color: '#D32F2F' } : {}]}>
-                  Suma: {((parseFloat(capitalPart) || 0) + (parseFloat(interestPart) || 0)).toFixed(2)} / {parseFloat(amount).toFixed(2)} PLN
+                <Text style={[styles.creditSplitInfo, Math.abs(((parseAmount(capitalPart) || 0) + (parseAmount(interestPart) || 0)) - (parseAmount(amount) || 0)) > 0.01 ? { color: '#D32F2F' } : {}]}>
+                  Suma: {((parseAmount(capitalPart) || 0) + (parseAmount(interestPart) || 0)).toFixed(2)} / {(parseAmount(amount) || 0).toFixed(2)} PLN
                 </Text>
               )}
             </View>

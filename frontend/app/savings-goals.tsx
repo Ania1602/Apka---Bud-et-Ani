@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, FlatList, TouchableOpacity, RefreshControl, Act
 import { Ionicons } from '@expo/vector-icons';
 import { router, useFocusEffect } from 'expo-router';
 import { savingsGoalsDB, transactionsDB, accountsDB } from '../lib/database';
+import { parseAmount } from '../lib/utils';
 
 export default function SavingsGoals() {
   const [goals, setGoals] = useState<any[]>([]);
@@ -41,7 +42,7 @@ export default function SavingsGoals() {
   };
 
   const handleDeposit = async () => {
-    const amt = parseFloat(depositAmount || '0');
+    const amt = parseAmount(depositAmount || '0') || 0;
     if (amt <= 0 || !depositAccountId) { Alert.alert('Błąd', 'Podaj kwotę i wybierz konto'); return; }
     try {
       await savingsGoalsDB.addAmount(depositGoalId, amt);

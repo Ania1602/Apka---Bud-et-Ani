@@ -1,5 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Crypto from 'expo-crypto';
+import * as SecureStore from 'expo-secure-store';
 
 // Storage keys
 const STORAGE_KEYS = {
@@ -683,18 +684,24 @@ export const userSettingsDB = {
 // PIN Management
 export const pinDB = {
   exists: async () => {
-    const pin = await AsyncStorage.getItem(STORAGE_KEYS.PIN_CODE);
-    return !!pin;
+    // Migrate from AsyncStorage to SecureStore (one-time, for existing users)
+    const legacy = await AsyncStorage.getItem(STORAGE_KEYS.PIN_CODE);
+    if (legacy) {
+      await SecureStore.setItemAsync('pin_code', legacy);
+      await AsyncStorage.removeItem(STORAGE_KEYS.PIN_CODE);
+    }
+    const pin = await SecureStore.getItemAsync('pin_code');
+    return pin !== null;
   },
   set: async (pin: string) => {
-    await AsyncStorage.setItem(STORAGE_KEYS.PIN_CODE, pin);
+    await SecureStore.setItemAsync('pin_code', pin);
   },
   verify: async (pin: string) => {
-    const stored = await AsyncStorage.getItem(STORAGE_KEYS.PIN_CODE);
+    const stored = await SecureStore.getItemAsync('pin_code');
     return stored === pin;
   },
   remove: async () => {
-    await AsyncStorage.removeItem(STORAGE_KEYS.PIN_CODE);
+    await SecureStore.deleteItemAsync('pin_code');
   },
 };
 

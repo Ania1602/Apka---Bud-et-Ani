@@ -6,6 +6,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { router, useFocusEffect } from 'expo-router';
 import { plansDB } from '../lib/database';
+import { parseAmount } from '../lib/utils';
 
 const MONTH_NAMES = ['Styczeń', 'Luty', 'Marzec', 'Kwiecień', 'Maj', 'Czerwiec', 'Lipiec', 'Sierpień', 'Wrzesień', 'Październik', 'Listopad', 'Grudzień'];
 
@@ -98,7 +99,7 @@ export default function Upcoming() {
     if (!itemName || !itemAmount || !plan) return;
     const data: any = {
       name: itemName,
-      amount: parseFloat(itemAmount),
+      amount: parseAmount(itemAmount),
       day: itemDay ? parseInt(itemDay) : null,
       is_recurring: itemRecurring,
       frequency: itemRecurring ? itemFrequency : undefined,

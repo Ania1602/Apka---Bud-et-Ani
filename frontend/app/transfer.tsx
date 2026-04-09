@@ -14,6 +14,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { accountsDB, transactionsDB } from '../lib/database';
+import { parseAmount } from '../lib/utils';
 
 export default function Transfer() {
   const [accounts, setAccounts] = useState<any[]>([]);
@@ -53,7 +54,7 @@ export default function Transfer() {
       return;
     }
 
-    const transferAmount = parseFloat(amount);
+    const transferAmount = parseAmount(amount);
     if (isNaN(transferAmount) || transferAmount <= 0) {
       Alert.alert('Błąd', 'Proszę wpisać poprawną kwotę');
       return;

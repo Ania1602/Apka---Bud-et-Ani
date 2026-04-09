@@ -17,6 +17,7 @@ import { router, useFocusEffect } from 'expo-router';
 import { format } from 'date-fns';
 import { pl } from 'date-fns/locale';
 import { creditsDB, accountsDB, transactionsDB, recurringDB } from '../lib/database';
+import { parseAmount } from '../lib/utils';
 
 type CreditFilter = 'active' | 'paid' | 'all';
 
@@ -134,7 +135,7 @@ export default function Credits() {
 
   const handleExecuteOverpay = async () => {
     if (!execCredit || !execAmount || !execAccountId) return;
-    const amount = parseFloat(execAmount);
+    const amount = parseAmount(execAmount);
     if (isNaN(amount) || amount <= 0) { Alert.alert('Błąd', 'Podaj prawidłową kwotę'); return; }
     
     const account = accounts.find(a => a.id === execAccountId);
@@ -204,10 +205,10 @@ export default function Credits() {
     if (!rateCredit) return;
     try {
       const rateInfo: any = {};
-      if (firstRate) rateInfo.first_rate = parseFloat(firstRate);
-      if (regularRate) rateInfo.regular_rate = parseFloat(regularRate);
-      if (lastRate) rateInfo.last_rate = parseFloat(lastRate);
-      if (regularRate) rateInfo.monthly_payment = parseFloat(regularRate);
+      if (firstRate) rateInfo.first_rate = parseAmount(firstRate);
+      if (regularRate) rateInfo.regular_rate = parseAmount(regularRate);
+      if (lastRate) rateInfo.last_rate = parseAmount(lastRate);
+      if (regularRate) rateInfo.monthly_payment = parseAmount(regularRate);
       
       await creditsDB.overpay(rateCredit.id, 0, rateInfo);
       
@@ -216,7 +217,7 @@ export default function Credits() {
         const recurrings = await recurringDB.getAll();
         const linked = recurrings.find((r: any) => r.credit_id === rateCredit.id && r.is_active);
         if (linked) {
-          await recurringDB.update(linked.id, { amount: parseFloat(regularRate) });
+          await recurringDB.update(linked.id, { amount: parseAmount(regularRate) });
         }
       }
       
@@ -503,8 +504,8 @@ export default function Credits() {
                     placeholder="np. 5000" placeholderTextColor="#9B8B7E" keyboardType="numeric" />
                 </View>
 
-                {overpayAmount && parseFloat(overpayAmount) > 0 && (() => {
-                  const extra = parseFloat(overpayAmount);
+                {overpayAmount && (parseAmount(overpayAmount) || 0) > 0 && (() => {
+                  const extra = parseAmount(overpayAmount) || 0;
                   const rate = (overpayCredit.interest_rate || 0) / 100 / 12;
                   const remaining = overpayCredit.remaining_amount || 0;
                   const monthly = overpayCredit.monthly_payment || 0;

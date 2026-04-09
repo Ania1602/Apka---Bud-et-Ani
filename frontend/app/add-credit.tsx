@@ -14,6 +14,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
 import { creditsDB, plansDB } from '../lib/database';
+import { parseAmount } from '../lib/utils';
 
 export default function AddCredit() {
   const params = useLocalSearchParams();
@@ -63,10 +64,10 @@ export default function AddCredit() {
     try {
       const creditData = {
         name,
-        total_amount: parseFloat(totalAmount),
-        remaining_amount: parseFloat(remainingAmount),
-        interest_rate: parseFloat(interestRate) || 0,
-        monthly_payment: parseFloat(monthlyPayment),
+        total_amount: parseAmount(totalAmount),
+        remaining_amount: parseAmount(remainingAmount),
+        interest_rate: parseAmount(interestRate) || 0,
+        monthly_payment: parseAmount(monthlyPayment),
         start_date: new Date(startDate).toISOString(),
         end_date: new Date(endDate).toISOString(),
       };
@@ -78,7 +79,7 @@ export default function AddCredit() {
         // Ask about adding to planning
         Alert.alert(
           'Dodać do planowania?',
-          `Czy dodać ratę "${name}" (${parseFloat(monthlyPayment).toFixed(2)} PLN) do planowania wydatków?`,
+          `Czy dodać ratę "${name}" (${(parseAmount(monthlyPayment) || 0).toFixed(2)} PLN) do planowania wydatków?`,
           [
             { text: 'Nie', onPress: () => router.back() },
             {
@@ -94,7 +95,7 @@ export default function AddCredit() {
                   }
                   await plansDB.addItem(plan.id, 'expense', {
                     name: `Rata: ${name}`,
-                    amount: parseFloat(monthlyPayment),
+                    amount: parseAmount(monthlyPayment),
                     day: parseInt(startDate.split('-')[2]) || 1,
                     is_recurring: true,
                   });

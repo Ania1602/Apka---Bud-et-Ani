@@ -13,6 +13,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
 import { accountsDB } from '../lib/database';
+import { parseAmount } from '../lib/utils';
 
 const ACCOUNT_TYPES = [
   { value: 'bank', label: 'Konto Bankowe', icon: 'business', color: '#D4AF37' },
@@ -77,11 +78,11 @@ export default function AddAccount() {
       const accountData = {
         name,
         type,
-        balance: parseFloat(balance),
+        balance: parseAmount(balance),
         currency: currency,
         icon: 'wallet',
         color,
-        credit_limit: (type === 'credit_card' || type === 'revolving') && creditLimit ? parseFloat(creditLimit) : null,
+        credit_limit: (type === 'credit_card' || type === 'revolving') && creditLimit ? parseAmount(creditLimit) : null,
       };
       if (isEdit) {
         await accountsDB.update(editId, accountData);
