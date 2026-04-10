@@ -255,13 +255,15 @@ export default function AddTransaction() {
         {type === 'expense' && (parseAmount(amount) || 0) > 200 && (() => {
           const bgt = budgets.find((b: any) => (b.categories || [b.category]).some((c: string) => c === category));
           if (!bgt) return null;
-          const pct = ((parseAmount(amount) || 0) / bgt.amount) * 100;
+          const limit = bgt.limit_amount || bgt.amount || 0;
+          if (limit <= 0) return null;
+          const pct = ((parseAmount(amount) || 0) / limit) * 100;
           if (pct <= 5) return null;
           const isHigh = pct > 25;
           return (
             <View style={{ backgroundColor: isHigh ? '#F8D7DA' : '#FFF3CD', padding: 10, borderRadius: 8, marginBottom: 12, flexDirection: 'row', alignItems: 'center', gap: 6 }}>
               <Ionicons name="warning" size={16} color={isHigh ? '#721C24' : '#856404'} />
-              <Text style={{ fontSize: 12, color: isHigh ? '#721C24' : '#856404', flex: 1 }}>{isHigh ? 'UWAGA' : ''} To {pct.toFixed(0)}% budżetu na ten miesiąc ({bgt.amount.toFixed(0)} zł)</Text>
+              <Text style={{ fontSize: 12, color: isHigh ? '#721C24' : '#856404', flex: 1 }}>{isHigh ? 'UWAGA' : ''} To {pct.toFixed(0)}% budżetu na ten miesiąc ({limit.toFixed(0)} zł)</Text>
             </View>
           );
         })()}
