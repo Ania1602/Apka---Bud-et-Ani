@@ -1,0 +1,4 @@
+git add -A
+git commit -m "Naprawa ksiegowania bilansu"
+git push
+eas build --platform android --profile preview

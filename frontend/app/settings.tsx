@@ -46,16 +46,11 @@ export default function Settings() {
       return true;
     }
 
-    // Try multiple directory options
-    const dir = FileSystem.cacheDirectory || FileSystem.documentDirectory;
-    
-    if (dir) {
-      const filePath = dir + fileName;
-      await FileSystem.writeAsStringAsync(filePath, content, { encoding: FileSystem.EncodingType.UTF8 });
-      const canShare = await Sharing.isAvailableAsync();
-      if (canShare) {
-        await Sharing.shareAsync(filePath, { mimeType, dialogTitle: 'Eksportuj dane' });
-      }
+    const file = new FileSystem.File(FileSystem.Paths.cache, fileName);
+    await file.write(content);
+    const canShare = await Sharing.isAvailableAsync();
+    if (canShare) {
+      await Sharing.shareAsync(file.uri, { mimeType, dialogTitle: 'Eksportuj dane' });
       return true;
     }
 
@@ -102,7 +97,7 @@ export default function Settings() {
       const result = await DocumentPicker.getDocumentAsync({ type: 'application/json', copyToCacheDirectory: true });
       if (result.canceled) return;
       const file = result.assets[0];
-      const content = await FileSystem.readAsStringAsync(file.uri, { encoding: FileSystem.EncodingType.UTF8 });
+      const content = await new FileSystem.File(file.uri).text();
       try { JSON.parse(content); } catch { Alert.alert('Błąd', 'Niepoprawny plik JSON'); return; }
       Alert.alert('Importuj backup', 'Co chcesz zrobić z istniejącymi danymi?', [
         { text: 'Anuluj', style: 'cancel' },

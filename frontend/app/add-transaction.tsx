@@ -124,10 +124,6 @@ export default function AddTransaction() {
     try {
       const tagsList = tags ? tags.split(',').map(t => t.trim().replace(/^#/, '')).filter(Boolean) : [];
       
-      // Check if account is a limit account
-      const selectedAccount = accounts.find((a: any) => a.id === accountId);
-      const isLimitAccount = (selectedAccount?.type === 'credit_card' || selectedAccount?.type === 'revolving') && selectedAccount?.credit_limit;
-      
       const txData: any = {
         type,
         amount: parseAmount(amount),
@@ -142,11 +138,6 @@ export default function AddTransaction() {
         interest_part: creditId && interestPart ? parseAmount(interestPart) : null,
       };
       
-      // Income on limit accounts is a refund, not real income
-      if (type === 'income' && isLimitAccount) {
-        txData.is_limit_refund = true;
-      }
-
       if (isEdit) {
         await transactionUpdate(editId, txData);
         router.back();

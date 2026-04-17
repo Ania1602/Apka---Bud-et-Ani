@@ -117,7 +117,7 @@ export default function Categories() {
           <View style={styles.subSection}>
             {subs.map((sub: any) => (
               <View key={sub.id} style={styles.subItem}>
-                {editingSub?.subId === sub.id ? (
+                {editingSub !== null && editingSub.subId === sub.id ? (
                   <View style={styles.subEditRow}>
                     <TextInput
                       style={styles.subEditInput}

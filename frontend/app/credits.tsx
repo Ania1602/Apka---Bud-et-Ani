@@ -625,7 +625,7 @@ export default function Credits() {
                 
                 <Text style={styles.inputLabel}>Kwota nadpłaty:</Text>
                 <TextInput
-                  style={styles.input}
+                  style={styles.modalInput}
                   value={execAmount}
                   onChangeText={setExecAmount}
                   keyboardType="decimal-pad"
@@ -665,7 +665,7 @@ export default function Credits() {
               
               <Text style={styles.inputLabel}>Pierwsza rata po nadpłacie:</Text>
               <TextInput
-                style={styles.input}
+                style={styles.modalInput}
                 value={firstRate}
                 onChangeText={setFirstRate}
                 keyboardType="decimal-pad"
@@ -675,7 +675,7 @@ export default function Credits() {
               
               <Text style={styles.inputLabel}>Kolejne raty (standardowa):</Text>
               <TextInput
-                style={styles.input}
+                style={styles.modalInput}
                 value={regularRate}
                 onChangeText={setRegularRate}
                 keyboardType="decimal-pad"
@@ -685,7 +685,7 @@ export default function Credits() {
               
               <Text style={styles.inputLabel}>Ostatnia rata (wyrównanie):</Text>
               <TextInput
-                style={styles.input}
+                style={styles.modalInput}
                 value={lastRate}
                 onChangeText={setLastRate}
                 keyboardType="decimal-pad"
