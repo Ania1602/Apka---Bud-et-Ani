@@ -118,7 +118,7 @@ export default function Accounts() {
   const totalBalance = accounts.reduce((sum, acc) => sum + acc.balance, 0);
 
   const isCredit = (acc: any) =>
-    acc.credit_limit && (acc.type === 'credit_card' || acc.type === 'revolving');
+    acc?.credit_limit && (acc.type === 'credit_card' || acc.type === 'revolving');
 
   return (
     <View style={styles.container}>
