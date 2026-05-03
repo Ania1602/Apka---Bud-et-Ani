@@ -570,13 +570,14 @@ export const getDashboardStats = async (month?: number, year?: number) => {
   const totalExpenses = expenseTransactions.filter((t: any) => !t.is_transfer).reduce((sum: number, t: any) => sum + t.amount, 0);
   
   const credits = await creditsDB.getAll();
-  
+  const activeCredits = credits.filter((c: any) => c.status !== 'paid');
+
   return {
     total_balance: totalBalance,
     total_income: totalIncome,
     total_expenses: totalExpenses,
     accounts_count: accounts.length,
-    credits_count: credits.length,
+    credits_count: activeCredits.length,
   };
 };
 
@@ -906,10 +907,18 @@ export const plansDB = {
     const all = await plansDB.getAll();
     const plan = all.find((p: any) => p.id === planId);
     if (!plan) return;
+    const list = type === 'income' ? plan.incomes : plan.expenses;
+    const deleted = list.find((i: any) => i.id === itemId);
     if (type === 'income') {
       plan.incomes = plan.incomes.filter((i: any) => i.id !== itemId);
     } else {
       plan.expenses = plan.expenses.filter((i: any) => i.id !== itemId);
+    }
+    if (deleted) {
+      if (!plan.excluded_recurring_names) plan.excluded_recurring_names = [];
+      if (!plan.excluded_recurring_names.includes(deleted.name)) {
+        plan.excluded_recurring_names.push(deleted.name);
+      }
     }
     await AsyncStorage.setItem(STORAGE_KEYS.PLANS, JSON.stringify(all));
     return plan;
@@ -1062,6 +1071,10 @@ export const plansDB = {
       if (filtered.length < list.length) {
         if (type === 'income') plan.incomes = filtered;
         else plan.expenses = filtered;
+        if (!plan.excluded_recurring_names) plan.excluded_recurring_names = [];
+        if (!plan.excluded_recurring_names.includes(itemName)) {
+          plan.excluded_recurring_names.push(itemName);
+        }
         count++;
       }
     });

@@ -48,7 +48,8 @@ export default function Upcoming() {
           
           const existingList = currentPlan[type] || [];
           const exists = existingList.find((e: any) => e.name === item.name);
-          if (!exists) {
+          const excluded = (currentPlan.excluded_recurring_names || []).includes(item.name);
+          if (!exists && !excluded) {
             const newId = Date.now().toString(36) + Math.random().toString(36).substr(2);
             existingList.push({ id: newId, name: item.name, amount: item.amount, day: item.day, is_recurring: true, frequency: freq, is_paid: false });
             currentPlan[type] = existingList;
@@ -303,21 +304,23 @@ export default function Upcoming() {
             </TouchableOpacity>
           </View>
           {plan?.incomes?.map((item: any) => (
-            <TouchableOpacity key={item.id} style={s.itemRow} onPress={() => handleTogglePaid(item.id, 'income')}
-              onLongPress={() => openEditModal(item, 'income')}>
-              <Ionicons name={item.paid ? 'checkbox' : 'square-outline'} size={24} color={item.paid ? '#2C5F2D' : '#9B8B7E'} />
-              <View style={[s.itemDetails, item.paid && s.itemPaid]}>
-                <View style={s.itemNameRow}>
-                  <Text style={[s.itemName, item.paid && s.textPaid]}>{item.name}</Text>
-                  {item.is_recurring && <Ionicons name="repeat" size={14} color="#9C27B0" />}
+            <View key={item.id} style={s.itemRow}>
+              <TouchableOpacity style={s.itemRowMain} onPress={() => handleTogglePaid(item.id, 'income')}
+                onLongPress={() => openEditModal(item, 'income')}>
+                <Ionicons name={item.paid ? 'checkbox' : 'square-outline'} size={24} color={item.paid ? '#2C5F2D' : '#9B8B7E'} />
+                <View style={[s.itemDetails, item.paid && s.itemPaid]}>
+                  <View style={s.itemNameRow}>
+                    <Text style={[s.itemName, item.paid && s.textPaid]}>{item.name}</Text>
+                    {item.is_recurring && <Ionicons name="repeat" size={14} color="#9C27B0" />}
+                  </View>
+                  {item.day && <Text style={s.itemDay}>Dzień {item.day}</Text>}
                 </View>
-                {item.day && <Text style={s.itemDay}>Dzień {item.day}</Text>}
-              </View>
-              <Text style={[s.itemAmount, { color: '#2C5F2D' }, item.paid && s.textPaid]}>+{item.amount.toFixed(2)}</Text>
+                <Text style={[s.itemAmount, { color: '#2C5F2D' }, item.paid && s.textPaid]}>+{item.amount.toFixed(2)}</Text>
+              </TouchableOpacity>
               <TouchableOpacity onPress={() => handleDeleteItem(item.id, 'income', item.name)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
                 <Ionicons name="close-circle" size={20} color="#D32F2F50" />
               </TouchableOpacity>
-            </TouchableOpacity>
+            </View>
           ))}
           {(!plan?.incomes || plan.incomes.length === 0) && (
             <Text style={s.emptyText}>Brak zaplanowanych wpływów</Text>
@@ -336,21 +339,23 @@ export default function Upcoming() {
             </TouchableOpacity>
           </View>
           {plan?.expenses?.sort((a: any, b: any) => (a.day || 99) - (b.day || 99)).map((item: any) => (
-            <TouchableOpacity key={item.id} style={s.itemRow} onPress={() => handleTogglePaid(item.id, 'expense')}
-              onLongPress={() => openEditModal(item, 'expense')}>
-              <Ionicons name={item.paid ? 'checkbox' : 'square-outline'} size={24} color={item.paid ? '#2C5F2D' : '#9B8B7E'} />
-              <View style={[s.itemDetails, item.paid && s.itemPaid]}>
-                <View style={s.itemNameRow}>
-                  <Text style={[s.itemName, item.paid && s.textPaid]}>{item.name}</Text>
-                  {item.is_recurring && <Ionicons name="repeat" size={14} color="#9C27B0" />}
+            <View key={item.id} style={s.itemRow}>
+              <TouchableOpacity style={s.itemRowMain} onPress={() => handleTogglePaid(item.id, 'expense')}
+                onLongPress={() => openEditModal(item, 'expense')}>
+                <Ionicons name={item.paid ? 'checkbox' : 'square-outline'} size={24} color={item.paid ? '#2C5F2D' : '#9B8B7E'} />
+                <View style={[s.itemDetails, item.paid && s.itemPaid]}>
+                  <View style={s.itemNameRow}>
+                    <Text style={[s.itemName, item.paid && s.textPaid]}>{item.name}</Text>
+                    {item.is_recurring && <Ionicons name="repeat" size={14} color="#9C27B0" />}
+                  </View>
+                  {item.day && <Text style={s.itemDay}>Dzień {item.day}</Text>}
                 </View>
-                {item.day && <Text style={s.itemDay}>Dzień {item.day}</Text>}
-              </View>
-              <Text style={[s.itemAmount, { color: '#800020' }, item.paid && s.textPaid]}>-{item.amount.toFixed(2)}</Text>
+                <Text style={[s.itemAmount, { color: '#800020' }, item.paid && s.textPaid]}>-{item.amount.toFixed(2)}</Text>
+              </TouchableOpacity>
               <TouchableOpacity onPress={() => handleDeleteItem(item.id, 'expense', item.name)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
                 <Ionicons name="close-circle" size={20} color="#D32F2F50" />
               </TouchableOpacity>
-            </TouchableOpacity>
+            </View>
           ))}
           {(!plan?.expenses || plan.expenses.length === 0) && (
             <Text style={s.emptyText}>Brak zaplanowanych wydatków</Text>
@@ -462,6 +467,7 @@ const s = StyleSheet.create({
   sectionTitle: { fontSize: 16, fontWeight: '600', color: '#2A2520' },
   addBtn: { backgroundColor: '#2C5F2D', width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
   itemRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#F5F1E8', gap: 10 },
+  itemRowMain: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 10 },
   itemDetails: { flex: 1 },
   itemPaid: { opacity: 0.5 },
   itemNameRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },

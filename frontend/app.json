@@ -69,6 +69,12 @@
         "projectId": "bca1fe9f-1a71-4a08-9cbb-32d5cdb020fa"
       }
     },
-    "owner": "ania1602"
+    "owner": "ania1602",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/bca1fe9f-1a71-4a08-9cbb-32d5cdb020fa"
+    }
   }
 }
