@@ -289,7 +289,9 @@ export const transactionsDB = {
         const credits = await getItems(STORAGE_KEYS.CREDITS);
         const cIdx = credits.findIndex((c: any) => c.id === transaction.credit_id);
         if (cIdx !== -1) {
-          credits[cIdx].remaining_amount = (credits[cIdx].remaining_amount || 0) + (transaction.capital_part || 0);
+          credits[cIdx].remaining_amount = parseFloat(
+            ((credits[cIdx].remaining_amount || 0) + (transaction.capital_part || 0)).toFixed(2)
+          );
           await setItems(STORAGE_KEYS.CREDITS, credits);
         }
       }
@@ -497,25 +499,43 @@ export const recurringDB = {
   execute: async (id: string) => {
     const recurrings = await getItems(STORAGE_KEYS.RECURRING);
     const recurring = recurrings.find((r: any) => r.id === id);
-    
+
     if (recurring) {
+      const txAmount = recurring.amount || 0;
+      const txCapitalPart = recurring.capital_part || (recurring.credit_id ? txAmount : null);
+      const txInterestPart = recurring.interest_part || (recurring.credit_id ? 0 : null);
+
       const transactionId = await transactionsDB.create({
         type: recurring.type,
-        amount: recurring.amount,
+        amount: txAmount,
         category: recurring.category,
         account_id: recurring.account_id,
         date: new Date().toISOString(),
         description: `Płatność cykliczna: ${recurring.name}`,
         credit_id: recurring.credit_id || null,
+        capital_part: txCapitalPart,
+        interest_part: txInterestPart,
       });
-      
+
+      // Update credit remaining_amount if linked
+      if (recurring.credit_id && txCapitalPart > 0) {
+        const credits = await getItems(STORAGE_KEYS.CREDITS);
+        const cIdx = credits.findIndex((c: any) => c.id === recurring.credit_id);
+        if (cIdx !== -1) {
+          credits[cIdx].remaining_amount = parseFloat(
+            (Math.max(0, (credits[cIdx].remaining_amount || 0) - txCapitalPart)).toFixed(2)
+          );
+          await setItems(STORAGE_KEYS.CREDITS, credits);
+        }
+      }
+
       // Update last_executed
       const index = recurrings.findIndex((r: any) => r.id === id);
       if (index !== -1) {
         recurrings[index].last_executed = new Date().toISOString();
         await setItems(STORAGE_KEYS.RECURRING, recurrings);
       }
-      
+
       return transactionId;
     }
   },
@@ -722,21 +742,53 @@ export const transactionUpdate = async (id: string, updates: any) => {
   const transactions = await getItems(STORAGE_KEYS.TRANSACTIONS);
   const index = transactions.findIndex((t: any) => t.id === id);
   if (index !== -1) {
-    // Reverse old balance
     const old = transactions[index];
+
+    // Reverse old account balance
     const account = await accountsDB.getById(old.account_id);
     if (account) {
       const reversed = old.type === 'income' ? account.balance - old.amount : account.balance + old.amount;
       await accountsDB.updateBalance(old.account_id, reversed);
     }
-    // Apply new
+
+    // Restore old credit remaining_amount
+    if (old.credit_id && old.capital_part) {
+      const credits = await getItems(STORAGE_KEYS.CREDITS);
+      const cIdx = credits.findIndex((c: any) => c.id === old.credit_id);
+      if (cIdx !== -1) {
+        credits[cIdx].remaining_amount = parseFloat(
+          ((credits[cIdx].remaining_amount || 0) + (old.capital_part || 0)).toFixed(2)
+        );
+        await setItems(STORAGE_KEYS.CREDITS, credits);
+      }
+    }
+
+    // Apply new transaction data
     transactions[index] = { ...transactions[index], ...updates };
     await setItems(STORAGE_KEYS.TRANSACTIONS, transactions);
-    // Apply new balance
+
+    // Apply new account balance
     const newAcc = await accountsDB.getById(updates.account_id || old.account_id);
     if (newAcc) {
-      const newBal = (updates.type || old.type) === 'income' ? newAcc.balance + (updates.amount || old.amount) : newAcc.balance - (updates.amount || old.amount);
+      const newBal = (updates.type || old.type) === 'income'
+        ? newAcc.balance + (updates.amount || old.amount)
+        : newAcc.balance - (updates.amount || old.amount);
       await accountsDB.updateBalance(updates.account_id || old.account_id, newBal);
+    }
+
+    // Apply new credit remaining_amount
+    const newCreditId = updates.credit_id !== undefined ? updates.credit_id : old.credit_id;
+    const newCapitalPart = updates.capital_part !== undefined ? updates.capital_part : old.capital_part;
+    if (newCreditId && newCapitalPart) {
+      const credits = await getItems(STORAGE_KEYS.CREDITS);
+      const cIdx = credits.findIndex((c: any) => c.id === newCreditId);
+      if (cIdx !== -1) {
+        const newRemaining = parseFloat(
+          (Math.max(0, (credits[cIdx].remaining_amount || 0) - (newCapitalPart || 0))).toFixed(2)
+        );
+        credits[cIdx].remaining_amount = newRemaining;
+        await setItems(STORAGE_KEYS.CREDITS, credits);
+      }
     }
   }
 };

@@ -71,6 +71,16 @@ export default function AddTransaction() {
     }
   }, [type]);
 
+  // Recalculate interest when total amount changes (keeps capital fixed)
+  useEffect(() => {
+    if (!creditId || !capitalPart || !amount) return;
+    const cap = parseAmount(capitalPart);
+    const total = parseAmount(amount);
+    if (!isNaN(cap) && !isNaN(total)) {
+      setInterestPart(parseFloat((total - cap).toFixed(2)).toString());
+    }
+  }, [amount]);
+
   // Auto-set account when category changes (change 4)
   useEffect(() => {
     if (category && !manualAccountSelected && !params.edit) {
@@ -134,8 +144,10 @@ export default function AddTransaction() {
         date: new Date(selectedDate + 'T12:00:00').toISOString(),
         tags: tagsList,
         subcategory: subcategory || null,
-        capital_part: creditId && capitalPart ? parseAmount(capitalPart) : null,
-        interest_part: creditId && interestPart ? parseAmount(interestPart) : null,
+        capital_part: creditId
+          ? (capitalPart ? parseAmount(capitalPart) : parseAmount(amount))
+          : null,
+        interest_part: creditId && interestPart ? parseAmount(interestPart) : (creditId && !capitalPart ? 0 : null),
       };
       
       if (isEdit) {
@@ -143,12 +155,19 @@ export default function AddTransaction() {
         router.back();
       } else {
         const newId = await transactionsDB.create(txData);
-        // If credit installment with capital part, reduce remaining_amount
-        if (creditId && capitalPart) {
+        // Reduce credit remaining_amount: use capital_part if provided, otherwise full amount
+        if (creditId) {
           const credit = credits.find(c => c.id === creditId);
           if (credit) {
-            const newRemaining = (credit.remaining_amount || 0) - (parseAmount(capitalPart) || 0);
-            await creditsDB.update(creditId, { ...credit, remaining_amount: Math.max(0, newRemaining) });
+            const capitalAmount = capitalPart
+              ? (parseAmount(capitalPart) || 0)
+              : (parseAmount(amount) || 0);
+            if (capitalAmount > 0) {
+              const newRemaining = parseFloat(
+                (Math.max(0, (credit.remaining_amount || 0) - capitalAmount)).toFixed(2)
+              );
+              await creditsDB.update(creditId, { ...credit, remaining_amount: newRemaining });
+            }
           }
         }
         // Snackbar with undo (change 5)
