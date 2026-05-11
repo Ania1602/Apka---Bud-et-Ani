@@ -144,30 +144,24 @@ export default function AddTransaction() {
         date: new Date(selectedDate + 'T12:00:00').toISOString(),
         tags: tagsList,
         subcategory: subcategory || null,
-        capital_part: creditId
-          ? (capitalPart ? parseAmount(capitalPart) : parseAmount(amount))
+        capital_part: creditId && capitalPart
+          ? parseAmount(capitalPart)
           : null,
-        interest_part: creditId && interestPart ? parseAmount(interestPart) : (creditId && !capitalPart ? 0 : null),
+        interest_part: creditId && interestPart
+          ? parseAmount(interestPart)
+          : null,
       };
-      
+
       if (isEdit) {
         await transactionUpdate(editId, txData);
         router.back();
       } else {
         const newId = await transactionsDB.create(txData);
-        // Reduce credit remaining_amount: use capital_part if provided, otherwise full amount
-        if (creditId) {
-          const credit = credits.find(c => c.id === creditId);
-          if (credit) {
-            const capitalAmount = capitalPart
-              ? (parseAmount(capitalPart) || 0)
-              : (parseAmount(amount) || 0);
-            if (capitalAmount > 0) {
-              const newRemaining = parseFloat(
-                (Math.max(0, (credit.remaining_amount || 0) - capitalAmount)).toFixed(2)
-              );
-              await creditsDB.update(creditId, { ...credit, remaining_amount: newRemaining });
-            }
+        // Reduce credit remaining_amount only by the explicitly specified capital part
+        if (creditId && capitalPart) {
+          const capitalAmount = parseAmount(capitalPart) || 0;
+          if (capitalAmount > 0) {
+            await creditsDB.subtractCapital(creditId, capitalAmount);
           }
         }
         // Snackbar with undo (change 5)
@@ -483,6 +477,11 @@ export default function AddTransaction() {
               {capitalPart && interestPart && amount && (
                 <Text style={[styles.creditSplitInfo, Math.abs(((parseAmount(capitalPart) || 0) + (parseAmount(interestPart) || 0)) - (parseAmount(amount) || 0)) > 0.01 ? { color: '#D32F2F' } : {}]}>
                   Suma: {((parseAmount(capitalPart) || 0) + (parseAmount(interestPart) || 0)).toFixed(2)} / {(parseAmount(amount) || 0).toFixed(2)} PLN
+                </Text>
+              )}
+              {!capitalPart && (
+                <Text style={{ fontSize: 11, color: '#9B8B7E', marginTop: 8, fontStyle: 'italic' }}>
+                  Bez podania części kapitałowej saldo kredytu nie zostanie zaktualizowane
                 </Text>
               )}
             </View>

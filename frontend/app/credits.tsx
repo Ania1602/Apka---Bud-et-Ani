@@ -39,6 +39,14 @@ export default function Credits() {
   const [execAmount, setExecAmount] = useState('');
   const [execAccountId, setExecAccountId] = useState('');
   const [execLoading, setExecLoading] = useState(false);
+
+  // Installment payment state
+  const [installmentModal, setInstallmentModal] = useState(false);
+  const [installmentCredit, setInstallmentCredit] = useState<any>(null);
+  const [installmentAccountId, setInstallmentAccountId] = useState('');
+  const [installmentCapital, setInstallmentCapital] = useState('');
+  const [installmentInterest, setInstallmentInterest] = useState('');
+  const [installmentLoading, setInstallmentLoading] = useState(false);
   
   // Post-overpayment rate update state
   const [rateModal, setRateModal] = useState(false);
@@ -126,11 +134,62 @@ export default function Credits() {
     );
   };
 
+  const getPayableAccounts = () =>
+    accounts.filter((a: any) => !(a.type === 'credit_card' && a.credit_limit));
+
   const handleOpenOverpay = (credit: any) => {
+    const payable = getPayableAccounts();
     setExecCredit(credit);
     setExecAmount('');
-    setExecAccountId(accounts.length > 0 ? accounts[0].id : '');
+    setExecAccountId(payable.length > 0 ? payable[0].id : '');
     setExecModal(true);
+  };
+
+  const handleOpenInstallment = (credit: any) => {
+    const payable = getPayableAccounts();
+    setInstallmentCredit(credit);
+    setInstallmentCapital('');
+    setInstallmentInterest('');
+    setInstallmentAccountId(payable.length > 0 ? payable[0].id : '');
+    setInstallmentModal(true);
+  };
+
+  const handleExecuteInstallment = async () => {
+    if (!installmentCredit || !installmentAccountId) return;
+    const capital = parseAmount(installmentCapital) || 0;
+    const interest = parseAmount(installmentInterest) || 0;
+    const total = capital + interest;
+
+    if (total <= 0) { Alert.alert('Błąd', 'Podaj kwotę raty'); return; }
+    if (capital < 0 || interest < 0) { Alert.alert('Błąd', 'Kwoty nie mogą być ujemne'); return; }
+
+    setInstallmentLoading(true);
+    try {
+      await transactionsDB.create({
+        type: 'expense',
+        amount: total,
+        category: 'Rata kredytu',
+        account_id: installmentAccountId,
+        date: new Date().toISOString(),
+        description: `Rata kredytu: ${installmentCredit.name}`,
+        credit_id: installmentCredit.id,
+        capital_part: capital > 0 ? capital : null,
+        interest_part: interest > 0 ? interest : null,
+      });
+
+      if (capital > 0) {
+        await creditsDB.subtractCapital(installmentCredit.id, capital);
+      }
+
+      setInstallmentModal(false);
+      fetchCredits();
+      Alert.alert('Gotowe', `Rata ${total.toFixed(2)} PLN zapisana\nKapitał: ${capital.toFixed(2)} PLN\nOdsetki: ${interest.toFixed(2)} PLN`);
+    } catch (error) {
+      console.error('Error executing installment:', error);
+      Alert.alert('Błąd', 'Nie udało się zapisać raty');
+    } finally {
+      setInstallmentLoading(false);
+    }
   };
 
   const handleExecuteOverpay = async () => {
@@ -466,6 +525,10 @@ export default function Credits() {
                     <Ionicons name="cash" size={16} color="#D4AF37" />
                     <Text style={styles.overpayExecBtnText}>Nadpłać</Text>
                   </TouchableOpacity>
+                  <TouchableOpacity style={styles.installmentBtn} onPress={() => handleOpenInstallment(item)}>
+                    <Ionicons name="calendar" size={16} color="#2196F3" />
+                    <Text style={styles.installmentBtnText}>Spłać ratę</Text>
+                  </TouchableOpacity>
                   <TouchableOpacity style={styles.markPaidBtn} onPress={() => handleMarkAsPaid(item.id, item.name)}>
                     <Ionicons name="checkmark-done" size={16} color="#2C5F2D" />
                     <Text style={styles.markPaidBtnText}>Spłacony</Text>
@@ -610,7 +673,7 @@ export default function Credits() {
                 
                 <Text style={styles.inputLabel}>Konto do obciążenia:</Text>
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.accountPicker}>
-                  {accounts.filter(a => !((a.type === 'credit_card' || a.type === 'revolving') && a.credit_limit)).map((acc: any) => (
+                  {getPayableAccounts().map((acc: any) => (
                     <TouchableOpacity
                       key={acc.id}
                       style={[styles.accountChip, execAccountId === acc.id && styles.accountChipActive]}
@@ -642,6 +705,89 @@ export default function Credits() {
                     <ActivityIndicator color="#FFF" size="small" />
                   ) : (
                     <Text style={styles.execButtonText}>Wykonaj nadpłatę</Text>
+                  )}
+                </TouchableOpacity>
+              </ScrollView>
+            )}
+          </View>
+        </View>
+      </Modal>
+
+      {/* Installment Payment Modal */}
+      <Modal visible={installmentModal} transparent animationType="slide">
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Spłać ratę</Text>
+              <TouchableOpacity onPress={() => setInstallmentModal(false)}>
+                <Ionicons name="close" size={24} color="#2A2520" />
+              </TouchableOpacity>
+            </View>
+            {installmentCredit && (
+              <ScrollView style={{ maxHeight: 480 }}>
+                <Text style={styles.execCreditName}>{installmentCredit.name}</Text>
+                <Text style={styles.execCreditInfo}>Do spłaty: {installmentCredit.remaining_amount?.toFixed(2)} PLN</Text>
+
+                <Text style={styles.inputLabel}>Konto do obciążenia:</Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.accountPicker}>
+                  {getPayableAccounts().map((acc: any) => (
+                    <TouchableOpacity
+                      key={acc.id}
+                      style={[styles.accountChip, installmentAccountId === acc.id && styles.accountChipActive]}
+                      onPress={() => setInstallmentAccountId(acc.id)}
+                    >
+                      <Text style={[styles.accountChipText, installmentAccountId === acc.id && styles.accountChipTextActive]}>
+                        {acc.name} ({acc.balance?.toFixed(0)} PLN)
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+
+                <View style={styles.installmentSplitRow}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.inputLabel}>Część kapitałowa:</Text>
+                    <TextInput
+                      style={styles.modalInput}
+                      value={installmentCapital}
+                      onChangeText={setInstallmentCapital}
+                      keyboardType="decimal-pad"
+                      placeholder="0.00"
+                      placeholderTextColor="#9B8B7E"
+                    />
+                  </View>
+                  <View style={{ flex: 1, marginLeft: 8 }}>
+                    <Text style={styles.inputLabel}>Część odsetkowa:</Text>
+                    <TextInput
+                      style={styles.modalInput}
+                      value={installmentInterest}
+                      onChangeText={setInstallmentInterest}
+                      keyboardType="decimal-pad"
+                      placeholder="0.00"
+                      placeholderTextColor="#9B8B7E"
+                    />
+                  </View>
+                </View>
+
+                {(installmentCapital || installmentInterest) ? (
+                  <View style={styles.installmentSummary}>
+                    <Text style={styles.installmentSummaryText}>
+                      Łącznie: {((parseAmount(installmentCapital) || 0) + (parseAmount(installmentInterest) || 0)).toFixed(2)} PLN
+                    </Text>
+                    <Text style={styles.installmentSummaryNote}>
+                      Saldo kredytu zmniejszy się o: {(parseAmount(installmentCapital) || 0).toFixed(2)} PLN (tylko kapitał)
+                    </Text>
+                  </View>
+                ) : null}
+
+                <TouchableOpacity
+                  style={[styles.execButton, (!installmentAccountId || installmentLoading) && { opacity: 0.5 }]}
+                  onPress={handleExecuteInstallment}
+                  disabled={!installmentAccountId || installmentLoading}
+                >
+                  {installmentLoading ? (
+                    <ActivityIndicator color="#FFF" size="small" />
+                  ) : (
+                    <Text style={styles.execButtonText}>Zapłać ratę</Text>
                   )}
                 </TouchableOpacity>
               </ScrollView>
@@ -1132,5 +1278,41 @@ const styles = StyleSheet.create({
     color: '#9B8B7E',
     fontStyle: 'italic',
     marginBottom: 8,
+  },
+  installmentBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 10,
+    flex: 1,
+    borderRightWidth: 1,
+    borderRightColor: '#F5F1E8',
+  },
+  installmentBtnText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#2196F3',
+  },
+  installmentSplitRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 4,
+  },
+  installmentSummary: {
+    backgroundColor: '#F5F1E8',
+    borderRadius: 10,
+    padding: 12,
+    marginTop: 12,
+  },
+  installmentSummaryText: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#2A2520',
+    marginBottom: 4,
+  },
+  installmentSummaryNote: {
+    fontSize: 12,
+    color: '#2C5F2D',
   },
 });

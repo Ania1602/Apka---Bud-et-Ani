@@ -392,7 +392,19 @@ export const creditsDB = {
       credits[index].last_overpay_amount = amount;
       await setItems(STORAGE_KEYS.CREDITS, credits);
     }
-  }
+  },
+
+  subtractCapital: async (id: string, capitalAmount: number) => {
+    if (capitalAmount <= 0) return;
+    const credits = await getItems(STORAGE_KEYS.CREDITS);
+    const index = credits.findIndex((c: any) => c.id === id);
+    if (index !== -1) {
+      credits[index].remaining_amount = parseFloat(
+        Math.max(0, (credits[index].remaining_amount || 0) - capitalAmount).toFixed(2)
+      );
+      await setItems(STORAGE_KEYS.CREDITS, credits);
+    }
+  },
 };
 
 // Budgets operations
@@ -1113,6 +1125,12 @@ export const plansDB = {
     const sourcePlan = all.find((p: any) => p.id === planId);
     if (!sourcePlan) return 0;
 
+    // Add exclusion to source plan so auto-population of future months respects the deletion
+    if (!sourcePlan.excluded_recurring_names) sourcePlan.excluded_recurring_names = [];
+    if (!sourcePlan.excluded_recurring_names.includes(itemName)) {
+      sourcePlan.excluded_recurring_names.push(itemName);
+    }
+
     let count = 0;
     all.forEach((plan: any) => {
       const isLater = plan.year > sourcePlan.year || (plan.year === sourcePlan.year && plan.month > sourcePlan.month);
@@ -1123,17 +1141,17 @@ export const plansDB = {
       if (filtered.length < list.length) {
         if (type === 'income') plan.incomes = filtered;
         else plan.expenses = filtered;
-        if (!plan.excluded_recurring_names) plan.excluded_recurring_names = [];
-        if (!plan.excluded_recurring_names.includes(itemName)) {
-          plan.excluded_recurring_names.push(itemName);
-        }
         count++;
+      }
+      // Add exclusion to all future plans (even if item wasn't there yet)
+      if (!plan.excluded_recurring_names) plan.excluded_recurring_names = [];
+      if (!plan.excluded_recurring_names.includes(itemName)) {
+        plan.excluded_recurring_names.push(itemName);
       }
     });
 
-    if (count > 0) {
-      await AsyncStorage.setItem(STORAGE_KEYS.PLANS, JSON.stringify(all));
-    }
+    // Always save since source plan was modified with exclusion
+    await AsyncStorage.setItem(STORAGE_KEYS.PLANS, JSON.stringify(all));
     return count;
   },
 };

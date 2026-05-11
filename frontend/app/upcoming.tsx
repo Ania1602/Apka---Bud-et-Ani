@@ -31,25 +31,43 @@ export default function Upcoming() {
     const all = await plansDB.getAll();
     const prevPlans = all.filter((p: any) => p.year < year || (p.year === year && p.month < month));
     if (prevPlans.length === 0) return currentPlan;
-    
-    prevPlans.sort((a: any, b: any) => a.year === b.year ? a.month - b.month : a.year - b.year);
-    
+
+    // Sort newest to oldest so most recent values are used
+    prevPlans.sort((a: any, b: any) => {
+      if (a.year !== b.year) return b.year - a.year;
+      return b.month - a.month;
+    });
+
+    const targetNum = month + year * 12;
+    const processedKeys = new Set<string>();
     let changed = false;
+
     for (const prev of prevPlans) {
       for (const type of ['incomes', 'expenses'] as const) {
         const items = prev[type] || [];
         for (const item of items) {
           if (!item.is_recurring) continue;
+
+          const key = `${type}:${item.name}`;
+          if (processedKeys.has(key)) continue; // already handled from a newer plan
+          processedKeys.add(key);
+
           const freq = item.frequency || 1;
-          const startMonth = prev.month + (prev.year * 12);
-          const targetMonth = month + (year * 12);
-          const diff = targetMonth - startMonth;
+          const prevNum = prev.month + prev.year * 12;
+          const diff = targetNum - prevNum;
           if (diff <= 0 || diff % freq !== 0) continue;
-          
+
           const existingList = currentPlan[type] || [];
           const exists = existingList.find((e: any) => e.name === item.name);
-          const excluded = (currentPlan.excluded_recurring_names || []).includes(item.name);
-          if (!exists && !excluded) {
+          const excludedInCurrent = (currentPlan.excluded_recurring_names || []).includes(item.name);
+
+          // Check if any intermediate plan (between prev and current) excluded this item
+          const intermediateExcluded = all.some((p: any) => {
+            const pNum = p.month + p.year * 12;
+            return pNum > prevNum && pNum < targetNum && (p.excluded_recurring_names || []).includes(item.name);
+          });
+
+          if (!exists && !excludedInCurrent && !intermediateExcluded) {
             const newId = Date.now().toString(36) + Math.random().toString(36).substr(2);
             existingList.push({ id: newId, name: item.name, amount: item.amount, day: item.day, is_recurring: true, frequency: freq, is_paid: false });
             currentPlan[type] = existingList;
