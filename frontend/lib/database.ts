@@ -315,7 +315,7 @@ export const creditsDB = {
         credits.map(async (credit: any) => {
           const transactions = await transactionsDB.getByDateRange(startDate, endDate, 'expense');
           const payments = transactions.filter((t: any) => t.credit_id === credit.id);
-          const monthlyPaid = payments.reduce((sum: number, t: any) => sum + t.amount, 0);
+          const monthlyPaid = payments.reduce((sum: number, t: any) => sum + (t.capital_part || 0), 0);
           
           return {
             ...credit,
