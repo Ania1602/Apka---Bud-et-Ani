@@ -17,6 +17,7 @@ import { router, useFocusEffect } from 'expo-router';
 import { format } from 'date-fns';
 import { pl } from 'date-fns/locale';
 import { creditsDB, accountsDB, transactionsDB, recurringDB } from '../lib/database';
+import { rescheduleRecurringReminders } from '../lib/notifications';
 import { parseAmount } from '../lib/utils';
 
 type CreditFilter = 'active' | 'paid' | 'all';
@@ -103,6 +104,7 @@ export default function Credits() {
             try {
               await creditsDB.markAsPaid(id);
               await recurringDB.deactivateByCreditId(id);
+              rescheduleRecurringReminders();
               fetchCredits();
             } catch (error) {
               console.error('Error marking credit as paid:', error);
@@ -176,10 +178,6 @@ export default function Credits() {
         capital_part: capital > 0 ? capital : null,
         interest_part: interest > 0 ? interest : null,
       });
-
-      if (capital > 0) {
-        await creditsDB.subtractCapital(installmentCredit.id, capital);
-      }
 
       setInstallmentModal(false);
       fetchCredits();

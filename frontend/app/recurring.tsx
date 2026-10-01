@@ -5,6 +5,7 @@ import { router, useFocusEffect } from 'expo-router';
 import { format } from 'date-fns';
 import { pl } from 'date-fns/locale';
 import { recurringDB } from '../lib/database';
+import { rescheduleRecurringReminders } from '../lib/notifications';
 
 const FREQ: Record<string, string> = { monthly: 'Co miesiąc', quarterly: 'Co kwartał', yearly: 'Co rok' };
 
@@ -13,12 +14,29 @@ export default function RecurringPage() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
-  const fetch_ = async () => { try { setRecurring(await recurringDB.getAll()); } catch (e) { console.error(e); } finally { setLoading(false); setRefreshing(false); } };
+  const fetch_ = async () => { try { setRecurring(await recurringDB.getAll()); rescheduleRecurringReminders(); } catch (e) { console.error(e); } finally { setLoading(false); setRefreshing(false); } };
   useFocusEffect(useCallback(() => { fetch_(); }, []));
 
-  const exec = (id: string, name: string) => Alert.alert('Wykonaj Płatność', `Wykonać: ${name}?`, [
+  const exec = (item: any) => {
+    if (item.is_active === false) {
+      Alert.alert('Nieaktywna', `Płatność "${item.name}" jest nieaktywna (np. kredyt został spłacony).`);
+      return;
+    }
+    const last = item.last_executed ? new Date(item.last_executed) : null;
+    const now = new Date();
+    const doneThisMonth = last && last.getMonth() === now.getMonth() && last.getFullYear() === now.getFullYear();
+    const msg = doneThisMonth
+      ? `Płatność "${item.name}" została już wykonana ${format(last, 'dd MMM', { locale: pl })}. Wykonać ponownie?`
+      : `Wykonać: ${item.name}?`;
+    Alert.alert('Wykonaj Płatność', msg, [
+      { text: 'Anuluj', style: 'cancel' },
+      { text: 'Wykonaj', onPress: async () => { try { await recurringDB.execute(item.id); Alert.alert('Sukces', 'Transakcja utworzona'); fetch_(); } catch { Alert.alert('Błąd', 'Nie udało się'); } } },
+    ]);
+  };
+
+  const remove = (item: any) => Alert.alert('Usuń', `Usunąć płatność cykliczną "${item.name}"?`, [
     { text: 'Anuluj', style: 'cancel' },
-    { text: 'Wykonaj', onPress: async () => { try { await recurringDB.execute(id); Alert.alert('Sukces', 'Transakcja utworzona'); fetch_(); } catch { Alert.alert('Błąd', 'Nie udało się'); } } },
+    { text: 'Usuń', style: 'destructive', onPress: async () => { await recurringDB.delete(item.id); fetch_(); } },
   ]);
 
   if (loading) return <View style={s.loading}><ActivityIndicator size="large" color="#D4AF37" /></View>;
@@ -40,7 +58,7 @@ export default function RecurringPage() {
               <View style={[s.icon, { backgroundColor: item.type === 'income' ? '#2C5F2D20' : '#80002020' }]}>
                 <Ionicons name={item.type === 'income' ? 'arrow-down' : 'arrow-up'} size={24} color={item.type === 'income' ? '#2C5F2D' : '#800020'} />
               </View>
-              <View style={{ flex: 1 }}><Text style={s.name}>{item.name}</Text><Text style={s.cat}>{item.category}</Text></View>
+              <View style={{ flex: 1 }}><Text style={s.name}>{item.name}{item.is_active === false ? ' (nieaktywna)' : ''}</Text><Text style={s.cat}>{item.category}</Text></View>
               <Text style={[s.amount, { color: item.type === 'income' ? '#2C5F2D' : '#800020' }]}>{item.amount.toFixed(2)} PLN</Text>
             </View>
             <View style={s.info}>
@@ -49,13 +67,13 @@ export default function RecurringPage() {
               {item.next_due_date && <View style={s.infoItem}><Ionicons name="time" size={14} color="#6B5D52" /><Text style={s.infoText}>Nast: {format(new Date(item.next_due_date), 'dd MMM', { locale: pl })}</Text></View>}
             </View>
             <View style={s.actions}>
-              <TouchableOpacity style={s.actionBtn} onPress={() => exec(item.id, item.name)}>
+              <TouchableOpacity style={s.actionBtn} onPress={() => exec(item)}>
                 <Ionicons name="play" size={16} color="#D4AF37" /><Text style={[s.actionText, { color: '#D4AF37' }]}>Wykonaj</Text>
               </TouchableOpacity>
               <TouchableOpacity style={s.actionBtn} onPress={() => router.push({ pathname: '/add-recurring', params: { edit: item.id } })}>
                 <Ionicons name="create-outline" size={16} color="#2196F3" /><Text style={[s.actionText, { color: '#2196F3' }]}>Edytuj</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={s.actionBtn} onPress={async () => { await recurringDB.delete(item.id); fetch_(); }}>
+              <TouchableOpacity style={s.actionBtn} onPress={() => remove(item)}>
                 <Ionicons name="trash-outline" size={16} color="#800020" /><Text style={[s.actionText, { color: '#800020' }]}>Usuń</Text>
               </TouchableOpacity>
             </View>

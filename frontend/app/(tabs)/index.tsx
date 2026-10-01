@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import {
   View,
   Text,
@@ -15,7 +15,7 @@ import { PieChart } from 'react-native-gifted-charts';
 import { format } from 'date-fns';
 import { pl } from 'date-fns/locale';
 import * as Notifications from 'expo-notifications';
-import { initDatabase, getDashboardStats, transactionsDB, creditsDB, accountsDB, budgetsDB, plansDB } from '../../lib/database';
+import { initDatabase, getDashboardStats, transactionsDB, creditsDB, accountsDB, budgetsDB, plansDB, userSettingsDB } from '../../lib/database';
 
 export default function Dashboard() {
   const [stats, setStats] = useState<any>(null);
@@ -55,6 +55,7 @@ export default function Dashboard() {
       const now = new Date();
       const currentMonth = now.getMonth() + 1;
       const currentYear = now.getFullYear();
+      await plansDB.populateMonths(currentMonth, currentYear, 1);
       const [statsData, transactionsData, creditsData, accountsData, budgetsData, allTxData, plansData] = await Promise.all([
         getDashboardStats(selectedMonth, selectedYear),
         transactionsDB.getAll(5),
@@ -90,6 +91,37 @@ export default function Dashboard() {
       fetchData();
     }, [selectedMonth, selectedYear])
   );
+
+  // Data lives only on the phone: remind about a backup every 30 days (at most once a week if postponed)
+  useEffect(() => {
+    (async () => {
+      try {
+        const DAY = 24 * 60 * 60 * 1000;
+        const [lastBackup, lastReminder, txs] = await Promise.all([
+          userSettingsDB.get('last_backup'),
+          userSettingsDB.get('backup_reminder_shown'),
+          transactionsDB.getAll(1),
+        ]);
+        if (txs.length === 0) return;
+        const now = Date.now();
+        if (lastBackup && now - new Date(lastBackup).getTime() < 30 * DAY) return;
+        if (lastReminder && now - new Date(lastReminder).getTime() < 7 * DAY) return;
+        await userSettingsDB.set('backup_reminder_shown', new Date().toISOString());
+        Alert.alert(
+          'Kopia zapasowa',
+          lastBackup
+            ? `Ostatni backup: ${format(new Date(lastBackup), 'd MMMM yyyy', { locale: pl })}. Dane są tylko na tym telefonie — zrób nową kopię.`
+            : 'Nie masz jeszcze kopii zapasowej. Dane są tylko na tym telefonie — utrata telefonu oznacza utratę danych.',
+          [
+            { text: 'Później', style: 'cancel' },
+            { text: 'Zrób backup', onPress: () => router.push('/settings') },
+          ]
+        );
+      } catch (e) {
+        console.log('Backup reminder error:', e);
+      }
+    })();
+  }, []);
 
   const onRefresh = () => {
     setRefreshing(true);

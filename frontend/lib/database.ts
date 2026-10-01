@@ -34,7 +34,10 @@ export const initDatabase = async () => {
       await AsyncStorage.setItem(STORAGE_KEYS.INITIALIZED, 'true');
       console.log('Database initialized with default categories');
     }
-    
+
+    // Runs the credit balance migration before any new payment can be recorded
+    await creditsDB.getAll();
+
     return true;
   } catch (error) {
     console.error('Error initializing database:', error);
@@ -88,6 +91,9 @@ const setItems = async (key: string, items: any[]) => {
   }
 };
 
+// Rounds money to whole grosze so floating point errors don't accumulate in stored balances
+export const round2 = (n: number) => Math.round((n || 0) * 100) / 100;
+
 // Accounts operations
 export const accountsDB = {
   getAll: async () => {
@@ -117,21 +123,36 @@ export const accountsDB = {
     const index = accounts.findIndex((acc: any) => acc.id === id);
     if (index !== -1) {
       accounts[index] = { ...accounts[index], ...account };
+      if (typeof accounts[index].balance === 'number') accounts[index].balance = round2(accounts[index].balance);
       await setItems(STORAGE_KEYS.ACCOUNTS, accounts);
     }
   },
-  
+
   delete: async (id: string) => {
     const accounts = await getItems(STORAGE_KEYS.ACCOUNTS);
     const filtered = accounts.filter((acc: any) => acc.id !== id);
     await setItems(STORAGE_KEYS.ACCOUNTS, filtered);
   },
-  
+
+  countTransactions: async (id: string) => {
+    const transactions = await getItems(STORAGE_KEYS.TRANSACTIONS);
+    return transactions.filter((t: any) => t.account_id === id).length;
+  },
+
+  // Deletes the account and its transactions; each deletion reverses its side effects (transfer pairs, plan links)
+  deleteWithTransactions: async (id: string) => {
+    const transactions = await getItems(STORAGE_KEYS.TRANSACTIONS);
+    for (const t of transactions.filter((t: any) => t.account_id === id)) {
+      await transactionsDB.delete(t.id);
+    }
+    await accountsDB.delete(id);
+  },
+
   updateBalance: async (id: string, newBalance: number) => {
     const accounts = await getItems(STORAGE_KEYS.ACCOUNTS);
     const index = accounts.findIndex((acc: any) => acc.id === id);
     if (index !== -1) {
-      accounts[index].balance = newBalance;
+      accounts[index].balance = round2(newBalance);
       await setItems(STORAGE_KEYS.ACCOUNTS, accounts);
     }
   }
@@ -165,15 +186,69 @@ export const categoriesDB = {
     const categories = await getItems(STORAGE_KEYS.CATEGORIES);
     const index = categories.findIndex((cat: any) => cat.id === id);
     if (index !== -1) {
-      categories[index] = { ...categories[index], ...category };
+      const old = categories[index];
+      categories[index] = { ...old, ...category };
       await setItems(STORAGE_KEYS.CATEGORIES, categories);
+
+      // Records reference categories by name, so carry a rename over to them
+      const newName = categories[index].name;
+      if (newName && newName !== old.name) {
+        const type = old.type;
+        const transactions = await getItems(STORAGE_KEYS.TRANSACTIONS);
+        transactions.forEach((t: any) => { if (t.category === old.name && t.type === type) t.category = newName; });
+        await setItems(STORAGE_KEYS.TRANSACTIONS, transactions);
+
+        const recurrings = await getItems(STORAGE_KEYS.RECURRING);
+        recurrings.forEach((r: any) => { if (r.category === old.name && r.type === type) r.category = newName; });
+        await setItems(STORAGE_KEYS.RECURRING, recurrings);
+
+        if (type === 'expense') {
+          const budgets = await getItems(STORAGE_KEYS.BUDGETS);
+          budgets.forEach((b: any) => {
+            if (b.category === old.name) b.category = newName;
+            if (Array.isArray(b.categories)) b.categories = b.categories.map((c: string) => (c === old.name ? newName : c));
+          });
+          await setItems(STORAGE_KEYS.BUDGETS, budgets);
+        }
+      }
     }
   },
   
+  countTransactions: async (name: string, type: string) => {
+    const transactions = await getItems(STORAGE_KEYS.TRANSACTIONS);
+    return transactions.filter((t: any) => t.category === name && t.type === type).length;
+  },
+
+  // Deletes a non-default category and moves its transactions and recurring payments to "Inne"
   delete: async (id: string) => {
     const categories = await getItems(STORAGE_KEYS.CATEGORIES);
-    const filtered = categories.filter((cat: any) => cat.id !== id && !cat.is_default);
-    await setItems(STORAGE_KEYS.CATEGORIES, filtered);
+    const cat = categories.find((c: any) => c.id === id);
+    if (!cat || cat.is_default) return;
+
+    const fallbackName = 'Inne';
+    const remaining = categories.filter((c: any) => c.id !== id);
+    if (!remaining.some((c: any) => c.name === fallbackName && c.type === cat.type)) {
+      remaining.push({ id: await generateId(), name: fallbackName, type: cat.type, color: '#607D8B', icon: 'ellipsis-horizontal', is_default: true, created_at: new Date().toISOString() });
+    }
+    await setItems(STORAGE_KEYS.CATEGORIES, remaining);
+
+    const transactions = await getItems(STORAGE_KEYS.TRANSACTIONS);
+    transactions.forEach((t: any) => {
+      if (t.category === cat.name && t.type === cat.type) { t.category = fallbackName; t.subcategory = null; }
+    });
+    await setItems(STORAGE_KEYS.TRANSACTIONS, transactions);
+
+    const recurrings = await getItems(STORAGE_KEYS.RECURRING);
+    recurrings.forEach((r: any) => { if (r.category === cat.name && r.type === cat.type) r.category = fallbackName; });
+    await setItems(STORAGE_KEYS.RECURRING, recurrings);
+
+    if (cat.type === 'expense') {
+      const budgets = await getItems(STORAGE_KEYS.BUDGETS);
+      budgets.forEach((b: any) => {
+        if (Array.isArray(b.categories)) b.categories = b.categories.filter((c: string) => c !== cat.name);
+      });
+      await setItems(STORAGE_KEYS.BUDGETS, budgets);
+    }
   },
   
   addSubcategory: async (categoryId: string, name: string) => {
@@ -266,7 +341,9 @@ export const transactionsDB = {
         : account.balance - transaction.amount;
       await accountsDB.updateBalance(transaction.account_id, newBalance);
     }
-    
+
+    await plansDB.linkTransaction(newTransaction);
+
     return id;
   },
   
@@ -284,80 +361,107 @@ export const transactionsDB = {
         await accountsDB.updateBalance(transaction.account_id, newBalance);
       }
       
-      // Restore credit remaining_amount if credit-linked
-      if (transaction.credit_id && transaction.capital_part) {
-        const credits = await getItems(STORAGE_KEYS.CREDITS);
-        const cIdx = credits.findIndex((c: any) => c.id === transaction.credit_id);
-        if (cIdx !== -1) {
-          credits[cIdx].remaining_amount = parseFloat(
-            ((credits[cIdx].remaining_amount || 0) + (transaction.capital_part || 0)).toFixed(2)
-          );
-          await setItems(STORAGE_KEYS.CREDITS, credits);
-        }
-      }
-      
+      // Credit balances are derived from transactions (see creditsDB), so nothing to restore there
       const filtered = transactions.filter((t: any) => t.id !== id);
       await setItems(STORAGE_KEYS.TRANSACTIONS, filtered);
+      await plansDB.unlinkTransaction(id);
+
+      // Delete the other leg of a transfer too, otherwise one account keeps the money moved
+      if (transaction.transfer_id) {
+        const pair = filtered.find((t: any) => t.transfer_id === transaction.transfer_id);
+        if (pair) await transactionsDB.delete(pair.id);
+      }
     }
   }
 };
 
 // Credits operations
+//
+// The amount left to repay is not stored and adjusted step by step (that drifted every time a
+// payment was edited or deleted). Instead each credit keeps `principal_base` and the balance is
+//   remaining_amount = principal_base - sum(capital_part of all transactions linked to the credit)
+// so adding, editing or deleting a payment is reflected automatically.
+
+const sumCapitalPaid = (creditId: string, transactions: any[]) =>
+  round2(transactions
+    .filter((t: any) => t.credit_id === creditId)
+    .reduce((sum: number, t: any) => sum + (t.capital_part || 0), 0));
+
+// One-time migration: credits saved before principal_base existed keep their current balance
+const ensurePrincipalBase = async (credits: any[], transactions: any[]) => {
+  let changed = false;
+  credits.forEach((c: any) => {
+    if (typeof c.principal_base !== 'number') {
+      c.principal_base = round2((c.remaining_amount || 0) + sumCapitalPaid(c.id, transactions));
+      changed = true;
+    }
+  });
+  if (changed) await setItems(STORAGE_KEYS.CREDITS, credits);
+};
+
+const withRemaining = (credit: any, transactions: any[]) => ({
+  ...credit,
+  remaining_amount: Math.max(0, round2(credit.principal_base - sumCapitalPaid(credit.id, transactions))),
+});
+
 export const creditsDB = {
   getAll: async (month?: number, year?: number) => {
     const credits = await getItems(STORAGE_KEYS.CREDITS);
-    
+    const transactions = await getItems(STORAGE_KEYS.TRANSACTIONS);
+    await ensurePrincipalBase(credits, transactions);
+
+    let result = credits.map((c: any) => withRemaining(c, transactions));
+
     if (month && year) {
-      const startDate = new Date(year, month - 1, 1).toISOString();
-      const endDate = new Date(year, month, 0, 23, 59, 59).toISOString();
-      
-      const creditsWithPayments = await Promise.all(
-        credits.map(async (credit: any) => {
-          const transactions = await transactionsDB.getByDateRange(startDate, endDate, 'expense');
-          const payments = transactions.filter((t: any) => t.credit_id === credit.id);
-          const monthlyPaid = payments.reduce((sum: number, t: any) => sum + (t.capital_part || 0), 0);
-          
-          return {
-            ...credit,
-            monthly_paid: monthlyPaid,
-          };
-        })
-      );
-      
-      return creditsWithPayments;
+      const start = new Date(year, month - 1, 1);
+      const end = new Date(year, month, 0, 23, 59, 59);
+      const inMonth = transactions.filter((t: any) => {
+        const d = new Date(t.date);
+        return t.type === 'expense' && d >= start && d <= end;
+      });
+      result = result.map((credit: any) => ({
+        ...credit,
+        monthly_paid: sumCapitalPaid(credit.id, inMonth),
+      }));
     }
-    
-    return credits;
+
+    return result;
   },
-  
+
   create: async (credit: any) => {
     const credits = await getItems(STORAGE_KEYS.CREDITS);
     const id = await generateId();
     const newCredit = {
       ...credit,
       id,
+      principal_base: round2(credit.remaining_amount || 0),
       created_at: new Date().toISOString(),
     };
     credits.push(newCredit);
     await setItems(STORAGE_KEYS.CREDITS, credits);
     return id;
   },
-  
+
+  // Passing remaining_amount sets the balance as of now (payments made so far are kept in the history)
   update: async (id: string, credit: any) => {
     const credits = await getItems(STORAGE_KEYS.CREDITS);
     const index = credits.findIndex((c: any) => c.id === id);
     if (index !== -1) {
       credits[index] = { ...credits[index], ...credit };
+      if (credit.remaining_amount !== undefined) {
+        const transactions = await getItems(STORAGE_KEYS.TRANSACTIONS);
+        credits[index].principal_base = round2((credit.remaining_amount || 0) + sumCapitalPaid(id, transactions));
+      }
       await setItems(STORAGE_KEYS.CREDITS, credits);
     }
   },
-  
+
   delete: async (id: string) => {
     const credits = await getItems(STORAGE_KEYS.CREDITS);
     const filtered = credits.filter((c: any) => c.id !== id);
     await setItems(STORAGE_KEYS.CREDITS, filtered);
   },
-  
+
   markAsPaid: async (id: string) => {
     const credits = await getItems(STORAGE_KEYS.CREDITS);
     const index = credits.findIndex((c: any) => c.id === id);
@@ -367,7 +471,7 @@ export const creditsDB = {
       await setItems(STORAGE_KEYS.CREDITS, credits);
     }
   },
-  
+
   restoreActive: async (id: string) => {
     const credits = await getItems(STORAGE_KEYS.CREDITS);
     const index = credits.findIndex((c: any) => c.id === id);
@@ -377,31 +481,22 @@ export const creditsDB = {
       await setItems(STORAGE_KEYS.CREDITS, credits);
     }
   },
-  
+
+  // Records overpayment info and new rates. The overpayment itself must be saved as a transaction
+  // with capital_part = amount; that transaction is what lowers the balance.
   overpay: async (id: string, amount: number, rateInfo?: { first_rate?: number; regular_rate?: number; last_rate?: number; monthly_payment?: number }) => {
     const credits = await getItems(STORAGE_KEYS.CREDITS);
     const index = credits.findIndex((c: any) => c.id === id);
     if (index !== -1) {
-      credits[index].remaining_amount = Math.max(0, (credits[index].remaining_amount || 0) - amount);
       if (rateInfo) {
         if (rateInfo.monthly_payment !== undefined) credits[index].monthly_payment = rateInfo.monthly_payment;
         if (rateInfo.first_rate !== undefined) credits[index].first_rate_after_overpay = rateInfo.first_rate;
         if (rateInfo.last_rate !== undefined) credits[index].last_rate = rateInfo.last_rate;
       }
-      credits[index].last_overpay_date = new Date().toISOString();
-      credits[index].last_overpay_amount = amount;
-      await setItems(STORAGE_KEYS.CREDITS, credits);
-    }
-  },
-
-  subtractCapital: async (id: string, capitalAmount: number) => {
-    if (capitalAmount <= 0) return;
-    const credits = await getItems(STORAGE_KEYS.CREDITS);
-    const index = credits.findIndex((c: any) => c.id === id);
-    if (index !== -1) {
-      credits[index].remaining_amount = parseFloat(
-        Math.max(0, (credits[index].remaining_amount || 0) - capitalAmount).toFixed(2)
-      );
+      if (amount > 0) {
+        credits[index].last_overpay_date = new Date().toISOString();
+        credits[index].last_overpay_amount = amount;
+      }
       await setItems(STORAGE_KEYS.CREDITS, credits);
     }
   },
@@ -468,28 +563,40 @@ export const budgetsDB = {
 };
 
 // Recurring transactions operations
+
+const FREQUENCY_MONTHS: Record<string, number> = { monthly: 1, quarterly: 3, yearly: 12 };
+
+// Next `count` due dates (at 9:00 local) of a recurring item, after `from`.
+// Periods are counted from start_date's month; a period already executed is skipped.
+// day_of_month is clamped to the month's length (31 → 30 Apr, 28/29 Feb).
+export const getNextDueDates = (item: any, count = 1, from: Date = new Date()) => {
+  const step = FREQUENCY_MONTHS[item.frequency] || 1;
+  const start = item.start_date ? new Date(item.start_date) : from;
+  const anchor = start.getFullYear() * 12 + start.getMonth();
+  const lastExec = item.last_executed ? new Date(item.last_executed) : null;
+  const lastExecIdx = lastExec ? lastExec.getFullYear() * 12 + lastExec.getMonth() : -Infinity;
+
+  const result: Date[] = [];
+  let idx = from.getFullYear() * 12 + from.getMonth();
+  for (let guard = 0; result.length < count && guard < 600; guard++, idx++) {
+    if (((idx - anchor) % step + step) % step !== 0) continue;
+    // Executed in this due month (or later) means this period is done
+    if (lastExecIdx >= idx) continue;
+    const y = Math.floor(idx / 12), m = idx % 12;
+    const day = Math.min(item.day_of_month || 1, new Date(y, m + 1, 0).getDate());
+    const due = new Date(y, m, day, 9, 0, 0);
+    if (due <= from) continue;
+    result.push(due);
+  }
+  return result;
+};
+
 export const recurringDB = {
   getAll: async () => {
     const items = await getItems(STORAGE_KEYS.RECURRING);
-    // Calculate next_due_date for each item
     return items.map((item: any) => {
-      const now = new Date();
-      let nextDate = new Date(now.getFullYear(), now.getMonth(), item.day_of_month || 1);
-      
-      if (nextDate <= now) {
-        if (item.frequency === 'monthly') {
-          nextDate.setMonth(nextDate.getMonth() + 1);
-        } else if (item.frequency === 'quarterly') {
-          nextDate.setMonth(nextDate.getMonth() + 3);
-        } else if (item.frequency === 'yearly') {
-          nextDate.setFullYear(nextDate.getFullYear() + 1);
-        }
-      }
-      
-      return {
-        ...item,
-        next_due_date: nextDate.toISOString(),
-      };
+      const [next] = getNextDueDates(item, 1);
+      return { ...item, next_due_date: next ? next.toISOString() : null };
     });
   },
   
@@ -514,8 +621,18 @@ export const recurringDB = {
 
     if (recurring) {
       const txAmount = recurring.amount || 0;
-      const txCapitalPart = recurring.capital_part || (recurring.credit_id ? txAmount : null);
-      const txInterestPart = recurring.interest_part || (recurring.credit_id ? 0 : null);
+      let txCapitalPart = recurring.capital_part || null;
+      let txInterestPart = recurring.interest_part || null;
+      // Without an explicit split, estimate interest from remaining balance so only capital reduces the debt
+      if (recurring.credit_id && txCapitalPart === null) {
+        const credits = await creditsDB.getAll();
+        const credit = credits.find((c: any) => c.id === recurring.credit_id);
+        const interest = credit
+          ? Math.min(txAmount, (credit.remaining_amount || 0) * (credit.interest_rate || 0) / 100 / 12)
+          : 0;
+        txInterestPart = parseFloat(interest.toFixed(2));
+        txCapitalPart = parseFloat((txAmount - txInterestPart).toFixed(2));
+      }
 
       const transactionId = await transactionsDB.create({
         type: recurring.type,
@@ -528,18 +645,6 @@ export const recurringDB = {
         capital_part: txCapitalPart,
         interest_part: txInterestPart,
       });
-
-      // Update credit remaining_amount if linked
-      if (recurring.credit_id && txCapitalPart > 0) {
-        const credits = await getItems(STORAGE_KEYS.CREDITS);
-        const cIdx = credits.findIndex((c: any) => c.id === recurring.credit_id);
-        if (cIdx !== -1) {
-          credits[cIdx].remaining_amount = parseFloat(
-            (Math.max(0, (credits[cIdx].remaining_amount || 0) - txCapitalPart)).toFixed(2)
-          );
-          await setItems(STORAGE_KEYS.CREDITS, credits);
-        }
-      }
 
       // Update last_executed
       const index = recurrings.findIndex((r: any) => r.id === id);
@@ -750,7 +855,7 @@ export const darkModeDB = {
 };
 
 // Transaction update
-export const transactionUpdate = async (id: string, updates: any) => {
+export const transactionUpdate = async (id: string, updates: any, syncTransferPair = true) => {
   const transactions = await getItems(STORAGE_KEYS.TRANSACTIONS);
   const index = transactions.findIndex((t: any) => t.id === id);
   if (index !== -1) {
@@ -763,44 +868,26 @@ export const transactionUpdate = async (id: string, updates: any) => {
       await accountsDB.updateBalance(old.account_id, reversed);
     }
 
-    // Restore old credit remaining_amount
-    if (old.credit_id && old.capital_part) {
-      const credits = await getItems(STORAGE_KEYS.CREDITS);
-      const cIdx = credits.findIndex((c: any) => c.id === old.credit_id);
-      if (cIdx !== -1) {
-        credits[cIdx].remaining_amount = parseFloat(
-          ((credits[cIdx].remaining_amount || 0) + (old.capital_part || 0)).toFixed(2)
-        );
-        await setItems(STORAGE_KEYS.CREDITS, credits);
-      }
-    }
-
-    // Apply new transaction data
-    transactions[index] = { ...transactions[index], ...updates };
+    // Apply new transaction data (credit balances are derived from transactions, nothing else to adjust)
+    const updated = { ...old, ...updates };
+    transactions[index] = updated;
     await setItems(STORAGE_KEYS.TRANSACTIONS, transactions);
 
     // Apply new account balance
-    const newAcc = await accountsDB.getById(updates.account_id || old.account_id);
+    const newAcc = await accountsDB.getById(updated.account_id);
     if (newAcc) {
-      const newBal = (updates.type || old.type) === 'income'
-        ? newAcc.balance + (updates.amount || old.amount)
-        : newAcc.balance - (updates.amount || old.amount);
-      await accountsDB.updateBalance(updates.account_id || old.account_id, newBal);
+      const newBal = updated.type === 'income' ? newAcc.balance + updated.amount : newAcc.balance - updated.amount;
+      await accountsDB.updateBalance(updated.account_id, newBal);
     }
 
-    // Apply new credit remaining_amount
-    const newCreditId = updates.credit_id !== undefined ? updates.credit_id : old.credit_id;
-    const newCapitalPart = updates.capital_part !== undefined ? updates.capital_part : old.capital_part;
-    if (newCreditId && newCapitalPart) {
-      const credits = await getItems(STORAGE_KEYS.CREDITS);
-      const cIdx = credits.findIndex((c: any) => c.id === newCreditId);
-      if (cIdx !== -1) {
-        const newRemaining = parseFloat(
-          (Math.max(0, (credits[cIdx].remaining_amount || 0) - (newCapitalPart || 0))).toFixed(2)
-        );
-        credits[cIdx].remaining_amount = newRemaining;
-        await setItems(STORAGE_KEYS.CREDITS, credits);
-      }
+    // The date may have moved the transaction to another month's plan
+    await plansDB.unlinkTransaction(id);
+    await plansDB.linkTransaction(updated);
+
+    // Keep both legs of a transfer in sync
+    if (syncTransferPair && old.transfer_id && (updated.amount !== old.amount || updated.date !== old.date)) {
+      const pair = transactions.find((t: any) => t.transfer_id === old.transfer_id && t.id !== id);
+      if (pair) await transactionUpdate(pair.id, { amount: updated.amount, date: updated.date }, false);
     }
   }
 };
@@ -902,6 +989,55 @@ export const importFullBackup = async (jsonString: string, mode: 'overwrite' | '
 };
 
 // ========== PLANS (Monthly Budget Planning) ==========
+const FUTURE_PLAN_MONTHS = 12;
+
+// Strips prefixes the app adds to descriptions so "Rata kredytu: X", "Płatność cykliczna: X" and "Rata: X" all match "x"
+const normalizePlanName = (s?: string | null) =>
+  (s || '').trim().toLowerCase().replace(/^(płatność cykliczna|rata kredytu|rata)\s*:\s*/, '').trim();
+const planIndex = (p: any) => p.month + p.year * 12;
+
+// Copies recurring items into `plan` from the most recent earlier plan that has them.
+// excluded_recurring_names skips an item in that month only; stopped_recurring_names stops it from that month onward.
+// Mutates `plan`; returns true if anything was added.
+const applyRecurringToPlan = async (all: any[], plan: any) => {
+  const target = planIndex(plan);
+  const prevPlans = all
+    .filter((p: any) => planIndex(p) < target)
+    .sort((a: any, b: any) => planIndex(b) - planIndex(a));
+
+  const processedKeys = new Set<string>();
+  let added = false;
+
+  for (const prev of prevPlans) {
+    const prevNum = planIndex(prev);
+    for (const type of ['incomes', 'expenses'] as const) {
+      for (const item of prev[type] || []) {
+        const key = `${type}:${item.name}`;
+        if (processedKeys.has(key)) continue; // newest occurrence decides
+        processedKeys.add(key);
+        if (!item.is_recurring) continue;
+
+        const freq = item.frequency || 1;
+        if ((target - prevNum) % freq !== 0) continue;
+
+        const list = plan[type] || [];
+        if (list.some((e: any) => e.name === item.name)) continue;
+        if ((plan.excluded_recurring_names || []).includes(item.name)) continue;
+        const stopped = all.some((p: any) => {
+          const n = planIndex(p);
+          return n > prevNum && n <= target && (p.stopped_recurring_names || []).includes(item.name);
+        });
+        if (stopped) continue;
+
+        list.push({ id: await generateId(), name: item.name, amount: item.amount, day: item.day, is_recurring: true, frequency: freq, paid: false });
+        plan[type] = list;
+        added = true;
+      }
+    }
+  }
+  return added;
+};
+
 export const plansDB = {
   getAll: async () => {
     const raw = await AsyncStorage.getItem(STORAGE_KEYS.PLANS);
@@ -952,8 +1088,36 @@ export const plansDB = {
     } else {
       plan.expenses.push(newItem);
     }
+    // Re-adding an item lifts earlier exclusions of that name in this month
+    plan.excluded_recurring_names = (plan.excluded_recurring_names || []).filter((n: string) => n !== newItem.name);
+    plan.stopped_recurring_names = (plan.stopped_recurring_names || []).filter((n: string) => n !== newItem.name);
     await AsyncStorage.setItem(STORAGE_KEYS.PLANS, JSON.stringify(all));
+    if (newItem.is_recurring) {
+      let m = plan.month + 1, y = plan.year;
+      if (m > 12) { m = 1; y++; }
+      await plansDB.populateMonths(m, y, FUTURE_PLAN_MONTHS);
+    }
     return plan;
+  },
+
+  // Fills recurring items into `count` months starting at month/year.
+  // Plans are created only for months that receive at least one item.
+  populateMonths: async (month: number, year: number, count: number) => {
+    const all = await plansDB.getAll();
+    let changed = false;
+    for (let i = 0; i < count; i++) {
+      let m = month + i, y = year;
+      while (m > 12) { m -= 12; y++; }
+      let plan = all.find((p: any) => p.month === m && p.year === y);
+      const isNew = !plan;
+      if (!plan) {
+        plan = { id: await generateId(), month: m, year: y, incomes: [], expenses: [], created_at: new Date().toISOString() };
+      }
+      const added = await applyRecurringToPlan(all, plan);
+      if (added && isNew) all.push(plan);
+      if (added) changed = true;
+    }
+    if (changed) await AsyncStorage.setItem(STORAGE_KEYS.PLANS, JSON.stringify(all));
   },
 
   updateItem: async (planId: string, type: 'income' | 'expense', itemId: string, updates: any) => {
@@ -988,13 +1152,49 @@ export const plansDB = {
     return plan;
   },
 
+  // Marks the first unpaid plan item in the transaction's month whose name matches the transaction's
+  // description or linked credit (e.g. plan "Rata: Hipoteka" ↔ "Rata kredytu: Hipoteka").
+  // Category is deliberately not matched: one grocery purchase must not mark "Jedzenie" as paid.
+  linkTransaction: async (tx: any) => {
+    if (!tx || tx.is_transfer || !tx.date) return;
+    const d = new Date(tx.date);
+    const all = await plansDB.getAll();
+    const plan = all.find((p: any) => p.month === d.getMonth() + 1 && p.year === d.getFullYear());
+    if (!plan) return;
+    const list = (tx.type === 'income' ? plan.incomes : plan.expenses) || [];
+    const candidates = [normalizePlanName(tx.description)];
+    if (tx.credit_id) {
+      const credit = (await getItems(STORAGE_KEYS.CREDITS)).find((c: any) => c.id === tx.credit_id);
+      if (credit) candidates.push(normalizePlanName(credit.name));
+    }
+    const names = candidates.filter(Boolean);
+    if (names.length === 0) return;
+    const item = list.find((i: any) => !i.paid && names.includes(normalizePlanName(i.name)));
+    if (!item) return;
+    item.paid = true;
+    item.paid_tx_id = tx.id;
+    await AsyncStorage.setItem(STORAGE_KEYS.PLANS, JSON.stringify(all));
+  },
+
+  // Reverts linkTransaction when the transaction is deleted or moved
+  unlinkTransaction: async (txId: string) => {
+    const all = await plansDB.getAll();
+    let changed = false;
+    all.forEach((plan: any) => {
+      [...(plan.incomes || []), ...(plan.expenses || [])].forEach((i: any) => {
+        if (i.paid_tx_id === txId) { i.paid = false; delete i.paid_tx_id; changed = true; }
+      });
+    });
+    if (changed) await AsyncStorage.setItem(STORAGE_KEYS.PLANS, JSON.stringify(all));
+  },
+
   togglePaid: async (planId: string, type: 'income' | 'expense', itemId: string) => {
     const all = await plansDB.getAll();
     const plan = all.find((p: any) => p.id === planId);
     if (!plan) return;
     const list = type === 'income' ? plan.incomes : plan.expenses;
     const item = list.find((i: any) => i.id === itemId);
-    if (item) item.paid = !item.paid;
+    if (item) { item.paid = !item.paid; delete item.paid_tx_id; }
     await AsyncStorage.setItem(STORAGE_KEYS.PLANS, JSON.stringify(all));
     return plan;
   },
@@ -1125,10 +1325,10 @@ export const plansDB = {
     const sourcePlan = all.find((p: any) => p.id === planId);
     if (!sourcePlan) return 0;
 
-    // Add exclusion to source plan so auto-population of future months respects the deletion
-    if (!sourcePlan.excluded_recurring_names) sourcePlan.excluded_recurring_names = [];
-    if (!sourcePlan.excluded_recurring_names.includes(itemName)) {
-      sourcePlan.excluded_recurring_names.push(itemName);
+    // Stop the recurring item from this month onward, also for months not created yet
+    if (!sourcePlan.stopped_recurring_names) sourcePlan.stopped_recurring_names = [];
+    if (!sourcePlan.stopped_recurring_names.includes(itemName)) {
+      sourcePlan.stopped_recurring_names.push(itemName);
     }
 
     let count = 0;
@@ -1143,14 +1343,9 @@ export const plansDB = {
         else plan.expenses = filtered;
         count++;
       }
-      // Add exclusion to all future plans (even if item wasn't there yet)
-      if (!plan.excluded_recurring_names) plan.excluded_recurring_names = [];
-      if (!plan.excluded_recurring_names.includes(itemName)) {
-        plan.excluded_recurring_names.push(itemName);
-      }
     });
 
-    // Always save since source plan was modified with exclusion
+    // Always save since source plan was modified with the stop marker
     await AsyncStorage.setItem(STORAGE_KEYS.PLANS, JSON.stringify(all));
     return count;
   },

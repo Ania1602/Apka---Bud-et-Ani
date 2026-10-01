@@ -68,6 +68,7 @@ export default function Settings() {
       const jsonData = await exportFullBackup();
       const date = new Date().toISOString().split('T')[0];
       await shareFile(jsonData, `budzetani_backup_${date}.json`, 'application/json');
+      await userSettingsDB.set('last_backup', new Date().toISOString());
       Alert.alert('Sukces', 'Backup wyeksportowany');
     } catch (error) {
       console.error('Export backup error:', error);

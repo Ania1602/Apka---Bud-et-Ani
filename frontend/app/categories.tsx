@@ -41,7 +41,12 @@ export default function Categories() {
 
   const deleteCategory = async (id: string, name: string, isDefault: boolean) => {
     if (isDefault) { Alert.alert('Błąd', 'Nie można usunąć domyślnej kategorii'); return; }
-    Alert.alert('Usuń kategorię', `Czy na pewno chcesz usunąć kategorię "${name}"?`, [
+    const cat = categories.find((c: any) => c.id === id);
+    const count = cat ? await categoriesDB.countTransactions(name, cat.type) : 0;
+    const msg = count > 0
+      ? `Kategoria "${name}" ma ${count} transakcji. Zostaną przeniesione do kategorii "Inne". Kontynuować?`
+      : `Czy na pewno chcesz usunąć kategorię "${name}"?`;
+    Alert.alert('Usuń kategorię', msg, [
       { text: 'Anuluj', style: 'cancel' },
       { text: 'Usuń', style: 'destructive', onPress: async () => {
         await categoriesDB.delete(id); fetchCategories();

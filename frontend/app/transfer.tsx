@@ -13,7 +13,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { accountsDB, transactionsDB } from '../lib/database';
+import { accountsDB, transactionsDB, generateId } from '../lib/database';
 import { parseAmount } from '../lib/utils';
 
 export default function Transfer() {
@@ -78,6 +78,8 @@ export default function Transfer() {
       const fromAccount = accounts.find(a => a.id === fromAccountId);
       const toAccount = accounts.find(a => a.id === toAccountId);
       const desc = description || `Przelew: ${fromAccount?.name} → ${toAccount?.name}`;
+      // Links both legs so deleting one removes the other
+      const transferId = await generateId();
 
       const isFromLimit = (fromAccount?.type === 'credit_card' || fromAccount?.type === 'revolving') && fromAccount?.credit_limit;
       const isToLimit = (toAccount?.type === 'credit_card' || toAccount?.type === 'revolving') && toAccount?.credit_limit;
@@ -95,6 +97,7 @@ export default function Transfer() {
         date: new Date().toISOString(),
         description: desc,
         is_transfer: !isDebtPayment,
+        transfer_id: transferId,
       });
 
       // Create income transaction on destination account
@@ -107,6 +110,7 @@ export default function Transfer() {
         description: desc,
         is_transfer: true,
         is_limit_refund: isToLimit ? true : false,
+        transfer_id: transferId,
       });
 
       Alert.alert(

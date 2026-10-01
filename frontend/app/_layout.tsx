@@ -2,10 +2,11 @@ import React, { useEffect, useState } from 'react';
 import { Stack } from 'expo-router';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { initDatabase, pinDB } from '../lib/database';
+import { rescheduleRecurringReminders } from '../lib/notifications';
 
 export default function RootLayout() {
   useEffect(() => {
-    initDatabase();
+    initDatabase().then(() => rescheduleRecurringReminders());
   }, []);
 
   return (

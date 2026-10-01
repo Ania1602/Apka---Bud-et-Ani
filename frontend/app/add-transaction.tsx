@@ -16,7 +16,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { transactionsDB, transactionUpdate, accountsDB, categoriesDB, creditsDB, budgetsDB, getLastAccountForCategory } from '../lib/database';
-import { parseAmount } from '../lib/utils';
+import { parseAmount, toLocalDateStr, parseLocalDate } from '../lib/utils';
 import Snackbar from '../components/Snackbar';
 
 export default function AddTransaction() {
@@ -30,7 +30,7 @@ export default function AddTransaction() {
   const [description, setDescription] = useState(params.description ? decodeURIComponent(params.description as string) : '');
   const [accountId, setAccountId] = useState(params.account_id ? String(params.account_id) : '');
   const [creditId, setCreditId] = useState(params.credit_id ? String(params.credit_id) : '');
-  const [selectedDate, setSelectedDate] = useState(params.date ? String(params.date).split('T')[0] : new Date().toISOString().split('T')[0]);
+  const [selectedDate, setSelectedDate] = useState(toLocalDateStr(params.date ? new Date(String(params.date)) : new Date()));
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [capitalPart, setCapitalPart] = useState('');
   const [interestPart, setInterestPart] = useState('');
@@ -53,6 +53,19 @@ export default function AddTransaction() {
   const [subModalVisible, setSubModalVisible] = useState(false);
   const [newSubName, setNewSubName] = useState('');
   const CAT_COLORS = ['#D4AF37', '#800020', '#2C5F2D', '#1E5F8B', '#C2410C', '#7C3AED', '#9B8B7E', '#2A2520'];
+
+  // In edit mode, load fields not passed via route params (capital split, tags, subcategory)
+  useEffect(() => {
+    if (!isEdit) return;
+    transactionsDB.getAll().then(all => {
+      const tx = all.find((t: any) => t.id === editId);
+      if (!tx) return;
+      if (tx.capital_part != null) setCapitalPart(String(tx.capital_part));
+      if (tx.interest_part != null) setInterestPart(String(tx.interest_part));
+      if (tx.tags?.length) setTags(tx.tags.join(', '));
+      if (tx.subcategory) setSubcategory(tx.subcategory);
+    });
+  }, [editId]);
 
   useEffect(() => {
     fetchData();
@@ -100,7 +113,8 @@ export default function AddTransaction() {
       ]);
       setAccounts(accountsData);
       setCategories(categoriesData);
-      setCredits(creditsData);
+      // Paid-off credits are hidden unless this transaction already belongs to one
+      setCredits(creditsData.filter((c: any) => c.status !== 'paid' || c.id === creditId));
       setBudgets(budgetsData);
       if (accountsData.length > 0 && !accountId) {
         setAccountId(accountsData[0].id);
@@ -157,13 +171,6 @@ export default function AddTransaction() {
         router.back();
       } else {
         const newId = await transactionsDB.create(txData);
-        // Reduce credit remaining_amount only by the explicitly specified capital part
-        if (creditId && capitalPart) {
-          const capitalAmount = parseAmount(capitalPart) || 0;
-          if (capitalAmount > 0) {
-            await creditsDB.subtractCapital(creditId, capitalAmount);
-          }
-        }
         // Snackbar with undo (change 5)
         setLastAddedId(newId);
         Alert.alert(
@@ -277,9 +284,9 @@ export default function AddTransaction() {
             <Text style={styles.label}>Data transakcji</Text>
             <View style={styles.dateRow}>
               <TouchableOpacity style={styles.dateButton} onPress={() => {
-                const d = new Date(selectedDate);
+                const d = parseLocalDate(selectedDate);
                 d.setDate(d.getDate() - 1);
-                setSelectedDate(d.toISOString().split('T')[0]);
+                setSelectedDate(toLocalDateStr(d));
               }}>
                 <Ionicons name="chevron-back" size={20} color="#D4AF37" />
               </TouchableOpacity>
@@ -300,13 +307,13 @@ export default function AddTransaction() {
                 />
               </View>
               <TouchableOpacity style={styles.dateButton} onPress={() => {
-                const d = new Date(selectedDate);
+                const d = parseLocalDate(selectedDate);
                 d.setDate(d.getDate() + 1);
-                setSelectedDate(d.toISOString().split('T')[0]);
+                setSelectedDate(toLocalDateStr(d));
               }}>
                 <Ionicons name="chevron-forward" size={20} color="#D4AF37" />
               </TouchableOpacity>
-              <TouchableOpacity style={styles.todayButton} onPress={() => setSelectedDate(new Date().toISOString().split('T')[0])}>
+              <TouchableOpacity style={styles.todayButton} onPress={() => setSelectedDate(toLocalDateStr(new Date()))}>
                 <Text style={styles.todayButtonText}>Dziś</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.todayButton} onPress={() => setShowDatePicker(true)}>
@@ -315,13 +322,13 @@ export default function AddTransaction() {
             </View>
             {showDatePicker && (
               <DateTimePicker
-                value={new Date(selectedDate)}
+                value={parseLocalDate(selectedDate)}
                 mode="date"
                 display="default"
                 onChange={(event, date) => {
                   setShowDatePicker(false);
                   if (event.type === 'set' && date) {
-                    setSelectedDate(date.toISOString().split('T')[0]);
+                    setSelectedDate(toLocalDateStr(date));
                   }
                 }}
                 locale="pl-PL"

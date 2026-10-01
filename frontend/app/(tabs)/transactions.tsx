@@ -9,6 +9,8 @@ import { pl } from 'date-fns/locale';
 import { router, useFocusEffect } from 'expo-router';
 import { transactionsDB, accountsDB, categoriesDB } from '../../lib/database';
 
+const PAGE_DAYS = 30;
+
 export default function Transactions() {
   const [transactions, setTransactions] = useState<any[]>([]);
   const [accounts, setAccounts] = useState<any[]>([]);
@@ -21,11 +23,13 @@ export default function Transactions() {
   const [showFilters, setShowFilters] = useState(false);
   const [filterAccount, setFilterAccount] = useState('');
   const [filterCategory, setFilterCategory] = useState('');
+  // Days rendered so far; grows as the user scrolls so long histories stay fast
+  const [visibleDays, setVisibleDays] = useState(PAGE_DAYS);
 
   const fetchTransactions = async () => {
     try {
       const [txData, accData, catExpense, catIncome] = await Promise.all([
-        transactionsDB.getAll(500),
+        transactionsDB.getAll(),
         accountsDB.getAll(),
         categoriesDB.getAll('expense'),
         categoriesDB.getAll('income'),
@@ -40,8 +44,8 @@ export default function Transactions() {
 
   useFocusEffect(useCallback(() => { fetchTransactions(); }, []));
 
-  const deleteTransaction = (id: string, category: string) => {
-    Alert.alert('Usuń', `Usunąć transakcję "${category}"?`, [
+  const deleteTransaction = (id: string, category: string, isPairedTransfer = false) => {
+    Alert.alert('Usuń', isPairedTransfer ? `Usunąć przelew "${category}"? Zostaną usunięte obie strony przelewu.` : `Usunąć transakcję "${category}"?`, [
       { text: 'Anuluj' },
       { text: 'Usuń', style: 'destructive', onPress: async () => { await transactionsDB.delete(id); fetchTransactions(); } },
     ]);
@@ -69,7 +73,8 @@ export default function Transactions() {
     if (!grouped[day]) grouped[day] = [];
     grouped[day].push(t);
   });
-  const sections = Object.entries(grouped).map(([date, items]) => ({ date, items }));
+  const allSections = Object.entries(grouped).map(([date, items]) => ({ date, items }));
+  const sections = allSections.slice(0, visibleDays);
 
   const clearFilters = () => { setFilterAccount(''); setFilterCategory(''); setSearchQuery(''); };
 
@@ -144,6 +149,8 @@ export default function Transactions() {
       )}
 
       <FlatList data={sections} keyExtractor={i => i.date}
+        onEndReached={() => { if (visibleDays < allSections.length) setVisibleDays(v => v + PAGE_DAYS); }}
+        onEndReachedThreshold={0.5}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); fetchTransactions(); }} tintColor="#D4AF37" />}
         ListEmptyComponent={<View style={s.empty}><Ionicons name="document-text-outline" size={64} color="#9B8B7E" /><Text style={s.emptyText}>{searchQuery ? 'Brak wyników' : 'Brak transakcji'}</Text>
           {!searchQuery && <TouchableOpacity style={s.addBtn} onPress={() => router.push('/add-transaction')}><Text style={s.addBtnText}>Dodaj Transakcję</Text></TouchableOpacity>}</View>}
@@ -164,7 +171,7 @@ export default function Transactions() {
             {section.items.map(item => (
               <TouchableOpacity key={item.id} style={s.txItem}
                 onPress={() => router.push(`/add-transaction?edit=${item.id}&type=${item.type}&amount=${item.amount}&category=${encodeURIComponent(item.category)}&description=${encodeURIComponent(item.description || '')}&account_id=${item.account_id || ''}&credit_id=${item.credit_id || ''}&date=${item.date}`)}
-                onLongPress={() => deleteTransaction(item.id, item.category)}>
+                onLongPress={() => deleteTransaction(item.id, item.category, !!item.transfer_id)}>
                 <View style={[s.txIcon, { backgroundColor: item.is_transfer ? '#2196F315' : item.type === 'income' ? '#2C5F2D15' : '#80002015' }]}>
                   <Ionicons name={item.is_transfer ? 'swap-horizontal' : item.type === 'income' ? 'arrow-down' : 'arrow-up'} size={20} color={item.is_transfer ? '#2196F3' : item.type === 'income' ? '#2C5F2D' : '#800020'} />
                 </View>

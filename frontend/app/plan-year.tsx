@@ -15,6 +15,12 @@ export default function PlanYear() {
 
   const fetchData = async () => {
     try {
+      // Fill recurring items for the remaining months of the year (past months are left as they were)
+      const curYear = now.getFullYear();
+      if (year >= curYear) {
+        const startMonth = year === curYear ? now.getMonth() + 1 : 1;
+        await plansDB.populateMonths(startMonth, year, 13 - startMonth);
+      }
       const all = await plansDB.getAll();
       setPlans(all.filter((p: any) => p.year === year));
     } catch (e) { console.error(e); }

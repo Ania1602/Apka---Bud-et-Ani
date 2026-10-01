@@ -59,12 +59,45 @@ export default function Accounts() {
   };
 
   const deleteAccount = async (id: string) => {
-    try {
-      await accountsDB.delete(id);
-      fetchAccounts();
-    } catch (error) {
-      console.error('Error deleting account:', error);
+    const account = accounts.find((a: any) => a.id === id);
+    const count = await accountsDB.countTransactions(id);
+    if (count > 0) {
+      Alert.alert(
+        'Konto ma transakcje',
+        `Konto "${account?.name || ''}" ma ${count} transakcji. Usunięcie samego konta zostawiłoby je bez konta, a statystyki i kredyty dalej by je liczyły.\n\nCzy usunąć konto razem z transakcjami? Tej operacji nie można cofnąć.`,
+        [
+          { text: 'Anuluj', style: 'cancel' },
+          {
+            text: 'Usuń z transakcjami',
+            style: 'destructive',
+            onPress: async () => {
+              try {
+                await accountsDB.deleteWithTransactions(id);
+                fetchAccounts();
+              } catch (error) {
+                console.error('Error deleting account:', error);
+              }
+            },
+          },
+        ]
+      );
+      return;
     }
+    Alert.alert('Usuń konto', `Czy na pewno usunąć konto "${account?.name || ''}"? Tej operacji nie można cofnąć.`, [
+      { text: 'Anuluj', style: 'cancel' },
+      {
+        text: 'Usuń',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            await accountsDB.delete(id);
+            fetchAccounts();
+          } catch (error) {
+            console.error('Error deleting account:', error);
+          }
+        },
+      },
+    ]);
   };
 
   function openBalanceModal(account: any) {
