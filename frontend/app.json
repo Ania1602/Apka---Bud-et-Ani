@@ -2,17 +2,14 @@
   "expo": {
     "name": "Budżet Ani",
     "slug": "budzet-ani",
-    "version": "2.2.0",
+    "version": "2.2.1",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "budzet-ani",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
-      "supportsTablet": true,
-      "infoPlist": {
-        "NSFaceIDUsageDescription": "Odblokuj aplikację biometrią"
-      }
+      "supportsTablet": true
     },
     "android": {
       "adaptiveIcon": {
@@ -20,12 +17,6 @@
         "backgroundColor": "#FAF8F3"
       },
       "edgeToEdgeEnabled": true,
-      "permissions": [
-        "USE_BIOMETRIC",
-        "USE_FINGERPRINT",
-        "android.permission.USE_BIOMETRIC",
-        "android.permission.USE_FINGERPRINT"
-      ],
       "package": "com.budzet.ani"
     },
     "web": {
@@ -42,13 +33,6 @@
           "imageWidth": 200,
           "resizeMode": "contain",
           "backgroundColor": "#FAF8F3"
-        }
-      ],
-      "expo-secure-store",
-      [
-        "expo-local-authentication",
-        {
-          "faceIDPermission": "Odblokuj aplikację biometrią"
         }
       ],
       "@react-native-community/datetimepicker",

@@ -17,8 +17,8 @@ export default function More() {
       { icon: 'trending-up', title: 'Inwestycje', subtitle: 'PPK, IKE, IKZE, akcje, obligacje', color: '#1565C0', route: '/investments' },
       { icon: 'calendar', title: 'Planowanie Wydatków', subtitle: 'Nadchodzące płatności i raty', color: '#E91E63', route: '/upcoming' },
     ]},
-    { title: 'Bezpieczeństwo', items: [
-      { icon: 'lock-closed', title: 'Ustawienia i Backup', subtitle: 'PIN, backup, eksport/import', color: '#800020', route: '/settings' },
+    { title: 'Ustawienia', items: [
+      { icon: 'settings', title: 'Ustawienia i Backup', subtitle: 'Backup, eksport/import, profil', color: '#800020', route: '/settings' },
     ]},
   ];
 

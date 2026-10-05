@@ -1,40 +1,20 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, TextInput, Alert, Switch, Platform, ScrollView, ActivityIndicator, Share } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, TextInput, Alert, Platform, ScrollView, ActivityIndicator, Share } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { pinDB, exportFullBackup, importFullBackup, exportToCSV, userSettingsDB } from '../lib/database';
+import { exportFullBackup, importFullBackup, exportToCSV, userSettingsDB } from '../lib/database';
 import * as FileSystem from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import * as DocumentPicker from 'expo-document-picker';
 
 export default function Settings() {
-  const [hasPin, setHasPin] = useState(false);
-  const [showSetPin, setShowSetPin] = useState(false);
-  const [pin, setPin] = useState('');
-  const [confirmPin, setConfirmPin] = useState('');
   const [backupLoading, setBackupLoading] = useState(false);
   const [csvLoading, setCsvLoading] = useState(false);
   const [birthYear, setBirthYear] = useState('');
 
   useEffect(() => {
-    pinDB.exists().then(setHasPin);
     userSettingsDB.get('birth_year').then(v => { if (v) setBirthYear(v); });
   }, []);
-
-  const handleSetPin = async () => {
-    if (!/^\d{4,6}$/.test(pin)) { Alert.alert('Błąd', 'PIN musi mieć od 4 do 6 cyfr'); return; }
-    if (pin !== confirmPin) { Alert.alert('Błąd', 'Kody PIN nie są identyczne'); return; }
-    await pinDB.set(pin);
-    setHasPin(true); setShowSetPin(false); setPin(''); setConfirmPin('');
-    Alert.alert('Sukces', 'PIN został ustawiony. Aplikacja będzie go wymagać przy uruchomieniu i po powrocie po ponad minucie.');
-  };
-
-  const handleRemovePin = () => {
-    Alert.alert('Usuń PIN', 'Czy na pewno chcesz wyłączyć blokadę PIN?', [
-      { text: 'Anuluj' },
-      { text: 'Wyłącz', style: 'destructive', onPress: async () => { await pinDB.remove(); setHasPin(false); } }
-    ]);
-  };
 
   const shareFile = async (content: string, fileName: string, mimeType: string) => {
     if (Platform.OS === 'web') {
@@ -130,36 +110,7 @@ export default function Settings() {
       </View>
 
       <View style={s.content}>
-        <Text style={s.sectionTitle}>Bezpieczeństwo</Text>
-        <View style={s.settingCard}>
-          <View style={s.settingRow}>
-            <View style={s.settingIcon}><Ionicons name="lock-closed" size={24} color="#800020" /></View>
-            <View style={{ flex: 1 }}>
-              <Text style={s.settingLabel}>Blokada PIN</Text>
-              <Text style={s.settingDesc}>{hasPin ? 'Włączony' : 'Wyłączony'}</Text>
-            </View>
-            <Switch value={hasPin} onValueChange={(v) => { if (v) setShowSetPin(true); else handleRemovePin(); }}
-              trackColor={{ false: '#E0D5C7', true: '#D4AF37' }} thumbColor="#FFF" />
-          </View>
-        </View>
-
-        {showSetPin && (
-          <View style={s.pinCard}>
-            <Text style={s.pinTitle}>Ustaw nowy PIN</Text>
-            <TextInput style={s.pinInput} value={pin} onChangeText={setPin} placeholder="Wpisz PIN (4–6 cyfr)" placeholderTextColor="#9B8B7E" keyboardType="number-pad" secureTextEntry maxLength={6} />
-            <TextInput style={s.pinInput} value={confirmPin} onChangeText={setConfirmPin} placeholder="Potwierdź PIN" placeholderTextColor="#9B8B7E" keyboardType="number-pad" secureTextEntry maxLength={6} />
-            <View style={s.pinButtons}>
-              <TouchableOpacity style={s.cancelBtn} onPress={() => { setShowSetPin(false); setPin(''); setConfirmPin(''); }}>
-                <Text style={s.cancelBtnText}>Anuluj</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={s.saveBtn} onPress={handleSetPin}>
-                <Text style={s.saveBtnText}>Zapisz PIN</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        )}
-
-        <Text style={[s.sectionTitle, { marginTop: 24 }]}>Profil</Text>
+        <Text style={s.sectionTitle}>Profil</Text>
         <View style={s.settingCard}>
           <View style={[s.settingRow, { paddingVertical: 12 }]}>
             <View style={[s.settingIcon, { backgroundColor: '#1565C020' }]}>
@@ -238,14 +189,6 @@ const s = StyleSheet.create({
   settingIcon: { width: 44, height: 44, borderRadius: 22, backgroundColor: '#80002020', alignItems: 'center', justifyContent: 'center', marginRight: 12 },
   settingLabel: { fontSize: 16, fontWeight: '600', color: '#2A2520' },
   settingDesc: { fontSize: 12, color: '#6B5D52', marginTop: 2 },
-  pinCard: { backgroundColor: '#FFF', borderRadius: 16, padding: 20, marginBottom: 16 },
-  pinTitle: { fontSize: 16, fontWeight: '600', color: '#2A2520', marginBottom: 16 },
-  pinInput: { backgroundColor: '#F5F1E8', borderRadius: 12, padding: 16, fontSize: 18, color: '#2A2520', marginBottom: 12, textAlign: 'center', letterSpacing: 8 },
-  pinButtons: { flexDirection: 'row', gap: 12 },
-  cancelBtn: { flex: 1, padding: 14, borderRadius: 10, backgroundColor: '#F5F1E8', alignItems: 'center' },
-  cancelBtnText: { fontSize: 14, fontWeight: '500', color: '#6B5D52' },
-  saveBtn: { flex: 1, padding: 14, borderRadius: 10, backgroundColor: '#A8862B', alignItems: 'center' },
-  saveBtnText: { fontSize: 14, fontWeight: '600', color: '#FFF' },
   infoCard: { flexDirection: 'row', backgroundColor: '#2196F320', padding: 16, borderRadius: 12, gap: 12, marginTop: 8 },
   infoText: { fontSize: 13, color: '#2196F3', flex: 1, lineHeight: 18 },
 });
