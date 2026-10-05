@@ -18,6 +18,7 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 import { transactionsDB, transactionUpdate, accountsDB, categoriesDB, creditsDB, budgetsDB, getLastAccountForCategory } from '../lib/database';
 import { parseAmount, toLocalDateStr, parseLocalDate } from '../lib/utils';
 import Snackbar from '../components/Snackbar';
+import { setPendingUndo } from '../lib/undo';
 
 export default function AddTransaction() {
   const params = useLocalSearchParams();
@@ -194,6 +195,17 @@ export default function AddTransaction() {
     }
   };
 
+  const handleDelete = () => {
+    Alert.alert('Usuń transakcję', `Usunąć transakcję "${category}"?`, [
+      { text: 'Anuluj', style: 'cancel' },
+      { text: 'Usuń', style: 'destructive', onPress: async () => {
+        const removed = await transactionsDB.delete(editId);
+        setPendingUndo(removed.length > 1 ? 'Usunięto przelew' : `Usunięto: ${category}`, removed);
+        router.back();
+      }},
+    ]);
+  };
+
   return (
     <KeyboardAvoidingView
       style={styles.container}
@@ -204,7 +216,13 @@ export default function AddTransaction() {
           <Ionicons name="close" size={28} color="#2A2520" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>{isEdit ? 'Edytuj Transakcję' : 'Dodaj Transakcję'}</Text>
-        <View style={{ width: 28 }} />
+        {isEdit ? (
+          <TouchableOpacity onPress={handleDelete} style={styles.closeButton} hitSlop={8}>
+            <Ionicons name="trash-outline" size={24} color="#800020" />
+          </TouchableOpacity>
+        ) : (
+          <View style={{ width: 28 }} />
+        )}
       </View>
 
       <ScrollView style={styles.content}>

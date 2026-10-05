@@ -158,6 +158,9 @@ export const accountsDB = {
   }
 };
 
+// Names the app relies on in code (transfers, delete fallback) - they can't be renamed
+export const LOCKED_CATEGORY_NAMES = ['Przelew', 'Inne'];
+
 // Categories operations
 export const categoriesDB = {
   getAll: async (type?: string) => {
@@ -214,6 +217,22 @@ export const categoriesDB = {
     }
   },
   
+  getById: async (id: string) => {
+    const categories = await getItems(STORAGE_KEYS.CATEGORIES);
+    return categories.find((c: any) => c.id === id) || null;
+  },
+
+  // Map of "type|name" -> number of transactions, for showing usage in the list
+  getUsageCounts: async () => {
+    const transactions = await getItems(STORAGE_KEYS.TRANSACTIONS);
+    const counts: Record<string, number> = {};
+    transactions.forEach((t: any) => {
+      const key = `${t.type}|${t.category}`;
+      counts[key] = (counts[key] || 0) + 1;
+    });
+    return counts;
+  },
+
   countTransactions: async (name: string, type: string) => {
     const transactions = await getItems(STORAGE_KEYS.TRANSACTIONS);
     return transactions.filter((t: any) => t.category === name && t.type === type).length;
@@ -267,8 +286,22 @@ export const categoriesDB = {
     const categories = await getItems(STORAGE_KEYS.CATEGORIES);
     const index = categories.findIndex((c: any) => c.id === categoryId);
     if (index !== -1 && categories[index].subcategories) {
-      const sub = categories[index].subcategories.find((s: any) => s.id === subId);
-      if (sub) { sub.name = newName; await setItems(STORAGE_KEYS.CATEGORIES, categories); }
+      const cat = categories[index];
+      const sub = cat.subcategories.find((s: any) => s.id === subId);
+      if (sub) {
+        const oldName = sub.name;
+        sub.name = newName;
+        await setItems(STORAGE_KEYS.CATEGORIES, categories);
+
+        // Transactions store the subcategory by name, so carry the rename over
+        if (oldName !== newName) {
+          const transactions = await getItems(STORAGE_KEYS.TRANSACTIONS);
+          transactions.forEach((t: any) => {
+            if (t.category === cat.name && t.type === cat.type && t.subcategory === oldName) t.subcategory = newName;
+          });
+          await setItems(STORAGE_KEYS.TRANSACTIONS, transactions);
+        }
+      }
     }
   },
   
@@ -347,11 +380,14 @@ export const transactionsDB = {
     return id;
   },
   
-  delete: async (id: string) => {
+  // Returns the removed records (both legs for a transfer) so the deletion can be undone with restore()
+  delete: async (id: string): Promise<any[]> => {
     const transactions = await getItems(STORAGE_KEYS.TRANSACTIONS);
     const transaction = transactions.find((t: any) => t.id === id);
-    
+    const removed: any[] = [];
+
     if (transaction) {
+      removed.push(transaction);
       // Reverse balance change
       const account = await accountsDB.getById(transaction.account_id);
       if (account) {
@@ -369,8 +405,27 @@ export const transactionsDB = {
       // Delete the other leg of a transfer too, otherwise one account keeps the money moved
       if (transaction.transfer_id) {
         const pair = filtered.find((t: any) => t.transfer_id === transaction.transfer_id);
-        if (pair) await transactionsDB.delete(pair.id);
+        if (pair) removed.push(...await transactionsDB.delete(pair.id));
       }
+    }
+    return removed;
+  },
+
+  // Puts back records returned by delete(), with their original ids, and re-applies account balances
+  restore: async (records: any[]) => {
+    const transactions = await getItems(STORAGE_KEYS.TRANSACTIONS);
+    const existingIds = new Set(transactions.map((t: any) => t.id));
+    const toRestore = records.filter((r: any) => !existingIds.has(r.id));
+    if (toRestore.length === 0) return;
+    await setItems(STORAGE_KEYS.TRANSACTIONS, [...transactions, ...toRestore]);
+
+    for (const t of toRestore) {
+      const account = await accountsDB.getById(t.account_id);
+      if (account) {
+        const newBalance = t.type === 'income' ? account.balance + t.amount : account.balance - t.amount;
+        await accountsDB.updateBalance(t.account_id, newBalance);
+      }
+      await plansDB.linkTransaction(t);
     }
   }
 };
@@ -840,17 +895,6 @@ export const pinDB = {
   },
   remove: async () => {
     await SecureStore.deleteItemAsync('pin_code');
-  },
-};
-
-// Dark Mode
-export const darkModeDB = {
-  get: async () => {
-    const val = await AsyncStorage.getItem(STORAGE_KEYS.DARK_MODE);
-    return val === 'true';
-  },
-  set: async (enabled: boolean) => {
-    await AsyncStorage.setItem(STORAGE_KEYS.DARK_MODE, enabled ? 'true' : 'false');
   },
 };
 

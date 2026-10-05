@@ -22,11 +22,11 @@ export default function Settings() {
   }, []);
 
   const handleSetPin = async () => {
-    if (pin.length < 4) { Alert.alert('Błąd', 'PIN musi mieć minimum 4 cyfry'); return; }
+    if (!/^\d{4,6}$/.test(pin)) { Alert.alert('Błąd', 'PIN musi mieć od 4 do 6 cyfr'); return; }
     if (pin !== confirmPin) { Alert.alert('Błąd', 'Kody PIN nie są identyczne'); return; }
     await pinDB.set(pin);
     setHasPin(true); setShowSetPin(false); setPin(''); setConfirmPin('');
-    Alert.alert('Sukces', 'PIN został ustawiony');
+    Alert.alert('Sukces', 'PIN został ustawiony. Aplikacja będzie go wymagać przy uruchomieniu i po powrocie po ponad minucie.');
   };
 
   const handleRemovePin = () => {
@@ -146,7 +146,7 @@ export default function Settings() {
         {showSetPin && (
           <View style={s.pinCard}>
             <Text style={s.pinTitle}>Ustaw nowy PIN</Text>
-            <TextInput style={s.pinInput} value={pin} onChangeText={setPin} placeholder="Wpisz PIN (min. 4 cyfry)" placeholderTextColor="#9B8B7E" keyboardType="number-pad" secureTextEntry maxLength={6} />
+            <TextInput style={s.pinInput} value={pin} onChangeText={setPin} placeholder="Wpisz PIN (4–6 cyfr)" placeholderTextColor="#9B8B7E" keyboardType="number-pad" secureTextEntry maxLength={6} />
             <TextInput style={s.pinInput} value={confirmPin} onChangeText={setConfirmPin} placeholder="Potwierdź PIN" placeholderTextColor="#9B8B7E" keyboardType="number-pad" secureTextEntry maxLength={6} />
             <View style={s.pinButtons}>
               <TouchableOpacity style={s.cancelBtn} onPress={() => { setShowSetPin(false); setPin(''); setConfirmPin(''); }}>

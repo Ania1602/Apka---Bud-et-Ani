@@ -1,13 +1,15 @@
 import React, { useState, useCallback } from 'react';
 import {
   View, Text, StyleSheet, FlatList, TouchableOpacity, RefreshControl,
-  ActivityIndicator, TextInput, Alert,
+  ActivityIndicator, TextInput, Alert, ScrollView,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { format } from 'date-fns';
 import { pl } from 'date-fns/locale';
 import { router, useFocusEffect } from 'expo-router';
 import { transactionsDB, accountsDB, categoriesDB } from '../../lib/database';
+import { takePendingUndo } from '../../lib/undo';
+import Snackbar from '../../components/Snackbar';
 
 const PAGE_DAYS = 30;
 
@@ -23,6 +25,8 @@ export default function Transactions() {
   const [showFilters, setShowFilters] = useState(false);
   const [filterAccount, setFilterAccount] = useState('');
   const [filterCategory, setFilterCategory] = useState('');
+  const [filterMonth, setFilterMonth] = useState(''); // 'yyyy-MM' or '' for all
+  const [undo, setUndo] = useState<{ message: string; records: any[] } | null>(null);
   // Days rendered so far; grows as the user scrolls so long histories stay fast
   const [visibleDays, setVisibleDays] = useState(PAGE_DAYS);
 
@@ -42,27 +46,61 @@ export default function Transactions() {
     finally { setLoading(false); setRefreshing(false); }
   };
 
-  useFocusEffect(useCallback(() => { fetchTransactions(); }, []));
+  useFocusEffect(useCallback(() => {
+    fetchTransactions();
+    // A transaction deleted from the edit screen comes back here to offer "Cofnij"
+    const pending = takePendingUndo();
+    if (pending) setUndo(pending);
+  }, []));
 
   const deleteTransaction = (id: string, category: string, isPairedTransfer = false) => {
     Alert.alert('Usuń', isPairedTransfer ? `Usunąć przelew "${category}"? Zostaną usunięte obie strony przelewu.` : `Usunąć transakcję "${category}"?`, [
       { text: 'Anuluj' },
-      { text: 'Usuń', style: 'destructive', onPress: async () => { await transactionsDB.delete(id); fetchTransactions(); } },
+      { text: 'Usuń', style: 'destructive', onPress: async () => {
+        const removed = await transactionsDB.delete(id);
+        if (removed.length > 0) setUndo({ message: removed.length > 1 ? 'Usunięto przelew' : `Usunięto: ${category}`, records: removed });
+        fetchTransactions();
+      } },
     ]);
   };
 
+  const handleUndo = async () => {
+    if (!undo) return;
+    const records = undo.records;
+    setUndo(null);
+    await transactionsDB.restore(records);
+    fetchTransactions();
+  };
+
+  const query = searchQuery.trim().toLowerCase();
   const filtered = transactions
     .filter(t => {
       if (filter === 'transfer') return t.is_transfer;
       if (filter === 'all') return true;
       return t.type === filter && !t.is_transfer;
     })
-    .filter(t => !searchQuery || 
-      t.category.toLowerCase().includes(searchQuery.toLowerCase()) || 
-      (t.description || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-      t.amount.toString().includes(searchQuery))
+    .filter(t => !query ||
+      t.category.toLowerCase().includes(query) ||
+      (t.subcategory || '').toLowerCase().includes(query) ||
+      (t.description || '').toLowerCase().includes(query) ||
+      (t.tags || []).some((tag: string) => tag.toLowerCase().includes(query.replace(/^#/, ''))) ||
+      t.amount.toString().includes(query))
     .filter(t => !filterAccount || t.account_id === filterAccount)
-    .filter(t => !filterCategory || t.category === filterCategory);
+    .filter(t => !filterCategory || t.category === filterCategory)
+    .filter(t => !filterMonth || format(new Date(t.date), 'yyyy-MM') === filterMonth);
+
+  // Months that have any transactions, newest first (transactions are already sorted by date)
+  const months = [...new Set(transactions.map(t => format(new Date(t.date), 'yyyy-MM')))];
+
+  // Category chips follow the type tab, so income and expense names don't get mixed up
+  const categoryNames = [...new Set(categories
+    .filter(c => filter === 'all' || filter === 'transfer' || c.type === filter)
+    .map(c => c.name))];
+
+  const hiddenFiltersActive = !!(filterAccount || filterCategory || filterMonth);
+
+  const categoryByKey: Record<string, any> = {};
+  categories.forEach(c => { categoryByKey[`${c.type}|${c.name}`] = c; });
 
   const getAccountName = (id: string) => accounts.find(a => a.id === id)?.name || '';
 
@@ -76,7 +114,7 @@ export default function Transactions() {
   const allSections = Object.entries(grouped).map(([date, items]) => ({ date, items }));
   const sections = allSections.slice(0, visibleDays);
 
-  const clearFilters = () => { setFilterAccount(''); setFilterCategory(''); setSearchQuery(''); };
+  const clearFilters = () => { setFilterAccount(''); setFilterCategory(''); setFilterMonth(''); setSearchQuery(''); };
 
   if (loading) return <View style={s.loading}><ActivityIndicator size="large" color="#D4AF37" /></View>;
 
@@ -93,7 +131,7 @@ export default function Transactions() {
         <View style={s.searchContainer}>
           <Ionicons name="search" size={18} color="#9B8B7E" />
           <TextInput style={s.searchInput} value={searchQuery} onChangeText={setSearchQuery}
-            placeholder="Szukaj po kategorii lub opisie..." placeholderTextColor="#9B8B7E" autoFocus />
+            placeholder="Szukaj: kategoria, opis, tag, kwota..." placeholderTextColor="#9B8B7E" autoFocus />
           {searchQuery ? <TouchableOpacity onPress={() => setSearchQuery('')}><Ionicons name="close-circle" size={18} color="#9B8B7E" /></TouchableOpacity> : null}
         </View>
       )}
@@ -108,11 +146,25 @@ export default function Transactions() {
         ))}
         <TouchableOpacity style={[s.filterToggle, showFilters && s.filterToggleActive]} onPress={() => setShowFilters(!showFilters)}>
           <Ionicons name="options" size={18} color={showFilters ? '#FFF' : '#6B5D52'} />
+          {hiddenFiltersActive && !showFilters && <View style={s.filterDot} />}
         </TouchableOpacity>
       </View>
 
       {showFilters && (
         <View style={s.filtersPanel}>
+          <View style={s.filterSection}>
+            <Text style={s.filterLabel}>Miesiąc</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.monthChips}>
+              <TouchableOpacity style={[s.chip, !filterMonth && s.chipActive]} onPress={() => setFilterMonth('')}>
+                <Text style={[s.chipText, !filterMonth && s.chipTextActive]}>Wszystkie</Text>
+              </TouchableOpacity>
+              {months.map(m => (
+                <TouchableOpacity key={m} style={[s.chip, filterMonth === m && s.chipActive]} onPress={() => setFilterMonth(filterMonth === m ? '' : m)}>
+                  <Text style={[s.chipText, filterMonth === m && s.chipTextActive]}>{format(new Date(m + '-01T12:00:00'), 'LLLL yyyy', { locale: pl })}</Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
           <View style={s.filterSection}>
             <Text style={s.filterLabel}>Konto</Text>
             <View style={s.filterChips}>
@@ -132,14 +184,14 @@ export default function Transactions() {
               <TouchableOpacity style={[s.chip, !filterCategory && s.chipActive]} onPress={() => setFilterCategory('')}>
                 <Text style={[s.chipText, !filterCategory && s.chipTextActive]}>Wszystkie</Text>
               </TouchableOpacity>
-              {[...new Set(categories.map(c => c.name))].map(catName => (
+              {categoryNames.map(catName => (
                 <TouchableOpacity key={catName} style={[s.chip, filterCategory === catName && s.chipActive]} onPress={() => setFilterCategory(filterCategory === catName ? '' : catName)}>
                   <Text style={[s.chipText, filterCategory === catName && s.chipTextActive]}>{catName}</Text>
                 </TouchableOpacity>
               ))}
             </View>
           </View>
-          {(filterAccount || filterCategory) && (
+          {hiddenFiltersActive && (
             <TouchableOpacity style={s.clearFiltersBtn} onPress={clearFilters}>
               <Ionicons name="close-circle" size={16} color="#800020" />
               <Text style={s.clearFiltersText}>Wyczyść filtry</Text>
@@ -168,12 +220,16 @@ export default function Transactions() {
                 </Text>
               ) : null;
             })()}
-            {section.items.map(item => (
+            {section.items.map(item => {
+              const cat = item.is_transfer ? null : categoryByKey[`${item.type}|${item.category}`];
+              const iconName = item.is_transfer ? 'swap-horizontal' : cat?.icon || (item.type === 'income' ? 'arrow-down' : 'arrow-up');
+              const iconColor = item.is_transfer ? '#2196F3' : cat?.color || (item.type === 'income' ? '#2C5F2D' : '#800020');
+              return (
               <TouchableOpacity key={item.id} style={s.txItem}
                 onPress={() => router.push(`/add-transaction?edit=${item.id}&type=${item.type}&amount=${item.amount}&category=${encodeURIComponent(item.category)}&description=${encodeURIComponent(item.description || '')}&account_id=${item.account_id || ''}&credit_id=${item.credit_id || ''}&date=${item.date}`)}
                 onLongPress={() => deleteTransaction(item.id, item.category, !!item.transfer_id)}>
-                <View style={[s.txIcon, { backgroundColor: item.is_transfer ? '#2196F315' : item.type === 'income' ? '#2C5F2D15' : '#80002015' }]}>
-                  <Ionicons name={item.is_transfer ? 'swap-horizontal' : item.type === 'income' ? 'arrow-down' : 'arrow-up'} size={20} color={item.is_transfer ? '#2196F3' : item.type === 'income' ? '#2C5F2D' : '#800020'} />
+                <View style={[s.txIcon, { backgroundColor: iconColor + '18' }]}>
+                  <Ionicons name={iconName as any} size={20} color={iconColor} />
                 </View>
                 <View style={s.txDetails}>
                   <Text style={s.txCategory}>{item.category}{item.subcategory ? ` → ${item.subcategory}` : ''}</Text>
@@ -189,15 +245,26 @@ export default function Transactions() {
                   {item.credit_id && <View style={s.creditBadge}><Text style={s.creditBadgeText}>Rata</Text></View>}
                 </View>
               </TouchableOpacity>
-            ))}
+              );
+            })}
           </View>
         )}
         contentContainerStyle={s.list}
       />
 
-      <TouchableOpacity style={s.fab} onPress={() => router.push('/add-transaction')}>
-        <Ionicons name="add" size={32} color="#FFF" />
-      </TouchableOpacity>
+      {!undo && (
+        <TouchableOpacity style={s.fab} onPress={() => router.push('/add-transaction')}>
+          <Ionicons name="add" size={32} color="#FFF" />
+        </TouchableOpacity>
+      )}
+
+      <Snackbar
+        visible={!!undo}
+        message={undo?.message || ''}
+        actionLabel="Cofnij"
+        onAction={handleUndo}
+        onDismiss={() => setUndo(null)}
+      />
     </View>
   );
 }
@@ -216,6 +283,8 @@ const s = StyleSheet.create({
   filterTextActive: { color: '#FFF' },
   filterToggle: { padding: 10, borderRadius: 8, backgroundColor: '#FFF', alignItems: 'center', justifyContent: 'center' },
   filterToggleActive: { backgroundColor: '#A8862B' },
+  filterDot: { position: 'absolute', top: 5, right: 5, width: 8, height: 8, borderRadius: 4, backgroundColor: '#800020' },
+  monthChips: { gap: 6, paddingRight: 8 },
   filtersPanel: { backgroundColor: '#FFF', marginHorizontal: 20, marginBottom: 8, padding: 16, borderRadius: 12 },
   filterSection: { marginBottom: 12 },
   filterLabel: { fontSize: 12, fontWeight: '600', color: '#9B8B7E', marginBottom: 8, textTransform: 'uppercase' },

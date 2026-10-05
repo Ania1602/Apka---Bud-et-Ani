@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -12,7 +12,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
-import { categoriesDB } from '../lib/database';
+import { categoriesDB, LOCKED_CATEGORY_NAMES } from '../lib/database';
 
 const COLORS = ['#800020', '#E53935', '#FF6B6B', '#C62828', '#FF8C00', '#FFB74D', '#E65100', '#D4AF37', '#FFD600', '#FFF176', '#2C5F2D', '#4CAF50', '#81C784', '#00897B', '#1B2845', '#2196F3', '#42A5F5', '#0288D1', '#9C27B0', '#673AB7', '#BA68C8', '#E91E63', '#F48FB1', '#607D8B', '#9E9E9E', '#455A64'];
 
@@ -25,37 +25,65 @@ const ICONS = [
   'laptop', 'leaf', 'library', 'people', 'pizza',
   'receipt', 'ribbon', 'rocket', 'star', 'trending-up',
   'trophy', 'wallet', 'water', 'wine', 'pricetag',
+  'ellipsis-horizontal', 'swap-horizontal',
 ];
 
 export default function AddCategory() {
   const params = useLocalSearchParams();
   const isEdit = !!params.edit;
   const editId = params.edit as string;
-  
-  const [name, setName] = useState(params.name ? decodeURIComponent(params.name as string) : '');
+
+  const [name, setName] = useState('');
+  const [originalName, setOriginalName] = useState('');
   const [type, setType] = useState<'income' | 'expense'>((params.type as any) || 'expense');
-  const [color, setColor] = useState(params.color ? decodeURIComponent(params.color as string) : '#D4AF37');
-  const [icon, setIcon] = useState(params.icon ? decodeURIComponent(params.icon as string) : 'pricetag');
+  const [color, setColor] = useState('#D4AF37');
+  const [icon, setIcon] = useState('pricetag');
   const [loading, setLoading] = useState(false);
+  const [loadingCategory, setLoadingCategory] = useState(isEdit);
+
+  // System categories are referenced by name in code, so only their look can change
+  const nameLocked = isEdit && LOCKED_CATEGORY_NAMES.includes(originalName);
+
+  useEffect(() => {
+    if (!isEdit) return;
+    categoriesDB.getById(editId).then((cat: any) => {
+      if (cat) {
+        setName(cat.name);
+        setOriginalName(cat.name);
+        setType(cat.type);
+        setColor(cat.color || '#D4AF37');
+        setIcon(cat.icon || 'pricetag');
+      }
+      setLoadingCategory(false);
+    });
+  }, [editId]);
 
   const handleSubmit = async () => {
-    if (!name) {
+    const trimmed = name.trim();
+    if (!trimmed) {
       alert('Proszę wpisać nazwę kategorii');
       return;
     }
 
     setLoading(true);
     try {
+      const existing = await categoriesDB.getAll(type);
+      const duplicate = existing.some((c: any) => c.id !== editId && c.name.trim().toLowerCase() === trimmed.toLowerCase());
+      if (duplicate) {
+        alert(`Kategoria "${trimmed}" już istnieje`);
+        return;
+      }
+
       if (isEdit) {
+        // Type stays fixed: existing transactions keep their type
         await categoriesDB.update(editId, {
-          name,
-          type,
+          name: nameLocked ? originalName : trimmed,
           icon,
           color,
         });
       } else {
         await categoriesDB.create({
-          name,
+          name: trimmed,
           type,
           icon,
           color,
@@ -83,25 +111,45 @@ export default function AddCategory() {
         <View style={{ width: 28 }} />
       </View>
 
-      <ScrollView style={styles.content}>
+      {loadingCategory ? (
+        <View style={styles.loadingBox}><ActivityIndicator size="large" color="#D4AF37" /></View>
+      ) : (
+      <ScrollView style={styles.content} keyboardShouldPersistTaps="handled">
         <View style={styles.form}>
+          <View style={styles.preview}>
+            <View style={[styles.previewIcon, { backgroundColor: color + '20' }]}>
+              <Ionicons name={icon as any} size={28} color={color} />
+            </View>
+            <Text style={styles.previewName} numberOfLines={1}>{name.trim() || 'Nazwa kategorii'}</Text>
+          </View>
+
           <View style={styles.field}>
             <Text style={styles.label}>Nazwa Kategorii</Text>
             <TextInput
-              style={styles.input}
+              style={[styles.input, nameLocked && styles.inputDisabled]}
               value={name}
               onChangeText={setName}
               placeholder="np. Restauracje, Bonusy..."
               placeholderTextColor="#9B8B7E"
+              editable={!nameLocked}
+              autoFocus={!isEdit}
+              maxLength={40}
             />
+            {nameLocked && (
+              <Text style={styles.hint}>To kategoria systemowa — możesz zmienić ikonę i kolor, ale nie nazwę.</Text>
+            )}
+            {isEdit && !nameLocked && name.trim() !== originalName && name.trim() !== '' && (
+              <Text style={styles.hint}>Zmiana nazwy zaktualizuje też istniejące transakcje, budżety i płatności cykliczne.</Text>
+            )}
           </View>
 
           <View style={styles.field}>
             <Text style={styles.label}>Typ</Text>
-            <View style={styles.typeSelector}>
+            <View style={[styles.typeSelector, isEdit && styles.typeSelectorDisabled]}>
               <TouchableOpacity
                 style={[styles.typeButton, type === 'expense' && styles.typeButtonActive]}
                 onPress={() => setType('expense')}
+                disabled={isEdit}
               >
                 <Ionicons name="trending-down" size={20} color={type === 'expense' ? '#FFFFFF' : '#6B5D52'} />
                 <Text style={[styles.typeButtonText, type === 'expense' && styles.typeButtonTextActive]}>
@@ -111,6 +159,7 @@ export default function AddCategory() {
               <TouchableOpacity
                 style={[styles.typeButton, type === 'income' && styles.typeButtonActive]}
                 onPress={() => setType('income')}
+                disabled={isEdit}
               >
                 <Ionicons name="trending-up" size={20} color={type === 'income' ? '#FFFFFF' : '#6B5D52'} />
                 <Text style={[styles.typeButtonText, type === 'income' && styles.typeButtonTextActive]}>
@@ -118,6 +167,7 @@ export default function AddCategory() {
                 </Text>
               </TouchableOpacity>
             </View>
+            {isEdit && <Text style={styles.hint}>Typu istniejącej kategorii nie można zmienić.</Text>}
           </View>
 
           <View style={styles.field}>
@@ -158,12 +208,13 @@ export default function AddCategory() {
           </View>
         </View>
       </ScrollView>
+      )}
 
       <View style={styles.footer}>
         <TouchableOpacity
-          style={[styles.submitButton, loading && styles.submitButtonDisabled]}
+          style={[styles.submitButton, (loading || loadingCategory) && styles.submitButtonDisabled]}
           onPress={handleSubmit}
-          disabled={loading}
+          disabled={loading || loadingCategory}
         >
           {loading ? (
             <ActivityIndicator color="#FFFFFF" />
@@ -227,6 +278,48 @@ const styles = StyleSheet.create({
   typeSelector: {
     flexDirection: 'row',
     gap: 12,
+  },
+  typeSelectorDisabled: {
+    opacity: 0.5,
+  },
+  inputDisabled: {
+    backgroundColor: '#F5F1E8',
+    color: '#6B5D52',
+  },
+  hint: {
+    fontSize: 12,
+    color: '#9B8B7E',
+    marginTop: 8,
+    lineHeight: 17,
+  },
+  loadingBox: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  preview: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+    backgroundColor: '#FFFFFF',
+    padding: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E0D5C7',
+    marginBottom: 28,
+  },
+  previewIcon: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  previewName: {
+    flex: 1,
+    fontSize: 17,
+    fontWeight: '600',
+    color: '#2A2520',
   },
   typeButton: {
     flex: 1,

@@ -16,6 +16,7 @@ import { categoriesDB } from '../lib/database';
 
 export default function Categories() {
   const [categories, setCategories] = useState<any[]>([]);
+  const [usage, setUsage] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -25,8 +26,9 @@ export default function Categories() {
 
   const fetchCategories = async () => {
     try {
-      const data = await categoriesDB.getAll();
+      const [data, counts] = await Promise.all([categoriesDB.getAll(), categoriesDB.getUsageCounts()]);
       setCategories(data);
+      setUsage(counts);
     } catch (error) {
       console.error('Error fetching categories:', error);
     } finally {
@@ -89,6 +91,7 @@ export default function Categories() {
     const isExpanded = expandedId === cat.id;
     const subs = cat.subcategories || [];
     const isAddingSub = addingSubTo === cat.id;
+    const txCount = usage[`${cat.type}|${cat.name}`] || 0;
 
     return (
       <View key={cat.id} style={styles.catBlock}>
@@ -101,21 +104,26 @@ export default function Categories() {
             <Ionicons name={(cat.icon || 'pricetag') as any} size={22} color={cat.color} />
           </View>
           <View style={styles.categoryInfo}>
-            <Text style={styles.categoryName}>{cat.name}</Text>
-            {subs.length > 0 && <Text style={styles.subCount}>{subs.length} podkat.</Text>}
-            {cat.is_default && <Text style={styles.defaultBadge}>Domyslna</Text>}
+            <View style={styles.categoryNameRow}>
+              <Text style={styles.categoryName} numberOfLines={1}>{cat.name}</Text>
+              {cat.is_default && <Text style={styles.defaultBadge}>Domyślna</Text>}
+            </View>
+            <Text style={styles.categoryMeta}>
+              {txCount === 0 ? 'Brak transakcji' : `${txCount} transakcji`}
+              {subs.length > 0 ? ` · ${subs.length} podkat.` : ''}
+            </Text>
           </View>
           <Ionicons name={isExpanded ? 'chevron-up' : 'chevron-down'} size={18} color="#9B8B7E" />
-          {!cat.is_default && (
-            <View style={styles.actionButtons}>
-              <TouchableOpacity onPress={() => router.push(`/add-category?edit=${cat.id}&name=${encodeURIComponent(cat.name)}&type=${cat.type}&color=${encodeURIComponent(cat.color)}&icon=${encodeURIComponent(cat.icon || 'pricetag')}`)} style={styles.editButton}>
-                <Ionicons name="pencil" size={16} color="#D4AF37" />
-              </TouchableOpacity>
-              <TouchableOpacity onPress={() => deleteCategory(cat.id, cat.name, cat.is_default)} style={styles.deleteButton}>
+          <View style={styles.actionButtons}>
+            <TouchableOpacity onPress={() => router.push(`/add-category?edit=${cat.id}`)} style={styles.editButton} hitSlop={6}>
+              <Ionicons name="pencil" size={16} color="#D4AF37" />
+            </TouchableOpacity>
+            {!cat.is_default && (
+              <TouchableOpacity onPress={() => deleteCategory(cat.id, cat.name, cat.is_default)} style={styles.deleteButton} hitSlop={6}>
                 <Ionicons name="trash-outline" size={16} color="#800020" />
               </TouchableOpacity>
-            </View>
-          )}
+            )}
+          </View>
         </TouchableOpacity>
 
         {isExpanded && (
@@ -231,9 +239,10 @@ const styles = StyleSheet.create({
   catBlock: { marginBottom: 8 },
   categoryItem: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFFFFF', padding: 14, borderRadius: 12, borderWidth: 1, borderColor: '#E0D5C7' },
   categoryIcon: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', marginRight: 12 },
-  categoryInfo: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8 },
-  categoryName: { fontSize: 15, fontWeight: '500', color: '#2A2520' },
-  subCount: { fontSize: 11, color: '#9B8B7E', backgroundColor: '#F5F1E8', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6, overflow: 'hidden' },
+  categoryInfo: { flex: 1, gap: 2 },
+  categoryNameRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  categoryName: { fontSize: 15, fontWeight: '500', color: '#2A2520', flexShrink: 1 },
+  categoryMeta: { fontSize: 12, color: '#9B8B7E' },
   defaultBadge: { fontSize: 11, color: '#2C5F2D', backgroundColor: '#2C5F2D20', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, fontWeight: '500', overflow: 'hidden' },
   actionButtons: { flexDirection: 'row', gap: 4, marginLeft: 8 },
   editButton: { padding: 6 },
